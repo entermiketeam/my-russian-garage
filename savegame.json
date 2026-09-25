@@ -1,0 +1,425 @@
+{
+ "player": {
+  "x": 331.7730458788018,
+  "y": 313.6494867197569,
+  "in_car": false,
+  "money": 141.0,
+  "hunger": 41.228307462501036,
+  "thirst": 0.0,
+  "energy": 100,
+  "hygiene": 16.66334275000105,
+  "health": 68.99023950000364,
+  "drunk": 0.0,
+  "inventory": [
+   {
+    "id": "toolbox",
+    "cond": 100
+   },
+   {
+    "id": "ae_belt",
+    "cond": 6.0
+   },
+   {
+    "id": "ae_tire",
+    "cond": 3.0
+   }
+  ]
+ },
+ "cars": {
+  "vaz": {
+   "model": "vaz2102",
+   "x": 380.83008289804485,
+   "y": 298.0282815669615,
+   "angle": 4.807919698753604,
+   "gear": 1,
+   "choke": false,
+   "lights": false,
+   "temp": 11.0,
+   "fuel": 23.256107867947126,
+   "oil": 3.473559153139747,
+   "oil_quality": 58.39761575199751,
+   "coolant": 9.0,
+   "brake_fluid": 80.0,
+   "battery_charge": 66.75175164074368,
+   "odometer": 187345.97799395947,
+   "registered": true,
+   "tuv_until": 200,
+   "parts": {
+    "engine": {
+     "id": "engine",
+     "cond": 52.71841158980054
+    },
+    "battery": {
+     "id": "battery",
+     "cond": 70.0
+    },
+    "plugs": {
+     "id": "plugs",
+     "cond": 59.27056907825777
+    },
+    "distributor": {
+     "id": "distributor",
+     "cond": 59.879821181400885
+    },
+    "carb": {
+     "id": "carb",
+     "cond": 54.91988078759762
+    },
+    "fuel_pump": {
+     "id": "fuel_pump",
+     "cond": 64.91988078759769
+    },
+    "fuel_filter": {
+     "id": "fuel_filter",
+     "cond": 49.79970196900197
+    },
+    "air_filter": {
+     "id": "air_filter",
+     "cond": 44.75964236279942
+    },
+    "starter": {
+     "id": "starter",
+     "cond": 58.87069228
+    },
+    "alternator": {
+     "id": "alternator",
+     "cond": 64.87982118139874
+    },
+    "belt": {
+     "id": "belt",
+     "cond": 54.67952315039615
+    },
+    "radiator": {
+     "id": "radiator",
+     "cond": 42.25557925946424
+    },
+    "clutch": {
+     "id": "clutch",
+     "cond": 54.51713053594434
+    },
+    "brakes_f": {
+     "id": "brakes_f",
+     "cond": 43.72597853104978
+    },
+    "brakes_r": {
+     "id": "brakes_r",
+     "cond": 44.25682080977905
+    },
+    "shocks": {
+     "id": "shocks",
+     "cond": 34.92044012078806
+    },
+    "exhaust": {
+     "id": "exhaust",
+     "cond": 32.4573395325078
+    },
+    "lights": {
+     "id": "lights",
+     "cond": 16.754241078188066
+    },
+    "tire_fl": {
+     "id": "tire",
+     "cond": 49.21684084157664
+    },
+    "tire_fr": {
+     "id": "tire",
+     "cond": 44.21684084157664
+    },
+    "tire_rl": {
+     "id": "tire",
+     "cond": 54.21684084157664
+    },
+    "tire_rr": {
+     "id": "tire",
+     "cond": 47.21684084157664
+    }
+   },
+   "rust": {
+    "sill_l": 81.19563415309048,
+    "sill_r": 66.87143938393422,
+    "floor": 60.73249876858414,
+    "arch_f": 62.04021142034029,
+    "arch_r": 84.26510446076684,
+    "fender": 53.854957266537305,
+    "doors": 58.9707411126634,
+    "tailgate": 71.98722323006113
+   },
+   "painted": {
+    "sill_l": false,
+    "sill_r": false,
+    "floor": false,
+    "arch_f": false,
+    "arch_r": false,
+    "fender": false,
+    "doors": false,
+    "tailgate": false
+   }
+  },
+  "ae86": {
+   "model": "ae86",
+   "x": 362.89865823057903,
+   "y": 312.15706885112195,
+   "angle": 3.06777041275927,
+   "gear": 0,
+   "choke": false,
+   "lights": false,
+   "temp": 11.0,
+   "fuel": 0.0,
+   "oil": 1.2,
+   "oil_quality": 10.0,
+   "coolant": 1.0,
+   "brake_fluid": 30.0,
+   "battery_charge": 0.0,
+   "odometer": 212480.0,
+   "registered": false,
+   "tuv_until": -1,
+   "parts": {
+    "engine": {
+     "id": "ae_engine",
+     "cond": 15.0
+    },
+    "battery": null,
+    "plugs": {
+     "id": "ae_plugs",
+     "cond": 10.0
+    },
+    "distributor": {
+     "id": "ae_distributor",
+     "cond": 40.0
+    },
+    "carb": {
+     "id": "ae_injectors",
+     "cond": 25.0
+    },
+    "fuel_pump": {
+     "id": "ae_fuel_pump",
+     "cond": 15.0
+    },
+    "fuel_filter": {
+     "id": "ae_fuel_filter",
+     "cond": 5.0
+    },
+    "air_filter": {
+     "id": "ae_air_filter",
+     "cond": 5.0
+    },
+    "starter": {
+     "id": "ae_starter",
+     "cond": 35.0
+    },
+    "alternator": {
+     "id": "ae_alternator",
+     "cond": 40.0
+    },
+    "belt": {
+     "id": "ae_belt",
+     "cond": 100.0
+    },
+    "radiator": {
+     "id": "ae_radiator",
+     "cond": 20.0
+    },
+    "clutch": {
+     "id": "ae_clutch",
+     "cond": 25.0
+    },
+    "brakes_f": {
+     "id": "ae_brakes_f",
+     "cond": 10.0
+    },
+    "brakes_r": {
+     "id": "ae_brakes_r",
+     "cond": 8.0
+    },
+    "shocks": {
+     "id": "ae_shocks",
+     "cond": 15.0
+    },
+    "exhaust": null,
+    "lights": {
+     "id": "ae_lights",
+     "cond": 15.0
+    },
+    "tire_fl": {
+     "id": "ae_tire",
+     "cond": 20.0
+    },
+    "tire_fr": {
+     "id": "ae_tire",
+     "cond": 100.0
+    },
+    "tire_rl": {
+     "id": "ae_tire",
+     "cond": 15.0
+    },
+    "tire_rr": {
+     "id": "ae_tire",
+     "cond": 100.0
+    }
+   },
+   "rust": {
+    "sill_l": 85.31042407762199,
+    "sill_r": 79.17054700391665,
+    "floor": 70.98404423898008,
+    "arch_f": 63.82085431966093,
+    "arch_r": 91.4503011513212,
+    "fender": 57.68097724595847,
+    "doors": 51.54110017225708,
+    "tailgate": 75.07729562144901
+   },
+   "painted": {
+    "sill_l": false,
+    "sill_r": false,
+    "floor": false,
+    "arch_f": false,
+    "arch_r": false,
+    "fender": false,
+    "doors": false,
+    "tailgate": false
+   }
+  }
+ },
+ "owned": {
+  "vaz": true,
+  "ae86": true
+ },
+ "cur": "ae86",
+ "goal_done": false,
+ "minutes": 3300.0,
+ "wrecks": [
+  {
+   "id": 1,
+   "model": "golf",
+   "name": "VW Golf I",
+   "x": 830,
+   "y": 1417,
+   "angle": 0.17075548224113346,
+   "len": 3.72,
+   "wid": 1.61,
+   "mass": 805,
+   "price": 67.11,
+   "rust": 0.8621914662874672,
+   "seed": 4080
+  },
+  {
+   "id": 2,
+   "model": "golf",
+   "name": "VW Golf I",
+   "x": 317,
+   "y": 1090,
+   "angle": 4.912839226260001,
+   "len": 3.72,
+   "wid": 1.61,
+   "mass": 805,
+   "price": 66.12,
+   "rust": 0.5356150579409067,
+   "seed": 8908
+  },
+  {
+   "id": 3,
+   "model": "trabant",
+   "name": "Trabant 601",
+   "x": 1180,
+   "y": 1417,
+   "angle": -0.1253346427786567,
+   "len": 3.56,
+   "wid": 1.51,
+   "mass": 620,
+   "price": 35.07,
+   "rust": 0.5001416150777783,
+   "seed": 6380
+  },
+  {
+   "id": 4,
+   "model": "trabant",
+   "name": "Trabant 601",
+   "x": 307.86885439398145,
+   "y": 954.3655001390688,
+   "angle": -1.6062205547492219,
+   "len": 3.56,
+   "wid": 1.51,
+   "mass": 620,
+   "price": 36.9,
+   "rust": 0.46968457790264834,
+   "seed": 29
+  },
+  {
+   "id": 5,
+   "model": "w123",
+   "name": "Mercedes W123",
+   "x": 1320,
+   "y": 1393,
+   "angle": -0.24734343137794595,
+   "len": 4.72,
+   "wid": 1.79,
+   "mass": 1400,
+   "price": 125.4,
+   "rust": 0.4912210433172008,
+   "seed": 2727
+  },
+  {
+   "id": 6,
+   "model": "taunus",
+   "name": "Ford Taunus",
+   "x": 1770,
+   "y": 293,
+   "angle": 0.20399154450627893,
+   "len": 4.34,
+   "wid": 1.7,
+   "mass": 1100,
+   "price": 79.27,
+   "rust": 0.8848939036026434,
+   "seed": 3258
+  }
+ ],
+ "wreck_id": 6,
+ "weather": "rain",
+ "weather_timer": 192.54767795131778,
+ "last_day": 2,
+ "last_mama": -10,
+ "stats": {
+  "deliveries": 0,
+  "shifts": 0,
+  "scrapped": 0,
+  "km_start": 187342.0,
+  "day_goal": null
+ },
+ "schrott_stock": [
+  {
+   "id": "carb",
+   "cond": 41.7,
+   "price": 33.79
+  },
+  {
+   "id": "battery",
+   "cond": 24.0,
+   "price": 11.87
+  },
+  {
+   "id": "lights",
+   "cond": 25.2,
+   "price": 6.8
+  },
+  {
+   "id": "tire",
+   "cond": 23.2,
+   "price": 5.74
+  },
+  {
+   "id": "exhaust",
+   "cond": 31.8,
+   "price": 10.74
+  },
+  {
+   "id": "plugs",
+   "cond": 43.9,
+   "price": 3.16
+  },
+  {
+   "id": "metal",
+   "cond": 100,
+   "price": 6.0
+  }
+ ],
+ "schrott_day": 0
+}
