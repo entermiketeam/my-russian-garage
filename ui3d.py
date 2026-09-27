@@ -1,5 +1,7 @@
 """Интерфейс 3D-версии (Ursina camera.ui): HUD, приборка, меню, карта, уведомления."""
 import math
+
+from places import INTERIOR_X
 import random
 
 from ursina import Entity, Text, camera, color, window, Vec3, destroy
@@ -127,21 +129,40 @@ class HUD:
         self.flash_a = max(0.0, self.flash_a - dt * 2.5)
         self.flash.color = color.rgba(255, 255, 255, int(220 * self.flash_a))
         self.fade.color = color.rgba(0, 0, 0, int(255 * self.fade_a))
-        # дождь
-        raining = state.get("rain", False) and visible
-        for d in self.rain:
-            d.enabled = raining
-            if raining:
-                d.y -= dt * 1.6
-                d.x -= dt * 0.1
-                if d.y < -0.55:
-                    d.y = 0.55
-                    d.x = random.uniform(LEFT, RIGHT)
+        # осадки: снег — медленные хлопья, мокрый снег — косые капли
+        precip = state.get("precip") if visible else None
+        if precip != getattr(self, "_precip", None):
+            self._precip = precip
+            for i, d in enumerate(self.rain):
+                if precip == "snow":
+                    sz = random.uniform(0.003, 0.0075)
+                    d.scale = (sz, sz)
+                    d.color = color.rgba(245, 248, 255, random.randint(130, 220))
+                else:
+                    d.scale = (0.0018, 0.032)
+                    d.color = color.rgba(200, 208, 225, 120)
+        spd = state.get("speed", 0.0)
+        for i, d in enumerate(self.rain):
+            d.enabled = precip is not None
+            if precip is None:
+                continue
+            if precip == "snow":
+                d.y -= dt * (0.16 + (i % 7) * 0.025 + spd * 0.01)
+                d.x += dt * (math.sin(i * 1.7 + d.y * 9) * 0.03 - 0.015)
+            else:
+                d.y -= dt * (1.1 + spd * 0.02)
+                d.x -= dt * 0.12
+            if d.y < -0.55:
+                d.y = 0.55
+                d.x = random.uniform(LEFT, RIGHT)
         if not visible:
             return
-        wth = {"clear": "ясно", "cloudy": "облачно", "rain": "дождь"}[g.weather]
         self._set("time", self.time_t, g.time_str())
-        self._set("place", self.place_t, f"{state['place']}  ·  {wth}, +{9 if g.weather == 'rain' else 12}°C")
+        if g.p.x >= INTERIOR_X:
+            wth = f"под землёй, {g.ambient_temp(g.p.x):+.0f}°C"
+        else:
+            wth = f"{g.weather_text()}, {g.ambient_temp():+.0f}°C"
+        self._set("place", self.place_t, f"{state['place']}  ·  {wth}")
         self._set("money", self.money_t, f"{p.money:.2f} DM")
         self._set("goal", self.goal_t, g.goal_text())
         self.money_t.color = rgb((110, 220, 110) if p.money >= 0 else (220, 70, 60))
@@ -384,7 +405,7 @@ class MapView:
         self.mine_dots = [Entity(parent=self.root, model="circle", scale=0.014, color=color.rgb(90, 200, 230),
                                  z=-0.02, enabled=False) for _ in range(16)]
         self.target = Entity(parent=self.root, model="circle", scale=0.02, color=color.rgb(255, 230, 60), z=-0.02)
-        label("Kleinbruck (Niedersachsen) · красная — вы, жёлтая — ВАЗ, белая — AE86, голубые — ваши находки, серые — брошенные машины (забрать бесплатно) · M/Esc — закрыть",
+        label("Kleinbruck (Niedersachsen) · вы — красная · ВАЗ — жёлтая · AE86 — белая · ваши находки — голубые · брошенные — серые · заброшенные гаражи — коричневые · M/Esc — закрыть",
               0, -0.465, 0.75, parent=self.root, origin=(0, 0))
 
     def _pos(self, x, y):
@@ -392,10 +413,27 @@ class MapView:
 
     def update(self, g):
         self.me.position = (*self._pos(g.p.x, g.p.y), -0.02)
+        if not hasattr(self, "ag_marks"):
+            # заброшенные гаражи: коричневые квадраты с подписью
+            self.ag_marks = {}
+            for ag in g.world.abandoned:
+                gx, gy, gw, gh = ag["rect"]
+                pos = self._pos(gx + gw / 2, gy + gh / 2)
+                sq = Entity(parent=self.root, model="quad", scale=0.018, color=color.rgb(150, 95, 55),
+                            position=(*pos, -0.02))
+                t = label("?", pos[0] + 0.012, pos[1] + 0.01, 0.55, (240, 200, 120), parent=self.root)
+                self.ag_marks[ag["id"]] = (sq, t)
+        for gid, (sq, t) in self.ag_marks.items():
+            gs = g.garages.get(gid, {})
+            name = g.world.abandoned_by_id(gid)["name"]
+            txt = ("? " if not gs.get("open") else "") + ("Заброшенный гараж" if not gs.get("open") else name)
+            if t.text != txt:
+                t.text = txt
+            sq.color = color.rgb(150, 95, 55) if not gs.get("open") else color.rgb(110, 110, 110)
         vaz, ae = g.cars["vaz"], g.cars["ae86"]
         self.car.position = (*self._pos(vaz.x, vaz.y), -0.02)
         self.ae.position = (*self._pos(ae.x, ae.y), -0.02)
-        finds = g.wrecks
+        finds = g.visible_finds()
         mine = [c for k, c in g.owned_cars() if k not in ("vaz", "ae86")]
         for i, dot in enumerate(self.wreck_dots):
             dot.enabled = i < len(finds)

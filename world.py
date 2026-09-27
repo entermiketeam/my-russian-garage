@@ -4,6 +4,8 @@ import random
 import pygame
 
 from config import PPM, GRASS, ROAD, ROAD_LINE, SIDEWALK, WIDTH, HEIGHT, font
+import places as _places
+from places import INTERIOR_X, DEALER_LOT, PARKINGS, TG_ENTRANCES
 
 MAP_W, MAP_H = 1900, 1600
 
@@ -37,20 +39,32 @@ BUILDINGS = {
     "bahnhof": (320, 60, 80, 36, "Bahnhof", (180, 110, 90), (90, 60, 50), None),
     "schrott": (446, 347, 12, 6, "Autoverwertung Kowalski", (120, 125, 110), (80, 80, 78), (452, 354.5)),
     "autohaus": (1110, 318, 56, 26, "Autohaus Krüger — Toyota", (225, 225, 228), (170, 30, 30), (1138, 312.5)),
+    "dealer": (1602, 318, 26, 14, "Gebrauchtwagen Weber — An- & Verkauf", (235, 230, 215), (40, 90, 150), (1615, 316.0)),
 }
 
 AUTOHAUS_LOT = (1170, 316, 30, 26)   # площадка автосалона Toyota (декор)
 PARKING2 = (377, 314, 7, 13)         # второе место у гаража (куда эвакуатор ставит вторую машину)
 
 # Autoverwertung Kowalski — свалка/приём старых машин прямо за гаражом
-JUNKYARD = (380, 344, 80, 56)        # территория за забором
+JUNKYARD = (380, 344, 80, 88)        # территория за забором (расширена: ряды машин-доноров)
 JUNK_LANE = (386, 310, 9, 35)        # проезд от Hauptstraße к воротам (между гаражом и домами)
 SCRAP_DROP = (396, 378, 18, 16)      # площадка приёма лома у пресса
 AE86_SPOT = (446.0, 390.0)           # тут стоит ржавая AE86
-JUNK_FENCES = [(380, 344, 6, 0.3), (395, 344, 65, 0.3), (380, 344, 0.3, 56), (459.7, 344, 0.3, 56),
-               (380, 399.7, 80, 0.3)]
-JUNK_PILES = [(381, 352, 3.5, 22), (381, 378, 3.5, 17), (384, 395.5, 10, 4), (420, 395.5, 14, 4),
-              (452, 358, 6.5, 24), (416, 380, 6, 8)]
+JUNK_FENCES = [(380, 344, 6, 0.3), (395, 344, 65, 0.3), (380, 344, 0.3, 88), (459.7, 344, 0.3, 88),
+               (380, 431.7, 80, 0.3)]
+# Заброшенные гаражи и сараи с забытыми машинами (места подбираются автоматически у дорог)
+ABANDONED_NAMES = [
+    ("Заброшенный гараж деда Хайнца", True),
+    ("Старая Scheune фермера Мёллера", False),
+    ("Бывшая мастерская «Kfz-Meister Brandt»", True),
+    ("Гараж у старой LPG", False),
+    ("Покосившийся гараж у дороги", True),
+    ("Сарай за лесополосой", False),
+]
+AG_W, AG_D = 7.2, 12.0      # ширина и глубина заброшенного гаража (м)
+
+JUNK_PILES = [(381, 352, 3.5, 22), (381, 378, 3.5, 17), (452, 358, 6.5, 24), (452, 398, 6.5, 26),
+              (381, 398, 3.2, 28), (416, 380, 6, 8)]
 
 GARAGE_ZONE = pygame.Rect(0, 0, 0, 0)  # заполняется ниже (в «метрах»)
 GARAGE = (366, 314, 9, 13)
@@ -181,6 +195,7 @@ class World:
         self.solids += GARAGE_WALLS + PUMPS + JUNK_FENCES + JUNK_PILES
         reserved = [b[:4] for b in BUILDINGS.values()] + [GARAGE, PUMP_ZONE, TUV_YARD,
                                                           (360, 310, 38, 36), AUTOHAUS_LOT, JUNKYARD]
+        reserved += _places.reserved_rects()
         # декоративные дома вдоль городских дорог
         roofs = [(150, 70, 55), (130, 55, 45), (95, 90, 95), (160, 85, 60), (110, 60, 50)]
         walls = [(220, 210, 190), (200, 190, 170), (230, 225, 210), (190, 175, 160), (215, 205, 180)]
@@ -217,6 +232,16 @@ class World:
                 pos += hw + gap
         for hh in self.houses:
             self.solids.append(hh[:4])
+        # заброшенные гаражи — до деревьев, чтобы деревья не выросли внутри
+        self.abandoned = self._place_abandoned(reserved)
+        for ag in self.abandoned:
+            self.solids += ag["walls"]
+            reserved.append((ag["rect"][0] - 2, ag["rect"][1] - 2, ag["rect"][2] + 4, ag["rect"][3] + 4))
+            reserved.append(ag["apron"])
+        self.reset_doors()
+        # подземные гаражи (въезды), парковки, площадка Weber — до деревьев
+        self.places = _places.Places(self)
+        reserved += [e["rect"] for e in TG_ENTRANCES] + [pp["rect"] for pp in PARKINGS] + [DEALER_LOT]
         # деревья
         self.trees = []
         tries = 0
@@ -231,6 +256,8 @@ class World:
                 continue
             self.trees.append((tx, ty, r, rng.randint(0, 2)))
         # места у загородных дорог, где бросают старые машины
+        self.nospawn = [pp["rect"] for pp in PARKINGS] + [DEALER_LOT, JUNKYARD] + [e["rect"] for e in TG_ENTRANCES] + \
+            [ag["apron"] for ag in self.abandoned] + [ag["rect"] for ag in self.abandoned]
         self.wreck_spots = []
         for r in ROADS:
             x, y, w, h, kind = r[:5]
@@ -251,6 +278,8 @@ class World:
                     if any(rect_overlap((px - 3, py - 3, 6, 6), s_, 2) for s_ in self.solids):
                         continue
                     if any(math.hypot(px - tx, py - ty) < tr + 3.5 for tx, ty, tr, _ in self.trees):
+                        continue
+                    if any(rect_overlap((px - 3, py - 3, 6, 6), nz, 3) for nz in self.nospawn):
                         continue
                     self.wreck_spots.append((px, py, 0.0 if horiz else math.pi / 2))
 
@@ -303,6 +332,127 @@ class World:
             c.y = a[1] + (b[1] - a[1]) * t
             c.angle = math.atan2(b[1] - a[1], b[0] - a[0])
 
+    # -------------------------------------------------------------- заброшенные гаражи
+    def _place_abandoned(self, reserved):
+        """Ищет места у дорог (подальше от домов и друг от друга) и строит гаражи воротами к дороге."""
+        rng = random.Random(77)
+        cands = []
+        for r in ROADS:
+            x, y, w, h, kind = r[:5]
+            if kind == "autobahn" or r[5] == "Am Wald":
+                continue
+            horiz = w > h
+            length = w if horiz else h
+            for pos in range(30, int(length) - 30, 25):
+                for side in (-1, 1):
+                    if horiz:
+                        gx = x + pos
+                        if side < 0:
+                            rect, door = (gx, y - 8 - AG_D, AG_W, AG_D), "s"
+                        else:
+                            rect, door = (gx, y + h + 8, AG_W, AG_D), "n"
+                    else:
+                        gy = y + pos
+                        if side < 0:
+                            rect, door = (x - 8 - AG_D, gy, AG_D, AG_W), "e"
+                        else:
+                            rect, door = (x + w + 8, gy, AG_D, AG_W), "w"
+                    cands.append((rect, door, r[5]))
+        rng.shuffle(cands)
+        chosen = []
+        blockers = [hh[:4] for hh in self.houses] + list(self.solids) + list(reserved)
+        for rect, door, road in cands:
+            gx, gy, gw, gh = rect
+            if gx < 15 or gy < 15 or gx + gw > MAP_W - 15 or gy + gh > MAP_H - 15:
+                continue
+            if any(rect_overlap(rect, rr[:4], 4) for rr in ROADS):
+                continue
+            if any(rect_overlap(rect, b, 5) for b in blockers):
+                continue
+            cx, cy = gx + gw / 2, gy + gh / 2
+            if any(math.hypot(cx - c["cx"], cy - c["cy"]) < 220 for c in chosen):
+                continue
+            if math.hypot(cx - 370, cy - 320) < 150:      # не у самого дома
+                continue
+            chosen.append({"rect": rect, "door": door, "road": road, "cx": cx, "cy": cy})
+            if len(chosen) >= len(ABANDONED_NAMES):
+                break
+        out = []
+        for i, c in enumerate(chosen):
+            name, locked = ABANDONED_NAMES[i]
+            out.append(self._make_abandoned(f"a{i + 1}", name, locked, c["rect"], c["door"], c["road"]))
+        return out
+
+    @staticmethod
+    def _make_abandoned(gid, name, locked, rect, door, road):
+        gx, gy, gw, gh = rect
+        t = 0.3
+        # стены: две боковые, задняя; ворота — на стороне door
+        if door in ("n", "s"):
+            side_walls = [(gx, gy, t, gh), (gx + gw - t, gy, t, gh)]
+            if door == "n":
+                back = (gx, gy + gh - t, gw, t)
+                door_rect = (gx + t, gy, gw - 2 * t, t)
+                dp = (gx + gw / 2, gy - 1.6)
+                shelf = (gx + 0.5, gy + gh - 1.0, gw - 1.0, 0.6)
+                shelf_pt = (gx + gw / 2, gy + gh - 1.9)
+                angle = -math.pi / 2
+                apron = (gx - 1, gy - 8, gw + 2, 8)
+            else:
+                back = (gx, gy, gw, t)
+                door_rect = (gx + t, gy + gh - t, gw - 2 * t, t)
+                dp = (gx + gw / 2, gy + gh + 1.6)
+                shelf = (gx + 0.5, gy + 0.4, gw - 1.0, 0.6)
+                shelf_pt = (gx + gw / 2, gy + 1.9)
+                angle = math.pi / 2
+                apron = (gx - 1, gy + gh, gw + 2, 8)
+            walls = side_walls + [back]
+        else:
+            side_walls = [(gx, gy, gw, t), (gx, gy + gh - t, gw, t)]
+            if door == "w":
+                back = (gx + gw - t, gy, t, gh)
+                door_rect = (gx, gy + t, t, gh - 2 * t)
+                dp = (gx - 1.6, gy + gh / 2)
+                shelf = (gx + gw - 1.0, gy + 0.5, 0.6, gh - 1.0)
+                shelf_pt = (gx + gw - 1.9, gy + gh / 2)
+                angle = math.pi
+                apron = (gx - 8, gy - 1, 8, gh + 2)
+            else:
+                back = (gx, gy, t, gh)
+                door_rect = (gx + gw - t, gy + t, t, gh - 2 * t)
+                dp = (gx + gw + 1.6, gy + gh / 2)
+                shelf = (gx + 0.4, gy + 0.5, 0.6, gh - 1.0)
+                shelf_pt = (gx + 1.9, gy + gh / 2)
+                angle = 0.0
+                apron = (gx + gw, gy - 1, 8, gh + 2)
+            walls = side_walls + [back]
+        return {"id": gid, "name": name, "locked": locked, "rect": rect, "door": door, "road": road,
+                "walls": walls + [shelf], "door_rect": door_rect, "door_pt": dp, "shelf_pt": shelf_pt,
+                "shelf": shelf, "car_spot": (gx + gw / 2, gy + gh / 2), "car_angle": angle, "apron": apron}
+
+    def reset_doors(self):
+        """Все ворота закрыты (новая игра)."""
+        for ag in self.abandoned:
+            if ag["door_rect"] not in self.solids:
+                self.solids.append(ag["door_rect"])
+
+    def open_door(self, gid):
+        for ag in self.abandoned:
+            if ag["id"] == gid and ag["door_rect"] in self.solids:
+                self.solids.remove(ag["door_rect"])
+
+    def abandoned_by_id(self, gid):
+        for ag in self.abandoned:
+            if ag["id"] == gid:
+                return ag
+        return None
+
+    def abandoned_at(self, x, y):
+        for ag in self.abandoned:
+            if point_in(ag["rect"], x, y):
+                return ag
+        return None
+
     # -------------------------------------------------------------- запросы
     def road_at(self, x, y):
         for r in ROADS:
@@ -319,6 +469,8 @@ class World:
 
     def collide_circle(self, x, y, rad):
         """Возвращает вектор выталкивания (nx, ny, глубина) или None."""
+        if x >= INTERIOR_X - 50:
+            return self._collide_interior(x, y, rad)
         for s in self.solids:
             if x + rad < s[0] or x - rad > s[0] + s[2] or y + rad < s[1] or y - rad > s[1] + s[3]:
                 continue
@@ -347,6 +499,23 @@ class World:
         if y + rad > MAP_H:
             return (0, -1, y + rad - MAP_H)
         return None
+
+    def _collide_interior(self, x, y, rad):
+        for s_ in self.places.interior_solids:
+            if x + rad < s_[0] or x - rad > s_[0] + s_[2] or y + rad < s_[1] or y - rad > s_[1] + s_[3]:
+                continue
+            cx = min(max(x, s_[0]), s_[0] + s_[2])
+            cy = min(max(y, s_[1]), s_[1] + s_[3])
+            dx, dy = x - cx, y - cy
+            d = math.hypot(dx, dy)
+            if d < rad:
+                if d < 1e-6:
+                    return (0.0, -1.0, rad)
+                return (dx / d, dy / d, rad - d)
+        return None
+
+    def level_at(self, x, y):
+        return self.places.level_at(x, y)
 
     def zone_of(self, x, y):
         if point_in(GARAGE, x, y):
@@ -452,6 +621,14 @@ class World:
                 if b[7]:
                     d = R((b[7][0], b[7][1], 0, 0)).topleft
                     pygame.draw.circle(surf, (240, 200, 60), d, 5, 2)
+        # заброшенные гаражи
+        for ag in self.abandoned:
+            if rect_overlap(ag["rect"], view):
+                pygame.draw.rect(surf, (85, 80, 75), R(ag["rect"]))
+                for w in ag["walls"]:
+                    pygame.draw.rect(surf, (120, 100, 85), R(w))
+                if ag["door_rect"] in self.solids:
+                    pygame.draw.rect(surf, (140, 70, 40), R(ag["door_rect"]))
         # гараж
         for w in GARAGE_WALLS:
             if rect_overlap(w, view):

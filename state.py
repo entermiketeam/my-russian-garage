@@ -16,13 +16,22 @@ YELLOW = (240, 200, 60)
 from car import Car
 from world import World, BUILDINGS, GARAGE, AE86_SPOT, SCRAP_DROP, point_in
 from items import ITEMS, item_name
-from models import MODELS
+from models import MODELS, model_info
+from places import JUNK_SPOTS, DEALER_SPOTS, DEALER_SELL, INTERIOR_X
+import winter as _winter
 
-START_DATE = datetime.datetime(1998, 10, 1, 0, 0)  # четверг
+START_DATE = datetime.datetime(1998, 12, 1, 0, 0)  # вторник, начало зимы
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-RENT = 105.0
+RENT = 0.0                # квартира своя — квартплаты нет (оставлено для совместимости)
+START_MONEY = 3000.0      # стартовый баланс новой игры
 INSURANCE = 24.0
+# стоимость машины в хорошем состоянии (DM, рынок подержанных машин 1998)
+BASE_VALUE = {"vaz2102": 900, "ae86": 4500, "trabant": 500, "wartburg": 800, "moskvich": 700, "kadett": 1200,
+              "golf": 1700, "taunus": 1300, "w123": 3200, "volvo240": 2600, "bmw_e21": 2200, "audi80": 1600}
+WEATHER_RU = {"clear": "ясно", "cloudy": "облачно", "snow": "снегопад", "sleet": "мокрый снег", "rain": "мокрый снег"}
+PART_KINDS = ["door_l", "door_r", "hood", "trunk", "seats", "lights", "tire_fl", "tire_fr", "tire_rl", "tire_rr",
+              "engine", "gearbox", "battery", "alternator", "starter", "carb", "radiator", "exhaust", "glass"]
 AE86_PRICE = 0.0          # Ковальский отдаёт AE86 бесплатно — лишь бы забрали со свалки
 ROPE_LEN = 4.0
 ROPE_SNAP_KMH = 55
@@ -53,6 +62,7 @@ OPEN_HOURS = {
     "schrott": hours((7, 19), (7, 16)),
     "lager": hours((6, 18)),
     "tanke": hours((0, 24), (0, 24), (0, 24)),
+    "dealer": hours((9, 18), (9, 14)),
 }
 
 
@@ -60,7 +70,7 @@ class Player:
     def __init__(self):
         self.x, self.y = 330.0, 311.0
         self.in_car = False
-        self.money = 420.0
+        self.money = START_MONEY
         self.hunger = 70.0
         self.thirst = 60.0
         self.energy = 85.0
@@ -85,6 +95,7 @@ class Player:
 class GameState:
     def __init__(self):
         self.world = World()
+        self.winter = _winter.Winter(self.world)
         self.t = 0.0
         self.new_state()
 
@@ -107,7 +118,7 @@ class GameState:
         self.cur = "vaz"
         self.goal_done = False
         self.minutes = 8 * 60.0
-        self.weather = "cloudy"
+        self.weather = "snow"
         self.weather_timer = 180.0
         self.last_day = 0
         self.last_mama = -10
@@ -123,6 +134,20 @@ class GameState:
         self.stats = {"deliveries": 0, "shifts": 0, "scrapped": 0, "km_start": self.car.odometer, "day_goal": None}
         self.wreck_id = 0
         self.tow = None      # {"kind": "car", "key": ..., "by": ключ машины-тягача}
+        self.garages = {}    # заброшенные гаражи: id -> {"open", "looted", "loot"}
+        self.world.reset_doors()
+        grng = random.Random(1979)
+        for ag in self.world.abandoned:
+            self.spawn_barn_find(ag, grng)
+        self.loose = []      # детали, лежащие на земле: {"id", "cond", "x", "y", "place"}
+        self.dealer = {"stock": {}, "restock": 7}
+        self.spawn_junkyard(random.Random(401))
+        self.spawn_underground(random.Random(402))
+        self.spawn_parkings(random.Random(403))
+        self.spawn_dealer_stock(random.Random(404))
+        self.regrow_acc = 0.0
+        if hasattr(self, "winter"):
+            self.winter.slush = _winter.SlushField(self.world)
         rng = random.Random(5)
         first = ["trabant", "kadett", "golf", "wartburg", "taunus", "w123"]
         rng.shuffle(first)
@@ -156,6 +181,310 @@ class GameState:
         self.cars[key] = car
         self.owned[key] = False
         return key
+
+    def spawn_barn_find(self, ag, rng):
+        """Забытая в гараже машина: под крышей — меньше ржавчины и выцветания, зато пыль, спущенные шины,
+        севший аккумулятор. Плюс полки с добычей."""
+        gid = ag["id"]
+        weights = {"w123": 2.0, "taunus": 2.0, "kadett": 1.6, "golf": 1.6, "wartburg": 1.2, "trabant": 1.2}
+        model = rng.choices(list(weights), list(weights.values()))[0]
+        key = "g" + gid
+        car = Car(model, ag["car_spot"][0], ag["car_spot"][1], ag["car_angle"],
+                  rng=random.Random(rng.randint(0, 10 ** 9)), pres=rng.uniform(0.45, 0.9))
+        for pn in car.rust:
+            car.rust[pn] = round(car.rust[pn] * 0.45, 1)
+        car.fade = round(car.fade * 0.4, 2)
+        car.dirt = round(rng.uniform(0.75, 1.0), 2)      # толстый слой пыли
+        car.battery_charge = 0.0
+        car.fuel = round(rng.uniform(0, 1.5), 1)         # бензин выдохся
+        for t in car.tire_list():
+            if car.parts.get(t) and rng.random() < 0.6:
+                car.parts[t]["cond"] = round(rng.uniform(0, 4), 1)   # колёса спустили за годы
+        self.cars[key] = car
+        self.owned[key] = False
+        loot = []
+        slots = list(car.slots.items())
+        for _ in range(rng.randint(2, 4)):
+            sl, (nm, pid, _) = rng.choice(slots)
+            loot.append({"id": pid, "cond": round(rng.uniform(35, 90), 1)})
+        extra = ["oil", "oil", "coolant", "brake_fl", "rope", "metal", "paint", "rust_conv", "jerrycan_old",
+                 "old_radio", "charger", "toolbox"]
+        for _ in range(rng.randint(1, 3)):
+            loot.append({"id": rng.choice(extra), "cond": 100.0})
+        if rng.random() < 0.18:
+            loot.append({"id": "welder", "cond": round(rng.uniform(40, 80), 1)})   # редкая удача
+        self.garages[gid] = {"open": False, "looted": False, "loot": loot}
+        return key
+
+    # ---------------------------------------------------------------- машины новых мест
+    def _new_find(self, key, model, x, y, angle, rng, pres):
+        car = Car(model, x, y, angle, rng=random.Random(rng.randint(0, 10 ** 9)), pres=pres)
+        self.cars[key] = car
+        self.owned[key] = False
+        return car
+
+    @staticmethod
+    def strip_parts(car, rng, frac):
+        """Частично разобранная машина: чего-то нет (двери, капот, колёса, мотор...)."""
+        slots = [sl for sl in PART_KINDS if sl in car.parts]
+        rng.shuffle(slots)
+        for sl in slots[:int(len(slots) * frac)]:
+            car.parts[sl] = None
+
+    def _pick_model(self, rng, extra_vaz=0.0):
+        names = list(MODELS) + (["vaz2102"] if extra_vaz else [])
+        weights = [MODELS[m]["spawn"] for m in MODELS] + ([extra_vaz] if extra_vaz else [])
+        return rng.choices(names, weights)[0]
+
+    def spawn_junkyard(self, rng):
+        """Свалка Ковальского: доноры всех сортов — от трупов до почти целых."""
+        spots = list(JUNK_SPOTS)
+        rng.shuffle(spots)
+        cats = (["rotten"] * 4 + ["damaged"] * 3 + ["stripped"] * 4 + ["intact"] * 2 + ["donor"] * 3)
+        for i, (x, y, a) in enumerate(spots[:len(cats)]):
+            cat = cats[i]
+            model = self._pick_model(rng, extra_vaz=2.5)
+            pres = {"rotten": rng.uniform(0.03, 0.12), "damaged": rng.uniform(0.2, 0.4), "stripped": rng.uniform(0.25, 0.6),
+                    "intact": rng.uniform(0.6, 0.8), "donor": rng.uniform(0.15, 0.3)}[cat]
+            car = self._new_find(f"j{i + 1}", model, x, y, a, rng, pres)
+            car.snow = round(rng.uniform(0.5, 1.0), 2)
+            if cat == "damaged":
+                L = car.length
+                car.dents += [(round(rng.uniform(0.3, L - 0.3), 2), round(rng.uniform(0.3, 0.8), 2),
+                               round(rng.uniform(0.12, 0.3), 2), rng.choice("lr")) for _ in range(6)]
+                for sl in ("lights", "glass"):
+                    if car.parts.get(sl):
+                        car.parts[sl]["cond"] = round(rng.uniform(0, 12), 1)
+                for pn in ("fender", "arch_f", "doors"):
+                    car.rust[pn] = min(100.0, car.rust[pn] + 15)
+            elif cat == "stripped":
+                self.strip_parts(car, rng, rng.uniform(0.3, 0.6))
+            elif cat == "donor":
+                # кузов — труха, а мотор и коробка живые
+                for sl in ("engine", "gearbox", "carb", "starter", "alternator"):
+                    if car.parts.get(sl):
+                        car.parts[sl]["cond"] = round(rng.uniform(60, 90), 1)
+                for pn in car.rust:
+                    car.rust[pn] = min(100.0, car.rust[pn] + 20)
+            car.junk_cat = cat
+
+    def spawn_underground(self, rng):
+        """Подземные гаражи: МНОГО машин, мало деталей. Под крышей ржавчины меньше, но пыль."""
+        n_cars = 0
+        per_level = {"tg1_1": 13, "tg1_2": 9, "tg2_1": 13, "tg2_2": 7}
+        k = 0
+        for L in self.world.places.levels:
+            bays = list(L["bays"])
+            rng.shuffle(bays)
+            for (x, y, a, _) in bays[:per_level[L["id"]]]:
+                k += 1
+                model = self._pick_model(rng, extra_vaz=1.2)
+                car = self._new_find(f"u{k}", model, x, y, a, rng, rng.uniform(0.45, 0.9))
+                for pn in car.rust:
+                    car.rust[pn] = round(car.rust[pn] * 0.42, 1)
+                car.fade = round(car.fade * 0.35, 2)
+                car.dirt = round(rng.uniform(0.55, 0.95), 2)      # пыль десятилетий
+                car.snow = 0.0
+                car.battery_charge = 0.0
+                for t in car.tire_list():
+                    if car.parts.get(t) and rng.random() < 0.5:
+                        car.parts[t]["cond"] = round(rng.uniform(0, 5), 1)
+                if rng.random() < 0.12:
+                    self.strip_parts(car, rng, rng.uniform(0.15, 0.35))
+                n_cars += 1
+        # деталей заметно меньше, чем машин
+        spots = [sp for sp in self.world.places.loot_spots if sp[2].startswith("tg")]
+        rng.shuffle(spots)
+        for (x, y, place) in spots[:max(3, n_cars // 3)]:
+            self._drop_part(rng, x, y, place, cond=(40, 90))
+
+    def spawn_parkings(self, rng):
+        """Заброшенные парковки: ржавые и полуразобранные машины, детали на земле."""
+        k = 0
+        per = {"p1": 5, "p2": 5, "p3": 4}
+        for P in self.world.places.parkings:
+            bays = list(P["bays"])
+            rng.shuffle(bays)
+            for (x, y, a) in bays[:per[P["id"]]]:
+                k += 1
+                model = self._pick_model(rng, extra_vaz=1.5)
+                car = self._new_find(f"p{k}", model, x, y, a, rng, rng.uniform(0.05, 0.5))
+                car.snow = round(rng.uniform(0.6, 1.0), 2)
+                if rng.random() < 0.55:
+                    self.strip_parts(car, rng, rng.uniform(0.2, 0.55))
+        for (x, y, place) in [sp for sp in self.world.places.loot_spots if sp[2].startswith("p")]:
+            self._drop_part(rng, x, y, place, cond=(15, 70))
+
+    def _drop_part(self, rng, x, y, place, cond=(20, 80)):
+        model = self._pick_model(rng, extra_vaz=1.5)
+        from items import SLOTS_BY_MODEL
+        slots = SLOTS_BY_MODEL[model]
+        sl = rng.choice(["door_l", "door_r", "hood", "trunk", "seats", "engine", "gearbox", "radiator", "exhaust",
+                         "lights", "tire_fl", "battery", "alternator", "starter", "carb", "shocks", "brakes_f", "glass"])
+        pid = slots[sl][1]
+        self.loose.append({"id": pid, "cond": round(rng.uniform(*cond), 1), "x": round(x, 2), "y": round(y, 2),
+                           "place": place, "slot": sl, "rot": round(rng.uniform(0, 6.28), 2)})
+
+    def pickup(self, idx):
+        it = self.loose.pop(idx)
+        self.add_item(it["id"], it["cond"])
+        return it
+
+    def nearest_loose(self, x, y, maxd=1.8):
+        best, bd = None, maxd
+        for i, it in enumerate(self.loose):
+            d = math.hypot(x - it["x"], y - it["y"])
+            if d < bd:
+                best, bd = i, d
+        return best
+
+    # ---------------------------------------------------------------- рынок подержанных машин
+    def car_value(self, car):
+        base = BASE_VALUE.get(car.model, 900)
+        parts = [car.c(sl) for sl in car.slots]
+        missing = sum(1 for sl in car.slots if not car.has(sl))
+        mech = sum(parts) / len(parts)
+        core = 0.6 * car.c("engine") + 0.4 * car.c("gearbox")
+        body = 1.0 - car.max_rust() / 100 * 0.8 - sum(car.rust.values()) / len(car.rust) / 100 * 0.2
+        score = max(0.0, 0.35 * core + 0.3 * body + 0.35 * mech - 0.02 * missing)
+        v = base * (0.12 + 0.88 * score)
+        if car.tuv_until >= self.day:
+            v += 250
+        return max(40.0, round(v / 10) * 10)
+
+    def dealer_price(self, key):
+        return self.dealer["stock"].get(key)
+
+    def dealer_offer(self, key):
+        """Сколько Weber даст за машину игрока."""
+        return max(round(self.scrap_value(key)), round(self.car_value(self.cars[key]) * 0.6 / 10) * 10)
+
+    def spawn_dealer_stock(self, rng, fill_to=8):
+        used = [(c.x, c.y) for k, c in self.cars.items() if k.startswith("s") and k in self.dealer["stock"]]
+        free = [sp for sp in DEALER_SPOTS if all(math.hypot(sp[0] - ux, sp[1] - uy) > 1.5 for ux, uy in used)]
+        rng.shuffle(free)
+        n = fill_to - len(self.dealer["stock"])
+        for (x, y, a) in free[:max(0, n)]:
+            self.dealer["n"] = self.dealer.get("n", 0) + 1
+            key = f"s{self.dealer['n']}"
+            model = self._pick_model(rng, extra_vaz=1.0)
+            car = self._new_find(key, model, x, y, a, rng, rng.uniform(0.7, 0.95))
+            for pn in car.rust:
+                car.rust[pn] = round(car.rust[pn] * 0.35, 1)
+                car.painted[pn] = rng.random() < 0.5
+            car.fade = round(car.fade * 0.3, 2)
+            car.dirt = 0.08
+            car.snow = 0.0
+            for sl in car.slots:                 # у продавца всё на месте и живое
+                if car.parts.get(sl) is None:
+                    car.parts[sl] = {"id": car.slots[sl][1], "cond": round(rng.uniform(55, 85), 1)}
+                car.parts[sl]["cond"] = max(car.parts[sl]["cond"], round(rng.uniform(45, 70), 1))
+            car.fuel = 8.0
+            car.oil = car.oil_cap
+            car.oil_quality = 70.0
+            car.coolant = car.coolant_cap
+            car.brake_fluid = 90.0
+            car.battery_charge = 85.0
+            if rng.random() < 0.5:
+                car.tuv_until = self.day + 700      # «mit frischem TÜV»
+            self.dealer["stock"][key] = round(self.car_value(car) * 1.35 / 50) * 50
+
+    def buy_from_dealer(self, key):
+        price = self.dealer["stock"].get(key)
+        if price is None or not self.pay(price):
+            return False
+        del self.dealer["stock"][key]
+        self.owned[key] = True
+        return True
+
+    def sell_to_dealer(self, key):
+        offer = self.dealer_offer(key)
+        car = self.cars[key]
+        self.earn(offer, f"— Weber купил {car.name}")
+        self.owned[key] = False
+        if self.cur == key:
+            self.cur = "vaz"
+            self.p.in_car = False
+        # машина становится товаром на площадке
+        self.dealer["stock"][key] = round(self.car_value(car) * 1.35 / 50) * 50
+        return offer
+
+    def cars_in_sell_zone(self):
+        from world import point_in as _pi
+        return [k for k, c in self.owned_cars() if _pi(DEALER_SELL, c.x, c.y)]
+
+    # ---------------------------------------------------------------- подземные гаражи: порталы
+    def teleport_car(self, key, to):
+        car = self.cars[key]
+        x, y, a = to
+        spd = car.speed
+        car.x, car.y, car.angle = x, y, a
+        car.speed = min(spd, 6.0)
+        self.winter._last.pop(key, None)
+        # машина на тросе едет следом
+        if self.tow and self.tow["by"] == key and self.tow["key"] in self.cars:
+            ob = self.cars[self.tow["key"]]
+            back = car.length / 2 + self.tow.get("len", 6.0) - ob.length / 2 + ob.length / 2
+            ob.x = x - math.cos(a) * back
+            ob.y = y - math.sin(a) * back
+            ob.angle = a
+            ob.speed = 0.0
+
+    def check_portals(self):
+        """Машина игрока въехала в портал (въезд в подземный гараж / пандус между уровнями)."""
+        if not self.p.in_car:
+            return None
+        car = self.car
+        fx, fy = car.forward()
+        pt = self.world.places.portal_for(car.x, car.y, fx * car.speed, fy * car.speed)
+        if pt:
+            self.teleport_car(self.cur, pt["to"])
+            self.p.x, self.p.y = car.x, car.y
+            self.notify(pt["label"], YELLOW, 3)
+        return pt
+
+    def underground_at(self, x, y):
+        return self.world.level_at(x, y)
+
+    # ---------------------------------------------------------------- погода
+    def wet(self):
+        return self.weather in ("snow", "sleet", "rain")
+
+    def ambient_temp(self, x=None):
+        h = self.hour
+        t = -1.5 + 3.0 * math.sin(2 * math.pi * (h - 9) / 24)
+        t += {"clear": -2.0 if self.darkness() > 0.4 else 0.5, "cloudy": 0.5, "snow": -1.0, "sleet": 1.5}.get(self.weather, 0)
+        if x is not None and x >= INTERIOR_X:
+            t = 6.0                     # под землёй теплее
+        return round(t, 1)
+
+    def weather_text(self):
+        return WEATHER_RU.get(self.weather, self.weather)
+
+    def open_garage(self, gid):
+        g = self.garages.get(gid)
+        if g is None:
+            return
+        g["open"] = True
+        self.world.open_door(gid)
+        self.on_garage_opened(gid)
+
+    def on_garage_opened(self, gid):
+        """Крючок для графики (поднять ворота)."""
+        pass
+
+    def visible_finds(self):
+        """Находки, которые игрок может видеть: у дорог и в уже открытых гаражах."""
+        out = []
+        for k in self.wreck_keys():
+            if k in self.dealer["stock"] or self.cars[k].x >= INTERIOR_X:
+                continue
+            if k.startswith("ga"):
+                gid = k[1:]
+                if not self.garages.get(gid, {}).get("open"):
+                    continue
+            out.append(self.cars[k])
+        return out
 
     def scrap_value(self, key):
         car = self.cars[key]
@@ -209,7 +538,7 @@ class GameState:
         hx, hy = car.x - fx * back, car.y - fy * back
         d = math.hypot(obj.x - hx, obj.y - hy)
         lo = ROPE_LEN + obj.length / 2
-        return max(lo, min(lo + 6.0, d))
+        return max(lo, min(lo + 8.0, d))
 
     def _step_tow(self, dt=1 / 60):
         t = self.tow
@@ -316,7 +645,8 @@ class GameState:
         d = {
             "player": self.p.to_dict(), "cars": {k: c.to_dict() for k, c in self.cars.items()},
             "owned": self.owned, "cur": self.cur, "goal_done": self.goal_done, "minutes": self.minutes,
-            "wreck_id": self.wreck_id, "tow": self.tow,
+            "wreck_id": self.wreck_id, "tow": self.tow, "garages": self.garages,
+            "loose": self.loose, "dealer": self.dealer,
             "weather": self.weather, "weather_timer": self.weather_timer,
             "last_day": self.last_day, "last_mama": self.last_mama, "stats": self.stats,
             "schrott_stock": self.schrott_stock, "schrott_day": self.schrott_day,
@@ -334,8 +664,10 @@ class GameState:
         self.new_state()
         self.p.from_dict(d["player"])
         if "cars" in d:
-            # находки из нового сохранения заменят стартовые
+            # находки из нового сохранения заменят стартовые (гаражные — только если они есть в сохранении)
             for k in self.wreck_keys():
+                if k.startswith("ga") and not ("garages" in d and k in d["cars"]):
+                    continue
                 self.cars.pop(k, None)
                 self.owned.pop(k, None)
             for k, cd in d["cars"].items():
@@ -345,7 +677,8 @@ class GameState:
         elif "car" in d:                       # сохранение старой версии (одна машина)
             self.cars["vaz"].from_dict(d["car"])
         for k in ("minutes", "weather", "weather_timer", "last_day", "last_mama", "stats",
-                  "schrott_stock", "schrott_day", "owned", "cur", "goal_done", "wreck_id", "tow"):
+                  "schrott_stock", "schrott_day", "owned", "cur", "goal_done", "wreck_id", "tow", "garages",
+                  "loose", "dealer"):
             if k in d:
                 setattr(self, k, d[k])
         # сохранения прошлой версии: брошенные машины были простыми записями — превращаем в настоящие машины
@@ -357,6 +690,36 @@ class GameState:
                     self.cars[key].model = w["model"]
                     self.cars[key].__init__(w["model"], w["x"], w["y"], w.get("angle", 0.0),
                                             rng=random.Random(w.get("seed", 1)))
+        if self.weather == "rain":
+            self.weather = "sleet"
+        # новые места в старом сохранении: заселить
+        if "loose" not in d:
+            self.loose = []
+        prefixes = {k[0] for k in self.cars if k[0] in "jups" and k[1:].isdigit()}
+        if "j" not in prefixes:
+            self.spawn_junkyard(random.Random(401))
+        if "u" not in prefixes:
+            self.spawn_underground(random.Random(402))
+        if "p" not in prefixes:
+            self.spawn_parkings(random.Random(403))
+        if "dealer" not in d:
+            self.dealer = {"stock": {}, "restock": 7}
+            self.spawn_dealer_stock(random.Random(404))
+        # бесхозные машины в заброшенных гаражах — на своё место (раскладка карты могла измениться)
+        for ag in self.world.abandoned:
+            key = "g" + ag["id"]
+            if key in self.cars and not self.owned.get(key):
+                c = self.cars[key]
+                c.x, c.y = ag["car_spot"]
+                c.angle = ag["car_angle"]
+        # гаражи из старого сохранения (которых тогда не было) — закрыты, с машинами
+        for ag in self.world.abandoned:
+            if ag["id"] not in self.garages:
+                self.spawn_barn_find(ag, random.Random(1000 + int(ag["id"][1:])))
+        self.world.reset_doors()
+        for gid, gs in self.garages.items():
+            if gs.get("open"):
+                self.world.open_door(gid)
         for k in list(self.owned):
             if k not in self.cars:
                 self.owned.pop(k)
@@ -395,13 +758,13 @@ class GameState:
 
     def darkness(self):
         h = self.hour
-        # октябрь: рассвет ~7:15, закат ~18:45
-        if 7.5 <= h <= 18.3:
+        # декабрь в Нижней Саксонии: рассвет ~8:25, закат ~16:05
+        if 8.6 <= h <= 15.9:
             return 0.0
-        if 6.5 < h < 7.5:
-            return (7.5 - h) * 0.8
-        if 18.3 < h < 19.3:
-            return (h - 18.3) * 0.8
+        if 7.6 < h < 8.6:
+            return (8.6 - h) * 0.8
+        if 15.9 < h < 16.9:
+            return (h - 15.9) * 0.8
         return 0.8
 
     def is_open(self, bid):
@@ -449,12 +812,28 @@ class GameState:
 
         # машины: ржавчина
         for c in self.cars.values():
-            c.rust_tick(minutes, wet=self.weather == "rain", in_garage=point_in(GARAGE, c.x, c.y))
+            c.rust_tick(minutes, wet=self.wet(),
+                        in_garage=point_in(GARAGE, c.x, c.y) or self.world.abandoned_at(c.x, c.y) is not None)
 
-        # погода
+        # снег на стоящих под открытым небом машинах; под крышей тает
+        for k, c in self.cars.items():
+            roofed = (point_in(GARAGE, c.x, c.y) or c.x >= INTERIOR_X or self.world.abandoned_at(c.x, c.y) is not None)
+            if roofed:
+                c.snow = max(0.0, c.snow - 0.01 * minutes)
+            elif self.weather == "snow":
+                c.snow = min(1.0, c.snow + 0.004 * minutes)
+            elif self.weather == "sleet":
+                c.snow = max(0.0, c.snow - 0.002 * minutes)
+        # снегопад заносит колеи в слякоти (раз в полчаса игрового времени)
+        if self.weather == "snow":
+            self.regrow_acc = getattr(self, "regrow_acc", 0.0) + minutes
+            if self.regrow_acc > 30:
+                self.winter.slush.regrow(0.12)
+                self.regrow_acc = 0.0
+        # погода (зима)
         self.weather_timer -= minutes
         if self.weather_timer <= 0:
-            self.weather = random.choices(["clear", "cloudy", "rain"], [0.3, 0.4, 0.3])[0]
+            self.weather = random.choices(["clear", "cloudy", "snow", "sleet"], [0.25, 0.35, 0.28, 0.12])[0]
             self.weather_timer = random.uniform(120, 420)
 
         # новый день
@@ -468,25 +847,27 @@ class GameState:
             self.pending_faint = True
 
     def on_new_day(self, day):
-        if len(self.wreck_keys()) < MAX_FINDS and random.random() < 0.8:
+        if day % 7 == 6:
+            before = len(self.dealer["stock"])
+            self.spawn_dealer_stock(random.Random(day * 17 + 3))
+            if len(self.dealer["stock"]) > before:
+                self.notify("Gebrauchtwagen Weber: на площадку пригнали новые машины.", YELLOW, 6)
+        if len([k for k in self.wreck_keys() if k.startswith("w")]) < MAX_FINDS and random.random() < 0.8:
             key = self.spawn_wreck()
             if key:
                 self.notify(f"Слух: у дороги бросили {self.cars[key].name}. Можно забрать себе (карта — M).", YELLOW, 8)
         if day % 7 == 0:
-            self.charge(RENT, "Квартплата (Miete)", YELLOW, 8)
+            # квартира своя: квартплаты и выселения нет; остаётся только страховка машин на учёте
             for k, c in self.owned_cars():
                 if c.registered:
                     self.charge(INSURANCE, f"Страховка и налог: {c.name}", YELLOW, 8)
-            if self.p.money < -400:
-                self.game_over = ("Вас выселили из квартиры за долги.\n"
-                                  "Хозяин Herr Schröder сменил замки, а «копейку» увёз эвакуатор.")
         for k, c in self.owned_cars():
             if c.registered and 0 <= c.tuv_until < day:
                 self.notify(f"{c.name}: срок TÜV истёк! Нужно пройти техосмотр.", RED, 8)
 
     def hospital(self, reason):
         self.notify(reason, RED, 8)
-        self.charge(250, "Krankenhaus: счёт за лечение", RED, 8)
+        self.notify("Вы очнулись дома. Лечение бесплатное — деньги не списаны.", GREEN, 8)
         self.p.health = 60
         self.p.hunger = max(self.p.hunger, 50)
         self.p.thirst = max(self.p.thirst, 50)
@@ -576,7 +957,11 @@ class GameState:
             if idle:
                 continue     # стоящая заглушенная машина: физику не считаем
             inp = self.car_input if driven else {}
-            car.update(dt, inp, rain=self.weather == "rain")
+            grip, slush = self.winter.surface(car)
+            car.update(dt, inp, rain=self.wet(), ambient=self.ambient_temp(car.x), grip_mult=grip, slush=slush)
+            self.winter.drive(key, car)
+            if abs(car.speed) > 8 and car.snow > 0:
+                car.snow = max(0.0, car.snow - dt * 0.15)
             if self._collide(car, driven):
                 return
             if key == self.cur:
@@ -587,15 +972,19 @@ class GameState:
             car.events.clear()
             car.sounds.clear()
         self._step_tow(dt)
+        self.check_portals()
         # машины друг с другом (кроме пары «тягач — на тросе»)
         items = list(self.cars.items())
-        for i, (ka, a) in enumerate(items):
-            for kb, b in items[i + 1:]:
+        moving = [(k, c) for k, c in items if abs(c.speed) >= 0.01]
+        seen = set()
+        for ka, a in moving:
+            for kb, b in items:
+                if kb == ka or (kb, ka) in seen:
+                    continue
+                seen.add((ka, kb))
                 if {ka, kb} == {towed_key, towing_key}:
                     continue
                 if abs(a.x - b.x) > 7 or abs(a.y - b.y) > 7:
-                    continue
-                if abs(a.speed) < 0.01 and abs(b.speed) < 0.01:
                     continue
                 for ax_, ay_, ar in a.body_circles():
                     hit = False

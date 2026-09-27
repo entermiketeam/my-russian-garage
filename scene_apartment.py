@@ -259,7 +259,7 @@ class ApartmentScene(Scene):
         days_rent = 7 - g.day % 7
         tuv = "нет" if car.tuv_until < g.day else f"до дня {car.tuv_until}"
         lines = [
-            f"Деньги: {g.p.money:.2f} DM.  Квартплата {105} DM — через {days_rent} дн.",
+            f"Деньги: {g.p.money:.2f} DM.  Квартира своя — за жильё платить не нужно.",
             f"Машина: TÜV — {tuv};  номера — {'есть' if car.registered else 'нет (ездить нельзя!)'}.",
             f"Пробег: {car.odometer:.0f} км.  Макс. ржавчина: {car.max_rust():.0f}%.",
             f"Сделано доставок: {g.stats['deliveries']},  смен на складе: {g.stats['shifts']}.",
@@ -348,9 +348,9 @@ class ApartmentScene(Scene):
 def draw_hud(surf, g, place=""):
     p = g.p
     ui.panel(surf, (8, 8, 380, 54), 200)
-    wth = {"clear": "ясно", "cloudy": "облачно", "rain": "дождь"}[g.weather]
+    wth = f"{g.weather_text()}, {g.ambient_temp():+.0f}°C" if hasattr(g, "weather_text") else g.weather
     ui.text(surf, g.time_str(), (18, 12), 20, WHITE, bold=True)
-    ui.text(surf, f"{place}  ·  {wth}, +{9 if g.weather == 'rain' else 12}°C", (18, 38), 14, GREY)
+    ui.text(surf, f"{place}  ·  {wth}", (18, 38), 14, GREY)
     ui.panel(surf, (WIDTH - 500, 8, 492, 54), 200)
     col = GREEN if p.money >= 0 else RED
     ui.text(surf, f"{p.money:.2f} DM", (WIDTH - 395, 12), 22, col, bold=True, right=True)

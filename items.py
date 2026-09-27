@@ -96,6 +96,9 @@ ITEMS = {
     # ---- Инструменты / материалы ----
     "toolbox":   dict(name="Набор ключей", kind="tool", price=85.0),
     "rope":      dict(name="Буксировочный трос (Abschleppseil)", kind="tool", price=15.0),
+    "crowbar":   dict(name="Монтировка (Brecheisen)", kind="tool", price=12.0),
+    "old_radio": dict(name="Старая магнитола Blaupunkt", kind="part", price=60.0),
+    "jerrycan_old": dict(name="Старая канистра с бензином (5 л)", kind="fluid", price=8.0),
     "charger":   dict(name="Зарядное устройство", kind="tool", price=69.0),
     "welder":    dict(name="Сварочный аппарат", kind="tool", price=320.0),
     "metal":     dict(name="Лист металла", kind="material", price=18.0),
@@ -149,7 +152,7 @@ SHOP_TEILE = ["battery", "plugs", "distributor", "carb", "fuel_pump", "fuel_filt
               "starter", "alternator", "belt", "radiator", "clutch", "brakes_f", "brakes_r",
               "shocks", "exhaust", "lights", "tire", "oil", "coolant", "brake_fl", "fuel_can",
               "metal", "paint", "rust_conv", "toolbox", "rope", "charger", "welder"]
-SHOP_TANKE = ["fuel_can", "oil", "coolant", "rope", "wasser", "cola", "kaffee", "bier"]
+SHOP_TANKE = ["fuel_can", "oil", "coolant", "rope", "crowbar", "wasser", "cola", "kaffee", "bier"]
 SHOP_IMBISS = ["doener", "cola", "bier"]
 SHOP_TOYOTA = ["ae_engine", "ae_plugs", "ae_distributor", "ae_injectors", "ae_fuel_pump", "ae_fuel_filter",
                "ae_air_filter", "ae_starter", "ae_alternator", "ae_belt", "ae_radiator", "ae_clutch",
@@ -182,6 +185,15 @@ SLOTS.update({
     "steering": ("Рулевые тяги + маятник", "steering", 60),
     "glass":    ("Лобовое стекло", "glass", 90),
 })
+SLOTS.update({
+    "door_l": ("Двери левые (с разборки!)", "door_l", 40), "door_r": ("Двери правые", "door_r", 40),
+    "hood": ("Капот", "hood", 20), "trunk": ("Дверь багажника", "trunk", 25), "seats": ("Сиденья", "seats", 40),
+})
+SLOTS_AE86.update({
+    "door_l": ("Дверь левая", "ae_door_l", 40), "door_r": ("Дверь правая", "ae_door_r", 40),
+    "hood": ("Капот", "ae_hood", 20), "trunk": ("Дверь багажника (люк)", "ae_trunk", 25),
+    "seats": ("Ковшеобразные сиденья", "ae_seats", 40),
+})
 SLOTS_AE86.update({
     "gearbox":  ("КПП T50 (5-ступ.)", "ae_gearbox", 240),
     "wiring":   ("Электропроводка", "ae_wiring", 150),
@@ -210,12 +222,23 @@ ITEMS.update({
     "ae_wiring":   dict(name="Жгут проводки AE86", kind="part", price=150.0),
     "ae_steering": dict(name="Рулевая рейка и тяги AE86", kind="part", price=160.0),
     "ae_glass":    dict(name="Лобовое стекло AE86", kind="part", price=190.0),
+    "door_l":      dict(name="Дверь левая ВАЗ 2102 (пара)", kind="part", price=90.0),
+    "door_r":      dict(name="Дверь правая ВАЗ 2102 (пара)", kind="part", price=90.0),
+    "hood":        dict(name="Капот ВАЗ 2102", kind="part", price=70.0),
+    "trunk":       dict(name="Дверь багажника ВАЗ 2102", kind="part", price=85.0),
+    "seats":       dict(name="Сиденья ВАЗ (комплект)", kind="part", price=60.0),
+    "ae_door_l":   dict(name="Дверь левая AE86", kind="part", price=240.0),
+    "ae_door_r":   dict(name="Дверь правая AE86", kind="part", price=240.0),
+    "ae_hood":     dict(name="Капот AE86", kind="part", price=210.0),
+    "ae_trunk":    dict(name="Дверь багажника AE86 (люк со стеклом)", kind="part", price=260.0),
+    "ae_seats":    dict(name="Ковшеобразные сиденья AE86", kind="part", price=280.0),
 })
 ITEMS.update(model_items())
-SHOP_TEILE += ["gearbox", "wiring", "steering", "glass"]
-SHOP_TOYOTA += ["ae_gearbox", "ae_wiring", "ae_steering", "ae_glass"]
+SHOP_TEILE += ["gearbox", "wiring", "steering", "glass", "door_l", "door_r", "hood", "trunk", "seats"]
+SHOP_TOYOTA += ["ae_gearbox", "ae_wiring", "ae_steering", "ae_glass", "ae_door_l", "ae_door_r", "ae_hood",
+                "ae_trunk", "ae_seats"]
 
-CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "metal", "paint", "rust_conv"]
+CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "crowbar", "metal", "paint", "rust_conv"]
 
 
 def shop_for_model(model):
@@ -229,8 +252,8 @@ def shop_for_model(model):
 
 # Где продаются запчасти: Ost-Autoteile — восточные машины, Autohaus Krüger — Toyota и западные
 SHOP_MODELS = {
-    "ost": ["vaz2102", "trabant", "wartburg"],
-    "west": ["ae86", "kadett", "golf", "taunus", "w123"],
+    "ost": ["vaz2102", "trabant", "wartburg", "moskvich"],
+    "west": ["ae86", "kadett", "golf", "taunus", "w123", "volvo240", "bmw_e21", "audi80"],
 }
 MODEL_NAMES = {"vaz2102": "ВАЗ 2102", "ae86": "Toyota AE86"}
 MODEL_NAMES.update({m: info["name"] for m, info in MODELS.items()})

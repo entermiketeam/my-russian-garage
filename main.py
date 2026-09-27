@@ -28,10 +28,14 @@ Text.default_resolution = 48
 
 from panda3d.core import DirectionalLight, AmbientLight, Fog, TransparencyAttrib, WindowProperties  # noqa: E402
 
-from state import GameState, RED, GREEN, YELLOW, WHITE  # noqa: E402
-from actions import ActionsMixin, Menu, Inventory, CarWork, CONTROLS, INTRO, Dialog  # noqa: E402
+from state import GameState, RED, GREEN, YELLOW, WHITE, MAIN_CARS  # noqa: E402
+from actions import ActionsMixin, Menu, Inventory, CarWork, CONTROLS, INTRO, Dialog, Dealer, Dismantle  # noqa: E402
+from items import item_name  # noqa: E402
 from world import BUILDINGS, ROADS, PUMP_ZONE, TUV_YARD, GARAGE, SCRAP_DROP, point_in  # noqa: E402
+from places import INTERIOR_X  # noqa: E402
 from city3d import City, additive  # noqa: E402
+from places3d import Places3D  # noqa: E402
+from winter3d import Winter3D  # noqa: E402
 from car3d import Car3D, AICar3D, Rope3D  # noqa: E402
 from apartment3d import Apartment3D, OBJECTS as APT_OBJECTS, WALLS as APT_WALLS, AX, AZ  # noqa: E402
 from ui3d import HUD, MenuView, MapView  # noqa: E402
@@ -207,9 +211,13 @@ class Game3D(GameState, ActionsMixin):
         self.audio = Audio3D(app.loader)
         self._setup_env()
         self.city = City(self.world)
-        self.car3ds = {k: Car3D(c) for k, c in self.cars.items()}
+        self.places3d = Places3D(self.world)
+        self.winter3d = Winter3D(self.world, self.winter, self.city)
+        self._under_vis = False
+        self.car3ds = {}
         self.rope3d = Rope3D()
         self.rope_action = None
+        self.dismantle_action = None
         self.ai3d = [AICar3D(a) for a in self.world.ai]
         self.apt = Apartment3D()
         self.apt.set_visible(False)
@@ -252,17 +260,32 @@ class Game3D(GameState, ActionsMixin):
         self._sync_cars()
         return self.car3ds[self.cur]
 
-    def _sync_cars(self):
-        """3D-модели: создать для новых машин (находки), удалить у сданных на лом."""
+    def _sync_cars(self, budget=2):
+        """3D-модели машин: только рядом с игроком (машин в мире ~100). Далёкие удаляются,
+        близкие создаются по нескольку за кадр, чтобы не было рывков."""
+        px, py = self.p.x, self.p.y
+        keep = {self.cur}
+        if self.tow:
+            keep |= {self.tow.get("key"), self.tow.get("by")}
+
+        lv = self.world.level_at(px, py) if px >= INTERIOR_X else None
+
+        def dist(c):
+            d = abs(c.x - px) + abs(c.y - py)
+            if lv is not None and c.x >= INTERIOR_X and self.world.level_at(c.x, c.y) is not lv:
+                d += 1000          # машины на другом уровне подземки не видны
+            return d
+
         for k in list(self.car3ds):
             c3 = self.car3ds[k]
-            if k not in self.cars or c3.car is not self.cars[k]:
+            if k not in self.cars or c3.car is not self.cars[k] or (k not in keep and dist(self.cars[k]) > 150):
                 destroy(c3.root)
                 del self.car3ds[k]
-        for k, c in self.cars.items():
-            if k not in self.car3ds:
-                self.car3ds[k] = Car3D(c)
-                self.car3ds[k].root.enabled = self.location != "apartment"
+        want = sorted((k for k, c in self.cars.items() if k not in self.car3ds and (k in keep or dist(c) < 110)),
+                      key=lambda k: (k not in keep, dist(self.cars[k])))
+        for k in want[:max(budget, sum(1 for k_ in want if k_ in keep))]:
+            self.car3ds[k] = Car3D(self.cars[k])
+            self.car3ds[k].root.enabled = self.location != "apartment"
 
     # ------------------------------------------------------------------ окружение
     def _setup_env(self):
@@ -278,8 +301,9 @@ class Game3D(GameState, ActionsMixin):
 
     def update_env(self):
         d = self.darkness()
-        rain = self.weather == "rain"
-        cloudy = self.weather == "cloudy"
+        rain = self.weather in ("sleet", "rain")
+        snowing = self.weather == "snow"
+        cloudy = self.weather == "cloudy" or snowing
         if self.location == "apartment":
             self.sun.setColor((0.25 * (1 - d), 0.25 * (1 - d), 0.22 * (1 - d), 1))
             self.amb.setColor((0.62, 0.58, 0.52, 1))
@@ -288,9 +312,19 @@ class Game3D(GameState, ActionsMixin):
             self.apt.update_env(d, rain, self.date().strftime("%d.%m.\n%Y"),
                                 watching_tv=math.hypot(self.apt_x - 4.35, self.apt_y - 1.0) < 2.4, t=self.t)
             return
+        if self.p.x >= INTERIOR_X:
+            # подземный гараж: без солнца, тусклые лампы, тёмный «туман»
+            self.sun.setColor((0.0, 0.0, 0.0, 1))
+            self.amb.setColor((0.30, 0.31, 0.30, 1))
+            window.color = color.rgb(6, 7, 8)
+            self.fog.setColor(0.03, 0.035, 0.04)
+            self.fog.setExpDensity(0.028)
+            self.city.set_night(True)
+            return
         k = 1 - d
-        dim = 0.65 if rain else (0.85 if cloudy else 1.0)
-        sky_day = (150, 170, 190) if rain else ((150, 180, 212) if cloudy else (130, 175, 225))
+        dim = 0.65 if rain else (0.78 if snowing else (0.85 if cloudy else 1.0))
+        sky_day = (150, 162, 175) if rain else ((178, 186, 196) if snowing else
+                                                ((150, 172, 200) if cloudy else (140, 178, 222)))
         sky_night = (8, 11, 22)
         sky = tuple(int(sky_night[i] + (sky_day[i] - sky_night[i]) * k) for i in range(3))
         # вечерний оттенок
@@ -300,7 +334,7 @@ class Game3D(GameState, ActionsMixin):
             sky = (min(255, int(sky[0] + 70 * w)), int(sky[1] + 20 * w), int(sky[2] - 20 * w))
         window.color = color.rgb(*sky)
         self.fog.setColor(sky[0] / 255, sky[1] / 255, sky[2] / 255)
-        self.fog.setExpDensity(0.0045 if rain else (0.0028 if d < 0.5 else 0.0038))
+        self.fog.setExpDensity(0.0060 if snowing else (0.0045 if rain else (0.0028 if d < 0.5 else 0.0038)))
         s = 0.95 * k * dim
         self.sun.setColor((s * 1.0, s * 0.96, s * 0.88, 1))
         elev = max(12.0, 55 * math.sin(math.pi * max(0.0, min(1.0, (h - 6.5) / 12.5))))
@@ -332,6 +366,9 @@ class Game3D(GameState, ActionsMixin):
         exhaust = (car.c("exhaust") if car.has("exhaust") else 0.0) * (0.55 if snd in ("diesel", "2t") else 1.0)
         self.audio.engine(car.running, rpm, inp.get("throttle", 0), car.cranking, exhaust, vol,
                           skid=car.skidding and self.p.in_car)
+
+    def on_garage_opened(self, gid):
+        self.city.set_garage_door(gid, True)
 
     def open_menu(self, menu):
         self.menus.append(menu)
@@ -404,7 +441,9 @@ class Game3D(GameState, ActionsMixin):
         for c3 in self.car3ds.values():
             destroy(c3.root)
         self.car3ds = {}
-        self._sync_cars()
+        self._sync_cars(budget=12)
+        for ag in self.world.abandoned:
+            self.city.set_garage_door(ag["id"], self.garages.get(ag["id"], {}).get("open", False))
         self.show_map = False
 
     def start_new_game(self):
@@ -439,7 +478,11 @@ class Game3D(GameState, ActionsMixin):
         self.location = loc
         inside = loc == "apartment"
         self.apt.set_visible(inside)
-        self.city.set_visible(not inside)
+        under = self.p.x >= INTERIOR_X
+        self._under_vis = under
+        self.city.set_visible(not inside and not under)
+        self.places3d.set_visible(not inside)
+        self.winter3d.set_visible(not inside and not under)
         for c3 in self.car3ds.values():
             c3.root.enabled = not inside
         for a in self.ai3d:
@@ -555,8 +598,12 @@ class Game3D(GameState, ActionsMixin):
             self.open_menu(Inventory(self))
         elif key == "e" and self.actions:
             self.actions[0][1]()
+        elif key == "g" and len(self.actions) > 1 and not p.in_car:
+            self.actions[1][1]()
         elif key == "t" and self.rope_action and not p.in_car:
             self.rope_action[1]()
+        elif key == "r" and self.dismantle_action and not p.in_car:
+            self.open_menu(Dismantle(self, self.dismantle_action))
         elif key == "f" and self.location == "street":
             self.toggle_car()
         elif key == "v" and p.in_car:
@@ -636,8 +683,20 @@ class Game3D(GameState, ActionsMixin):
             self.update_env()
         night = self.darkness()
         self._sync_cars()
+        if self.location == "street":
+            under = self.p.x >= INTERIOR_X
+            if under != self._under_vis:
+                self._under_vis = under
+                self.city.set_visible(not under)
+                self.winter3d.set_visible(not under)
+                for a in self.ai3d:
+                    a.root.enabled = not under
+                self.update_env()
+            self.places3d.update(dt, self)
+            self.winter3d.update(self.p.x, self.p.y, budget=3 if self.mode == "play" else 1)
         for k, c3 in self.car3ds.items():
-            c3.update(dt, self.car_input if (self.p.in_car and k == self.cur) else {}, night)
+            busy = k == self.cur or (self.tow and k in (self.tow.get("key"), self.tow.get("by")))
+            c3.update(dt, self.car_input if (self.p.in_car and k == self.cur) else {}, night, lazy=not busy)
         for a in self.ai3d:
             a.update(dt, self.t)
         self._sync_rope()
@@ -645,7 +704,9 @@ class Game3D(GameState, ActionsMixin):
         self.marker.enabled = bool(d) and self.location == "street"
         if d:
             self.marker.position = Vec3(d["x"], 0, -d["y"])
-        self.audio.rain(1.0 if self.weather == "rain" and self.location == "street" and playing else 0.0)
+        under = self.location == "street" and self.p.x >= INTERIOR_X
+        outside = self.location == "street" and playing and not under
+        self.audio.rain(0.8 if self.weather == "sleet" and outside else (0.25 if self.weather == "snow" and outside else 0.0))
         self.hud.fade_a = max(0.0, self.hud.fade_a - dt * 0.8)
         driving = self.p.in_car and self.location == "street" and playing
         hud_on = playing or self.mode == "gameover"
@@ -653,7 +714,9 @@ class Game3D(GameState, ActionsMixin):
             "hud": hud_on and self.mode != "gameover", "place": self.place(), "prompt": prompt,
             "cross": self.mode == "play" and not self.p.in_car and top is None and not self.show_map,
             "driving": driving and not isinstance(top, CarWork), "clutch": held_keys["space"],
-            "yaw": self._view_yaw(), "rain": self.weather == "rain" and self.location == "street" and playing,
+            "yaw": self._view_yaw(),
+            "precip": self.weather if self.weather in ("snow", "sleet") and outside else None,
+            "speed": abs(self.car.speed) if self.p.in_car else 0.0,
         })
         self.mapview.root.enabled = self.show_map and top is None
         if self.show_map:
@@ -678,6 +741,12 @@ class Game3D(GameState, ActionsMixin):
     def place(self):
         if self.location == "apartment":
             return "Квартира, Lindenstraße 7"
+        L = self.world.level_at(self.p.x, self.p.y)
+        if L:
+            return f"{L['name']}, Ebene {'−1' if L['no'] == -1 else '−2'}"
+        P = self.world.places.parking_at(self.p.x, self.p.y)
+        if P:
+            return P["name"]
         r = self.world.road_at(self.p.x, self.p.y)
         if r:
             return r[5]
@@ -757,6 +826,14 @@ class Game3D(GameState, ActionsMixin):
                         if not blocked:
                             p.x, p.y = nx, ny
                     self.bob += dt * (11 if run else 7)
+                    # пешком через въезд / пандус подземного гаража
+                    pt = self.world.places.portal_for(p.x, p.y, dx, dy)
+                    if pt:
+                        tx, ty, ta = pt["to"]
+                        p.x, p.y = tx, ty
+                        self.yaw = math.degrees(math.atan2(math.cos(ta), -math.sin(ta)))
+                        self.notify(pt["label"], YELLOW, 3)
+                        self.play_sound("door", 0.5)
             for ai in self.world.ai:
                 if ai.speed > 4 and math.hypot(ai.x - p.x, ai.y - p.y) < 1.5:
                     self.hospital("Вас сбила машина! Смотрите по сторонам.")
@@ -816,6 +893,7 @@ class Game3D(GameState, ActionsMixin):
         p, car = self.p, self.car
         acts = []
         self.rope_action = None
+        self.dismantle_action = None
         d = self.delivery
         if d and math.hypot(p.x - d["x"], p.y - d["y"]) < (9 if p.in_car else 4):
             acts.append(("Отдать пиццу клиенту", self.deliver))
@@ -830,23 +908,58 @@ class Game3D(GameState, ActionsMixin):
                 acts.append(("Заправиться", self.refuel))
             if point_in(TUV_YARD, car.x, car.y):
                 acts.append(("Пройти TÜV (техосмотр)", self.tuv))
+            if self.cur in self.cars_in_sell_zone() and abs(car.speed) < 1:
+                acts.append((f"Предложить Weber: {car.name} ({self.dealer_offer(self.cur):.0f} DM) — выйдите и зайдите в контору",
+                             lambda: self.notify("Заглушите мотор, выйдите и зайдите в контору Weber (E у двери).")))
         else:
             for bid, b in BUILDINGS.items():
                 door = b[7]
                 if door and math.hypot(p.x - door[0], p.y - door[1]) < 3.0:
                     acts.append((f"Войти: {b[4]}", lambda bid=bid: self.enter_building(bid)))
                     break
+            # заброшенные гаражи: ворота и полки
+            for ag in self.world.abandoned:
+                gs = self.garages.get(ag["id"], {})
+                dpx, dpy = ag["door_pt"]
+                if not gs.get("open") and math.hypot(p.x - dpx, p.y - dpy) < 3.2:
+                    lock = " (заперто — нужна монтировка)" if ag["locked"] and not self.has("crowbar") else ""
+                    acts.append((f"Открыть ворота: {ag['name']}{lock}", lambda g_=ag["id"]: self.garage_door(g_)))
+                spx, spy = ag["shelf_pt"]
+                if gs.get("open") and not gs.get("looted") and math.hypot(p.x - spx, p.y - spy) < 2.0:
+                    acts.append(("Обыскать полки", lambda g_=ag["id"]: self.search_shelves(g_)))
+            li = self.nearest_loose(p.x, p.y)
+            if li is not None:
+                it = self.loose[li]
+                acts.append((f"Подобрать: {item_name(it['id'])} ({it['cond']:.0f}%)", lambda i=li: self.pick_loose(i)))
             wreck = self.nearest_wreck(p.x, p.y)
-            if self.near_car():
-                key = self.nearest_car(p.x, p.y)
-                acts.append((f"Открыть капот — {self.cars[key].name}", self.open_carwork))
-                if point_in(PUMP_ZONE, self.cars[key].x, self.cars[key].y):
-                    acts.append(("Заправить машину", self.refuel))
-            elif self.nearest_car(p.x, p.y, 3.0, owned_only=False) == "ae86" and not self.owned["ae86"]:
-                acts.append(("Осмотреть Toyota AE86 (Ковальский отдаёт даром)", self.ae86_offer))
-            elif wreck is not None:
-                acts.append((f"Осмотреть: {self.cars[wreck].name} — брошена, можно забрать бесплатно",
+            own = self.nearest_car(p.x, p.y) if self.near_car() else None
+            sale = wreck if wreck is not None and wreck in self.dealer["stock"] else None
+            if sale is not None:
+                acts.append((f"Weber продаёт: {self.cars[sale].name} — {self.dealer['stock'][sale]:.0f} DM (осмотреть)",
+                             lambda k=sale: self.open_menu(Dealer(self, k))))
+                wreck = None
+
+            def dist_to(k):
+                return min(math.hypot(p.x - cx, p.y - cy) for cx, cy, _ in self.cars[k].body_circles())
+
+            # E относится к той машине, что ближе: брошенная находка важнее, если стоим у неё
+            find_first = wreck is not None and (own is None or dist_to(wreck) <= dist_to(own) + 0.3)
+            if find_first:
+                acts.append((f"Забрать себе бесплатно: {self.cars[wreck].name} (осмотреть)",
                              lambda k=wreck: self.find_offer(k)))
+            if own is not None:
+                acts.append((f"Открыть капот — {self.cars[own].name}", self.open_carwork))
+                if point_in(PUMP_ZONE, self.cars[own].x, self.cars[own].y):
+                    acts.append(("Заправить машину", self.refuel))
+            if not find_first and self.nearest_car(p.x, p.y, 3.0, owned_only=False) == "ae86" and not self.owned["ae86"]:
+                acts.append(("Осмотреть Toyota AE86 (Ковальский отдаёт даром)", self.ae86_offer))
+            if wreck is not None and not find_first:
+                acts.append((f"Забрать себе бесплатно: {self.cars[wreck].name} (осмотреть)",
+                             lambda k=wreck: self.find_offer(k)))
+            # разборка (R): бесхозные машины и свои (кроме ВАЗ/AE86 и машины на тросе)
+            dk = wreck if wreck is not None else own
+            if dk is not None and dk not in MAIN_CARS and not (self.tow and dk in (self.tow["key"], self.tow["by"])):
+                self.dismantle_action = dk
             # трос (T)
             towed = self.towed_object()
             if self.tow:
@@ -874,8 +987,12 @@ class Game3D(GameState, ActionsMixin):
             extra.append(f"F — сесть за руль ({self.cars[nk].name})")
         elif p.in_car and abs(car.speed) < 1:
             extra.append("F — выйти   ·   V — вид")
+        if len(acts) > 1 and not p.in_car:
+            extra.append(f"G — {acts[1][0]}")
         if self.rope_action:
             extra.append(f"T — {self.rope_action[0]}")
+        if self.dismantle_action and not p.in_car:
+            extra.append(f"R — разобрать на запчасти")
         if p.in_car and self.tow and self.tow["by"] == self.cur:
             warn = "  ⚠ ТИШЕ!" if car.kmh() > 45 else ""
             extra.append(f"На тросе: {self.tow_name()} — не быстрее 50 км/ч{warn}")

@@ -53,14 +53,21 @@ def wheel_mesh(r=0.29, w=0.165, seg=14, rim=(112, 106, 96)):
 
 
 def ring_entity(parent, radius, thick, col, **kw):
-    """Руль: кольцо из маленьких коробок."""
-    root = Entity(parent=parent, **kw)
-    n = 16
+    """Руль: кольцо одним мешем (много машин — мало объектов)."""
+    c = tuple(int(v * 255) for v in (col[0], col[1], col[2])) if max(col[0], col[1], col[2]) <= 1.0 else tuple(col[:3])
+    mb = MeshBuilder()
+    n = 20
+    t = thick / 2
     for i in range(n):
-        a = 2 * math.pi * i / n
-        Entity(parent=root, model="cube", color=col, position=(math.cos(a) * radius, math.sin(a) * radius, 0),
-               rotation_z=-math.degrees(a), scale=(thick, radius * 2 * math.pi / n * 1.05, thick))
-    return root
+        a0 = 2 * math.pi * i / n
+        a1 = 2 * math.pi * (i + 1) / n
+        ro, ri = radius + t, radius - t
+        p = lambda a_, r_, z_: (math.cos(a_) * r_, math.sin(a_) * r_, z_)
+        mb.poly([p(a0, ri, -t), p(a1, ri, -t), p(a1, ro, -t), p(a0, ro, -t)], c, (0, 0, -1))
+        mb.poly([p(a0, ri, t), p(a1, ri, t), p(a1, ro, t), p(a0, ro, t)], c, (0, 0, 1))
+        mb.poly([p(a0, ro, -t), p(a1, ro, -t), p(a1, ro, t), p(a0, ro, t)], c,
+                (math.cos((a0 + a1) / 2), math.sin((a0 + a1) / 2), 0))
+    return Entity(parent=parent, model=mb.build(), double_sided=True, **kw)
 
 
 def glass_entity(parent, pts, col=GLASS, alpha=0.35):
@@ -140,6 +147,7 @@ class Car3D:
             additive(bm)
             bm.enabled = False
             self.beams.append(bm)
+        self._build_snow()
         self.set_hood(False)
 
     def _build_generic(self, b):
@@ -189,6 +197,12 @@ class Car3D:
             mb.box(-(W2 - 0.42), nose_y - 0.22, fz, W2 - 0.42, nose_y - 0.04, fz + 0.01, (40, 40, 42))
             for k in range(-4, 5):
                 mb.box(k * 0.1 - 0.008, nose_y - 0.22, fz + 0.01, k * 0.1 + 0.008, nose_y - 0.04, fz + 0.016, chrome)
+        elif g == "kidney":        # BMW: две «ноздри»
+            for kx in (-0.11, 0.11):
+                mb.box(kx - 0.085, nose_y - 0.24, fz, kx + 0.085, nose_y - 0.02, fz + 0.02, chrome)
+                mb.box(kx - 0.065, nose_y - 0.22, fz + 0.02, kx + 0.065, nose_y - 0.04, fz + 0.025, black)
+            mb.box(-(W2 - 0.2), nose_y - 0.2, fz, -0.22, nose_y - 0.06, fz + 0.008, black)
+            mb.box(0.22, nose_y - 0.2, fz, W2 - 0.2, nose_y - 0.06, fz + 0.008, black)
         elif g == "tall_chrome":
             mb.box(-0.24, nose_y - 0.28, fz, 0.24, nose_y + 0.08, fz + 0.03, chrome)
             for k in range(-4, 5):
@@ -204,8 +218,11 @@ class Car3D:
                 mb.box(-(W2 + 0.03), sill + 0.10, z0 - 0.005, W2 + 0.03, sill + 0.14, z1 + 0.005, black)
         # корма, крышка багажника / дверь хэтчбека
         mb.box(-(W2 - 0.01), sill + 0.03, Z(0), W2 - 0.01, rb_y, Z(0.08), paint, top=top_c)
+        self.trunk_lid = None
         if style != "hatch":
-            mb.box(-(W2 - 0.02), rb_y - 0.04, Z(0.05), W2 - 0.02, rb_y, Z(rgb), paint, top=top_c)
+            tb = MeshBuilder()
+            tb.box(-(W2 - 0.02), rb_y - 0.04, Z(0.05), W2 - 0.02, rb_y, Z(rgb), paint, top=top_c)
+            self.trunk_lid = Entity(parent=b, model=tb.build(), double_sided=True)
         mb.box(-0.26, sill + 0.24, Z(0) - 0.012, 0.26, sill + 0.37, Z(0), (20, 20, 20))      # место под номер
         # крыша и стойки
         mb.box(-(W2 - 0.08), roof_y - 0.05, Z(rs), W2 - 0.08, roof_y, Z(re), paint, top=top_c)
@@ -222,19 +239,26 @@ class Car3D:
         mb.box(-(W2 - 0.1), belt - 0.16, Z(wb - 0.35), W2 - 0.1, belt + 0.06, Z(wb), (32, 30, 30), top=(26, 24, 24))
         mb.box(-(W2 - 0.3), belt + 0.02, Z(wb - 0.35), -0.14, belt + 0.14, Z(wb - 0.26), (22, 22, 22))   # щиток
         seat_z0, seat_z1 = B["b_pillar"] - 0.45, B["b_pillar"] + 0.1
+        sb = MeshBuilder()
         if B["seats"] == "bench_front":
-            mb.box(-(W2 - 0.12), sill + 0.10, Z(seat_z0), W2 - 0.12, sill + 0.24, Z(seat_z1), seat_c)
-            mb.box(-(W2 - 0.12), sill + 0.24, Z(seat_z0 - 0.08), W2 - 0.12, sill + 0.80, Z(seat_z0 + 0.02), seat_c)
+            sb.box(-(W2 - 0.12), sill + 0.10, Z(seat_z0), W2 - 0.12, sill + 0.24, Z(seat_z1), seat_c)
+            sb.box(-(W2 - 0.12), sill + 0.24, Z(seat_z0 - 0.08), W2 - 0.12, sill + 0.80, Z(seat_z0 + 0.02), seat_c)
         else:
             for x0 in (-(W2 - 0.12), 0.1):
-                mb.box(x0, sill + 0.10, Z(seat_z0), x0 + W2 - 0.24, sill + 0.24, Z(seat_z1), seat_c)
-                mb.box(x0, sill + 0.24, Z(seat_z0 - 0.08), x0 + W2 - 0.24, sill + 0.82, Z(seat_z0 + 0.02), seat_c)
-                mb.box(x0 + 0.1, sill + 0.82, Z(seat_z0 - 0.07), x0 + W2 - 0.34, sill + 0.96, Z(seat_z0), seat_c)
+                sb.box(x0, sill + 0.10, Z(seat_z0), x0 + W2 - 0.24, sill + 0.24, Z(seat_z1), seat_c)
+                sb.box(x0, sill + 0.24, Z(seat_z0 - 0.08), x0 + W2 - 0.24, sill + 0.82, Z(seat_z0 + 0.02), seat_c)
+                sb.box(x0 + 0.1, sill + 0.82, Z(seat_z0 - 0.07), x0 + W2 - 0.34, sill + 0.96, Z(seat_z0), seat_c)
         rz = max(rgb + 0.35, 0.6)
-        mb.box(-(W2 - 0.12), sill + 0.10, Z(rz), W2 - 0.12, sill + 0.24, Z(seat_z0 - 0.35), seat_c)
-        mb.box(-(W2 - 0.12), sill + 0.24, Z(rz - 0.08), W2 - 0.12, sill + 0.72, Z(rz + 0.02), seat_c)
-        for x in (-(W2 - 0.09), W2 - 0.13):
-            mb.box(x, sill + 0.06, Z(0.4), x + 0.04, belt, Z(wb - 0.05), tuple(int(c * 0.8) for c in seat_c))
+        sb.box(-(W2 - 0.12), sill + 0.10, Z(rz), W2 - 0.12, sill + 0.24, Z(seat_z0 - 0.35), seat_c)
+        sb.box(-(W2 - 0.12), sill + 0.24, Z(rz - 0.08), W2 - 0.12, sill + 0.72, Z(rz + 0.02), seat_c)
+        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        tc = tuple(int(c * 0.8) for c in seat_c)
+        self._make_trims(b, [(-(W2 - 0.09), sill + 0.06, Z(0.4), -(W2 - 0.13), belt, Z(wb - 0.05)),
+                             (W2 - 0.13, sill + 0.06, Z(0.4), W2 - 0.09, belt, Z(wb - 0.05))], tc)
+        self._interior = dict(floor_y=sill + 0.07, hw=W2 - 0.14, z0=Z(0.45), z1=Z(wb - 0.1), dash_y=belt + 0.06,
+                              dash_z=Z(wb - 0.35))
+        self._snow = dict(roof=(W2 - 0.08, roof_y, Z(rs), Z(re)),
+                          trunk=(W2 - 0.04, rb_y, Z(0.06), Z(rgb)) if style != "hatch" else None)
         mb.box(-(W2 - 0.1), roof_y - 0.06, Z(rs + 0.05), W2 - 0.1, roof_y - 0.055, Z(re - 0.05), (165, 160, 150))
         mb.box(-0.08, roof_y - 0.16, Z(re - 0.12), 0.08, roof_y - 0.11, Z(re - 0.1), (30, 30, 30))
         if B.get("dash_shift"):     # Trabant: рычаг КПП торчит из торпедо
@@ -263,13 +287,20 @@ class Car3D:
         self.hood = Entity(parent=b, position=(0, belt, Z(wb)))
         hm = MeshBuilder()
         hm.box(-(W2 - 0.02), -0.045, 0.0, W2 - 0.02, 0.0, math.hypot(run, belt - nose_y), paint, top=top_c)
-        Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self._hood_len = math.hypot(run, belt - nose_y)
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
 
         # фары
         self.headlamps = []
         lt = B["lights"]
         for sgn in (-1, 1):
-            if lt == "round2":
+            if lt == "round4":
+                for x in (sgn * (W2 - 0.2), sgn * (W2 - 0.42)):
+                    Entity(parent=b, model="cube", color=color.rgb(*chrome), position=(x, nose_y - 0.12, Z(L) + 0.02),
+                           scale=(0.18, 0.18, 0.01))
+                    self.headlamps.append(Entity(parent=b, model="sphere", color=color.rgb(200, 200, 185),
+                                                 position=(x, nose_y - 0.12, Z(L) + 0.028), scale=(0.14, 0.14, 0.04)))
+            elif lt == "round2":
                 x = sgn * (W2 - 0.25)
                 Entity(parent=b, model="cube", color=color.rgb(*chrome), position=(x, nose_y - 0.12, Z(L) + 0.006),
                        scale=(0.22, 0.22, 0.01))
@@ -317,7 +348,7 @@ class Car3D:
         glass_entity(b, [(-(W2 - 0.06), belt + 0.01, Z(wb)), (W2 - 0.06, belt + 0.01, Z(wb)),
                          (W2 - 0.1, roof_y - 0.01, Z(re)), (-(W2 - 0.1), roof_y - 0.01, Z(re))],
                      (95, 105, 105) if car.c("glass") < 0.3 else GLASS, 0.55 if car.c("glass") < 0.3 else 0.35)
-        glass_entity(b, [(-(W2 - 0.08), rb_y + 0.01, Z(rgb)), (W2 - 0.08, rb_y + 0.01, Z(rgb)),
+        self.rear_glass = glass_entity(b, [(-(W2 - 0.08), rb_y + 0.01, Z(rgb)), (W2 - 0.08, rb_y + 0.01, Z(rgb)),
                          (W2 - 0.1, roof_y - 0.01, Z(rs)), (-(W2 - 0.1), roof_y - 0.01, Z(rs))])
 
         # моторный отсек
@@ -355,6 +386,8 @@ class Car3D:
 
     def _build_vaz(self, b):
         Z = self.Z
+        P_ = self.car.paint if self.car.color else PAINT
+        PD_ = tuple(int(c * 0.91) for c in P_)
         mb = MeshBuilder()
         # колёсные ниши (видны сквозь вырезы арок) и дно моторного отсека
         for sx in (0.83, 3.25):
@@ -365,16 +398,18 @@ class Car3D:
         # днище/пол салона
         mb.box(-0.72, 0.30, Z(0.3), 0.72, 0.36, Z(2.95), (40, 36, 34))
         # передняя панель
-        mb.box(-0.80, 0.33, Z(3.94), 0.80, 0.82, Z(4.01), PAINT)
+        mb.box(-0.80, 0.33, Z(3.94), 0.80, 0.82, Z(4.01), P_)
         mb.box(-0.52, 0.52, Z(4.01), 0.52, 0.76, Z(4.03), (22, 22, 22))              # решётка
         for x in (-0.53, 0.53):
             mb.box(x - 0.012, 0.51, Z(4.0), x + 0.012, 0.77, Z(4.04), CHROME)
         mb.box(-0.53, 0.755, Z(4.0), 0.53, 0.775, Z(4.04), CHROME)
         # задняя панель (универсал) и дверь багажника
-        mb.box(-0.80, 0.33, Z(0.0), 0.80, 0.86, Z(0.07), PAINT)
-        mb.box(-0.78, 0.86, Z(0.06), 0.78, 0.94, Z(0.12), PAINT)
+        mb.box(-0.80, 0.33, Z(0.0), 0.80, 0.86, Z(0.07), P_)
+        tb = MeshBuilder()
+        tb.box(-0.78, 0.86, Z(0.06), 0.78, 0.94, Z(0.12), P_)
+        self.trunk_lid = Entity(parent=b, model=tb.build(), double_sided=True)
         # багажник на крыше и крыша
-        mb.box(-0.80, 1.38, Z(0.10), 0.80, 1.45, Z(2.36), PAINT_DARK, top=(205, 197, 162))
+        mb.box(-0.80, 1.38, Z(0.10), 0.80, 1.45, Z(2.36), PD_, top=(205, 197, 162))
         for x in (-0.62, 0.62):
             mb.box(x - 0.025, 1.52, Z(0.3), x + 0.025, 1.56, Z(2.2), (60, 55, 50))
         for sx in (0.4, 1.2, 2.1):
@@ -382,19 +417,19 @@ class Car3D:
             mb.box(0.60, 1.45, Z(sx) - 0.02, 0.64, 1.53, Z(sx) + 0.02, (60, 55, 50))
             mb.box(-0.64, 1.52, Z(sx) - 0.02, 0.64, 1.555, Z(sx) + 0.02, (60, 55, 50))
         # стойки (видны и изнутри)
-        mb.box(-0.80, 0.86, Z(1.84), -0.74, 1.40, Z(1.90), PAINT)      # B-стойка
-        mb.box(0.74, 0.86, Z(1.84), 0.80, 1.40, Z(1.90), PAINT)
-        mb.box(-0.80, 0.86, Z(0.96), -0.74, 1.40, Z(1.02), PAINT)      # C-стойка
-        mb.box(0.74, 0.86, Z(0.96), 0.80, 1.40, Z(1.02), PAINT)
-        mb.box(-0.80, 0.86, Z(0.06), -0.70, 1.40, Z(0.2), PAINT)       # D-стойка
-        mb.box(0.70, 0.86, Z(0.06), 0.80, 1.40, Z(0.2), PAINT)
+        mb.box(-0.80, 0.86, Z(1.84), -0.74, 1.40, Z(1.90), P_)      # B-стойка
+        mb.box(0.74, 0.86, Z(1.84), 0.80, 1.40, Z(1.90), P_)
+        mb.box(-0.80, 0.86, Z(0.96), -0.74, 1.40, Z(1.02), P_)      # C-стойка
+        mb.box(0.74, 0.86, Z(0.96), 0.80, 1.40, Z(1.02), P_)
+        mb.box(-0.80, 0.86, Z(0.06), -0.70, 1.40, Z(0.2), P_)       # D-стойка
+        mb.box(0.70, 0.86, Z(0.06), 0.80, 1.40, Z(0.2), P_)
         for x in (-0.77, 0.77):   # A-стойки
             p0 = (x, 0.87, Z(2.98))
             p1 = (x, 1.40, Z(2.52))
             d = 0.035
-            mb.poly([(x - d, p0[1], p0[2]), (x + d, p0[1], p0[2]), (x + d, p1[1], p1[2]), (x - d, p1[1], p1[2])], PAINT, (0, 0.5, 0.5))
+            mb.poly([(x - d, p0[1], p0[2]), (x + d, p0[1], p0[2]), (x + d, p1[1], p1[2]), (x - d, p1[1], p1[2])], P_, (0, 0.5, 0.5))
             mb.poly([(x - d, p0[1], p0[2] - 0.06), (x + d, p0[1], p0[2] - 0.06), (x + d, p1[1], p1[2] - 0.06),
-                     (x - d, p1[1], p1[2] - 0.06)], PAINT, (0, -0.5, -0.5))
+                     (x - d, p1[1], p1[2] - 0.06)], P_, (0, -0.5, -0.5))
         # бамперы
         mb.box(-0.84, 0.36, Z(4.0), 0.84, 0.47, Z(4.11), CHROME)
         mb.box(-0.84, 0.38, Z(-0.09), 0.84, 0.49, Z(0.0), CHROME)
@@ -407,14 +442,18 @@ class Car3D:
         # салон: приборная панель, сиденья, обивка дверей
         mb.box(-0.72, 0.70, Z(2.62), 0.72, 0.93, Z(2.98), DASH, top=(30, 28, 27))
         mb.box(-0.56, 0.88, Z(2.62), -0.16, 1.02, Z(2.72), (26, 24, 23))                # щиток приборов
+        sb = MeshBuilder()
         for x0 in (-0.62, 0.12):
-            mb.box(x0, 0.40, Z(1.55), x0 + 0.50, 0.54, Z(2.1), VINYL)
-            mb.box(x0, 0.54, Z(1.47), x0 + 0.50, 1.12, Z(1.57), VINYL)
-            mb.box(x0 + 0.1, 1.12, Z(1.49), x0 + 0.40, 1.28, Z(1.56), VINYL)             # подголовник
-        mb.box(-0.64, 0.40, Z(0.62), 0.64, 0.54, Z(1.15), VINYL)
-        mb.box(-0.64, 0.54, Z(0.55), 0.64, 1.05, Z(0.66), VINYL)
-        for x in (-0.73, 0.69):
-            mb.box(x, 0.36, Z(0.4), x + 0.04, 0.86, Z(2.9), (95, 66, 52))
+            sb.box(x0, 0.40, Z(1.55), x0 + 0.50, 0.54, Z(2.1), VINYL)
+            sb.box(x0, 0.54, Z(1.47), x0 + 0.50, 1.12, Z(1.57), VINYL)
+            sb.box(x0 + 0.1, 1.12, Z(1.49), x0 + 0.40, 1.28, Z(1.56), VINYL)             # подголовник
+        sb.box(-0.64, 0.40, Z(0.62), 0.64, 0.54, Z(1.15), VINYL)
+        sb.box(-0.64, 0.54, Z(0.55), 0.64, 1.05, Z(0.66), VINYL)
+        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        self._make_trims(b, [(-0.73, 0.36, Z(0.4), -0.69, 0.86, Z(2.9)), (0.69, 0.36, Z(0.4), 0.73, 0.86, Z(2.9))],
+                         (95, 66, 52))
+        self._interior = dict(floor_y=0.37, hw=0.68, z0=Z(0.45), z1=Z(2.85), dash_y=0.93, dash_z=Z(2.66))
+        self._snow = dict(roof=(0.78, 1.45, Z(0.12), Z(2.34)), trunk=None)
         mb.box(-0.72, 1.37, Z(0.2), 0.72, 1.38, Z(2.45), (170, 160, 140))               # потолок
         mb.box(-0.09, 1.30, Z(2.47), 0.09, 1.35, Z(2.49), (30, 30, 30))                 # салонное зеркало
         mb.box(-0.02, 0.36, Z(2.2), 0.02, 0.72, Z(2.24), (30, 30, 30))                  # рычаг КПП
@@ -434,9 +473,10 @@ class Car3D:
         # капот (открывается в гараже)
         self.hood = Entity(parent=b, position=(0, 0.86, Z(2.99)))
         hm = MeshBuilder()
-        hm.box(-0.80, -0.05, 0.0, 0.80, 0.0, Z(3.95) - Z(2.99), PAINT, top=(190, 180, 146))
+        hm.box(-0.80, -0.05, 0.0, 0.80, 0.0, Z(3.95) - Z(2.99), P_, top=(190, 180, 146))
+        self._hood_len = Z(3.95) - Z(2.99)
         hm.box(-0.30, 0.0, 0.25, 0.05, 0.004, 0.55, (128, 128, 122))     # пятно грунта
-        Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
 
         # моторный отсек
         self.bay = Entity(parent=b)
@@ -456,7 +496,7 @@ class Car3D:
 
         # стёкла
         glass_entity(b, [(-0.74, 0.88, Z(2.98)), (0.74, 0.88, Z(2.98)), (0.72, 1.39, Z(2.52)), (-0.72, 1.39, Z(2.52))])
-        glass_entity(b, [(-0.70, 0.94, Z(0.07)), (0.70, 0.94, Z(0.07)), (0.70, 1.37, Z(0.1)), (-0.70, 1.37, Z(0.1))])
+        self.rear_glass = glass_entity(b, [(-0.70, 0.94, Z(0.07)), (0.70, 0.94, Z(0.07)), (0.70, 1.37, Z(0.1)), (-0.70, 1.37, Z(0.1))])
 
         # фары, фонари (отдельно — меняют яркость)
         self.headlamps = []
@@ -521,17 +561,21 @@ class Car3D:
         mb.box(-0.56, 0.84, Z(2.75), -0.16, 0.98, Z(2.85), (20, 20, 22))            # щиток приборов
         mb.box(-0.12, 0.70, Z(2.72), 0.12, 0.84, Z(2.78), (35, 35, 38))             # магнитола
         seat, trim = (60, 60, 66), (140, 30, 30)
+        sb = MeshBuilder()
         for x0 in (-0.62, 0.12):
-            mb.box(x0, 0.36, Z(1.72), x0 + 0.50, 0.50, Z(2.25), seat)
-            mb.box(x0, 0.50, Z(1.64), x0 + 0.50, 1.10, Z(1.74), seat)
-            mb.box(x0 - 0.02, 0.50, Z(1.66), x0 + 0.04, 0.95, Z(1.90), seat)         # боковая поддержка
-            mb.box(x0 + 0.46, 0.50, Z(1.66), x0 + 0.52, 0.95, Z(1.90), seat)
-            mb.box(x0 + 0.1, 1.10, Z(1.66), x0 + 0.40, 1.24, Z(1.72), seat)
-            mb.box(x0 + 0.05, 0.505, Z(1.742), x0 + 0.45, 0.515, Z(2.2), trim)       # красная вставка
-        mb.box(-0.64, 0.36, Z(0.80), 0.64, 0.50, Z(1.30), seat)
-        mb.box(-0.64, 0.50, Z(0.72), 0.64, 0.95, Z(0.82), seat)
-        for x in (-0.73, 0.69):
-            mb.box(x, 0.36, Z(0.5), x + 0.04, 0.86, Z(3.0), (45, 45, 48))
+            sb.box(x0, 0.36, Z(1.72), x0 + 0.50, 0.50, Z(2.25), seat)
+            sb.box(x0, 0.50, Z(1.64), x0 + 0.50, 1.10, Z(1.74), seat)
+            sb.box(x0 - 0.02, 0.50, Z(1.66), x0 + 0.04, 0.95, Z(1.90), seat)         # боковая поддержка
+            sb.box(x0 + 0.46, 0.50, Z(1.66), x0 + 0.52, 0.95, Z(1.90), seat)
+            sb.box(x0 + 0.1, 1.10, Z(1.66), x0 + 0.40, 1.24, Z(1.72), seat)
+            sb.box(x0 + 0.05, 0.505, Z(1.742), x0 + 0.45, 0.515, Z(2.2), trim)       # красная вставка
+        sb.box(-0.64, 0.36, Z(0.80), 0.64, 0.50, Z(1.30), seat)
+        sb.box(-0.64, 0.50, Z(0.72), 0.64, 0.95, Z(0.82), seat)
+        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        self._make_trims(b, [(-0.73, 0.36, Z(0.5), -0.69, 0.86, Z(3.0)), (0.69, 0.36, Z(0.5), 0.73, 0.86, Z(3.0))],
+                         (45, 45, 48))
+        self._interior = dict(floor_y=0.37, hw=0.68, z0=Z(0.55), z1=Z(2.95), dash_y=0.88, dash_z=Z(2.78))
+        self._snow = dict(roof=(0.74, 1.35, Z(1.45), Z(2.5)), trunk=None)
         mb.box(-0.72, 1.28, Z(1.5), 0.72, 1.29, Z(2.52), (150, 150, 150))           # потолок
         mb.box(-0.09, 1.20, Z(2.58), 0.09, 1.25, Z(2.60), (25, 25, 25))             # салонное зеркало
         mb.box(-0.02, 0.36, Z(2.35), 0.02, 0.70, Z(2.39), (25, 25, 25))             # рычаг КПП (5 ступ.)
@@ -553,7 +597,8 @@ class Car3D:
         self.hood = Entity(parent=b, position=(0, 0.87, Z(3.08)))
         hm = MeshBuilder()
         hm.box(-0.80, -0.05, 0.0, 0.80, 0.0, Z(4.05) - Z(3.08) - 0.32, W_, top=(242, 242, 236))
-        Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self._hood_len = Z(4.05) - Z(3.08) - 0.32
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
 
         # поднимающиеся фары: крышка на шарнире + фара под ней
         self.headlamps = []
@@ -584,7 +629,7 @@ class Car3D:
 
         # стёкла: лобовое и покатое стекло люка
         glass_entity(b, [(-0.74, 0.87, Z(3.08)), (0.74, 0.87, Z(3.08)), (0.72, 1.30, Z(2.55)), (-0.72, 1.30, Z(2.55))], GLS)
-        glass_entity(b, [(-0.72, 0.88, Z(0.45)), (0.72, 0.88, Z(0.45)), (0.70, 1.30, Z(1.45)), (-0.70, 1.30, Z(1.45))], GLS)
+        self.rear_glass = glass_entity(b, [(-0.72, 0.88, Z(0.45)), (0.72, 0.88, Z(0.45)), (0.70, 1.30, Z(1.45)), (-0.70, 1.30, Z(1.45))], GLS)
 
         # фонари: широкая полоса по всей корме
         self.taillights = []
@@ -600,24 +645,124 @@ class Car3D:
                  position=(0, 0, -0.6 if rot == 0 else 0.6), rotation_y=rot)
             self.plates.append(pl)
 
+    def _make_trims(self, b, boxes, col):
+        """Обшивки дверей — отдельно: снял дверь — обшивки нет, видно салон."""
+        self.trims = {}
+        for side, bx in zip(("l", "r"), boxes):
+            mb = MeshBuilder()
+            mb.box(*bx, col)
+            # ручка и карман
+            x0, y0, z0, x1, y1, z1 = bx
+            mb.box(x0, y0 + 0.28, z0 + (z1 - z0) * 0.55, x1, y0 + 0.31, z0 + (z1 - z0) * 0.62, (30, 30, 30))
+            self.trims[side] = Entity(parent=b, model=mb.build(), double_sided=True)
+
+    def _build_interior_rust(self):
+        """Ржавчина внутри салона: пол, пороги изнутри, низ обшивки, кромка торпедо."""
+        import random as _r
+        if getattr(self, "int_rust", None) is not None:
+            destroy(self.int_rust)
+            self.int_rust = None
+        info = getattr(self, "_interior", None)
+        if not info:
+            return
+        car = self.car
+        rng = _r.Random(car.seed * 3 + 11)
+        fr, dr = car.rust["floor"], car.rust["doors"]
+        sl = max(car.rust["sill_l"], car.rust["sill_r"])
+        mb = MeshBuilder()
+        cols = [(128, 64, 28), (98, 46, 20), (150, 80, 36), (70, 40, 22)]
+        y, hw, z0, z1 = info["floor_y"], info["hw"], info["z0"], info["z1"]
+        for _ in range(int(fr / 3)):                                  # пол
+            x = rng.uniform(-hw, hw)
+            z = rng.uniform(min(z0, z1), max(z0, z1))
+            r = rng.uniform(0.04, 0.12) * (0.6 + fr / 80)
+            mb.box(x - r, y, z - r * 1.3, x + r, y + 0.006, z + r * 1.3, rng.choice(cols))
+            if fr > 75 and rng.random() < 0.25:                       # дыры в полу
+                mb.box(x - r * 0.5, y + 0.001, z - r * 0.6, x + r * 0.5, y + 0.008, z + r * 0.6, (10, 8, 6))
+        for side in (-1, 1):                                           # пороги изнутри и низ обшивки
+            for _ in range(int(max(sl, dr) / 6)):
+                z = rng.uniform(min(z0, z1), max(z0, z1))
+                h = rng.uniform(0.02, 0.1)
+                mb.box(side * hw - 0.01, y, z - 0.08, side * hw + 0.01 * side, y + h + 0.04, z + 0.08, rng.choice(cols))
+        for _ in range(int(dr / 12)):                                  # кромка торпедо, крепления
+            x = rng.uniform(-hw, hw)
+            mb.box(x - 0.05, info["dash_y"] - 0.02, info["dash_z"] - 0.01, x + 0.05, info["dash_y"] + 0.004,
+                   info["dash_z"] + 0.05, rng.choice(cols))
+        if mb.v:
+            self.int_rust = Entity(parent=self.body, model=mb.build(), double_sided=True)
+
+    def _build_snow(self):
+        """Шапки снега на крыше, капоте и багажнике (толщина — car.snow)."""
+        white = color.rgb(236, 240, 246)
+        self.snow_parts = []
+        sn = getattr(self, "_snow", None) or {}
+        if sn.get("roof"):
+            hw, y, z0, z1 = sn["roof"]
+            e = Entity(parent=self.body, model="cube", color=white, position=(0, y, (z0 + z1) / 2),
+                       scale=(hw * 2 - 0.1, 0.01, abs(z1 - z0) - 0.1))
+            self.snow_parts.append((e, y))
+        if sn.get("trunk"):
+            hw, y, z0, z1 = sn["trunk"]
+            e = Entity(parent=self.body, model="cube", color=white, position=(0, y, (z0 + z1) / 2),
+                       scale=(hw * 2 - 0.12, 0.01, abs(z1 - z0) - 0.08))
+            self.snow_parts.append((e, y))
+        hl = getattr(self, "_hood_len", 0.9)
+        e = Entity(parent=self.hood, model="cube", color=white, position=(0, 0.0, hl / 2), scale=(1.3, 0.01, hl * 0.85))
+        self.snow_parts.append((e, 0.0))
+        self._snow_level = -1.0
+
+    def _update_parts(self):
+        car = self.car
+        if getattr(self, "hood_mesh", None) is not None:
+            self.hood_mesh.enabled = car.has("hood")
+        if getattr(self, "seats_e", None) is not None:
+            self.seats_e.enabled = car.has("seats")
+        for side, t in getattr(self, "trims", {}).items():
+            t.enabled = car.has("door_" + side)
+        has_trunk = car.has("trunk")
+        if getattr(self, "trunk_lid", None) is not None:
+            self.trunk_lid.enabled = has_trunk
+        if getattr(self, "rear_glass", None) is not None:
+            self.rear_glass.enabled = has_trunk
+        if not car.has("hood"):
+            self.bay.enabled = True
+        lvl = round(car.snow, 2)
+        if lvl != self._snow_level:
+            self._snow_level = lvl
+            th = 0.01 + 0.09 * lvl
+            for e, y in self.snow_parts:
+                e.enabled = lvl > 0.05 and (e.parent is not self.hood or car.has("hood"))
+                e.scale_y = th
+                e.y = y + th / 2
+
     # ------------------------------------------------------------------ состояние
     def refresh_rust(self, force=False):
         car = self.car
         key = tuple(int(v // 4) for v in car.rust.values()) + (int(car.dirt * 6), int(car.fade * 6),
-                                                                 int(car.c("glass") * 4), tuple(car.dents))
+                                                                 int(car.c("glass") * 4), tuple(car.dents),
+                                                                 car.has("door_l"), car.has("door_r"))
         if key == self._rust_key and not force:
             return
         self._rust_key = key
         self.side_r.texture = textures3d.car_side(self.car, "r")
         self.side_l.texture = textures3d.car_side(self.car, "l")
+        self._build_interior_rust()
 
     def set_hood(self, open_):
         self.hood.rotation_x = -55 if open_ else self.hood_rest
-        self.bay.enabled = open_
+        self.bay.enabled = open_ or not self.car.has("hood")
 
-    def update(self, dt, inp, night):
+    def update(self, dt, inp, night, lazy=False):
         car = self.car
         self.t += dt
+        # стоящие чужие машины обновляются раз в ~12 кадров — их на карте много
+        if lazy and not car.running and not car.cranking and abs(car.speed) < 0.01 and not inp:
+            key = (round(car.x, 2), round(car.y, 2), round(car.angle, 3), night > 0.15, car.lights)
+            self._lazy = getattr(self, "_lazy", 0) + 1
+            if key == getattr(self, "_lazy_key", None) and self._lazy < 12:
+                return
+            self._lazy = 0
+            self._lazy_key = key
         self.root.position = Vec3(car.x, 0, -car.y)
         self.root.rotation_y = 90 + math.degrees(car.angle)
         # крен и клевки
@@ -632,7 +777,8 @@ class Car3D:
         if car.running:
             y += math.sin(self.t * max(10, car.rpm / 60)) * 0.004 * (2 - car.c("engine"))
         flats = car.flat_tires()
-        self.body.y = y - 0.04 * len(flats)
+        self.body.y = y - 0.04 * len(flats) - car.sink
+        self._update_parts()
         # колёса
         self.spin += car.speed / self.wr * dt
         for slot, (pivot, spin, bricks) in self.wheels.items():

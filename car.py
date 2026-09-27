@@ -12,7 +12,7 @@ import pygame
 
 from items import SLOTS, SLOTS_BY_MODEL, PANELS
 from config import PPM
-from models import MODELS
+from models import MODELS, model_info
 
 SPECS = {
     "vaz2102": dict(
@@ -83,7 +83,8 @@ PRESETS = {
                "alternator": 65, "belt": 55, "radiator": 60, "clutch": 55,
                "brakes_f": 45, "brakes_r": 45, "shocks": 35, "exhaust": 35, "lights": 60,
                "tire_fl": 50, "tire_fr": 45, "tire_rl": 55, "tire_rr": 48,
-               "gearbox": 55, "wiring": 55, "steering": 50, "glass": 70},
+               "gearbox": 55, "wiring": 55, "steering": 50, "glass": 70,
+               "door_l": 60, "door_r": 55, "hood": 50, "trunk": 45, "seats": 50},
         rust={"sill_l": 78.0, "sill_r": 64.0, "floor": 58.0, "arch_f": 55.0,
               "arch_r": 81.0, "fender": 47.0, "doors": 52.0, "tailgate": 69.0},
         fuel=25.0, oil=3.5, oil_quality=60.0, coolant=9.0, brake_fluid=80.0, battery_charge=80.0,
@@ -96,7 +97,8 @@ PRESETS = {
                "alternator": 40, "belt": 6, "radiator": 20, "clutch": 25,
                "brakes_f": 10, "brakes_r": 8, "shocks": 15, "exhaust": None, "lights": 15,
                "tire_fl": 20, "tire_fr": 3, "tire_rl": 15, "tire_rr": None,
-               "gearbox": 40, "wiring": 35, "steering": 30, "glass": 55},
+               "gearbox": 40, "wiring": 35, "steering": 30, "glass": 55,
+               "door_l": 45, "door_r": 40, "hood": 50, "trunk": 35, "seats": 55},
         rust={"sill_l": 82.0, "sill_r": 76.0, "floor": 68.0, "arch_f": 61.0,
               "arch_r": 88.0, "fender": 55.0, "doors": 49.0, "tailgate": 72.0},
         fuel=0.0, oil=1.2, oil_quality=10.0, coolant=1.0, brake_fluid=30.0, battery_charge=0.0,
@@ -128,6 +130,9 @@ class Car:
         self.sounds = []           # имена звуков
         self.shake = 0.0
         self.tow_mass = 0.0        # масса того, что тянем на тросе
+        self.snow = 0.0            # слой снега на крыше/капоте (0..1)
+        self.sink = 0.0            # насколько колёса ушли в слякоть (м) — для графики
+        self._ambient = 5.0
         # внешний вид (для найденных машин — случайный)
         self.color = None
         self.fade = 0.0
@@ -154,7 +159,7 @@ class Car:
 
     # ---- состояние найденной машины: у каждой своё
     def _random_condition(self, rng, pres=None):
-        info = MODELS[self.model]
+        info = model_info(self.model)
         p = pres if pres is not None else 0.08 + 0.8 * rng.betavariate(2.0, 2.2)   # 0.08 (труп) … 0.88 (почти живая)
         self.preservation = p
         self.seed = rng.randint(1, 99999)
@@ -190,10 +195,13 @@ class Car:
         self.rust = {}
         for pn in PANELS:
             r = (1 - p) * 100 * rng.uniform(0.65, 1.2) + rng.uniform(-8, 8) + weak.get(pn, 0)
+            if "tough_body" in info["quirks"]:
+                r *= 0.6        # толстый металл и хорошая антикоррозийка
             if "duroplast" in info["quirks"] and pn in ("fender", "doors", "tailgate", "arch_f", "arch_r"):
                 r *= 0.08 if pn in ("fender", "doors", "tailgate") else 0.5   # пластиковые панели не ржавеют
             self.rust[pn] = round(max(0.0, min(100.0, r)), 1)
         sp = self.spec
+        self.snow = round(rng.uniform(0.3, 1.0), 2)
         self.fuel = round(rng.uniform(0, 3), 1)
         self.oil = round(sp["oil"] * rng.uniform(0.25, 1.0), 2) if sp["oil"] > 0 else 0.0
         self.oil_quality = round(rng.uniform(5, 45), 1)
@@ -228,6 +236,11 @@ class Car:
         c = self.color or (196, 186, 150)
         f = self.fade * 0.5
         return tuple(int(c[i] * (1 - f) + 205 * f) for i in range(3))
+
+    @property
+    def odd_door(self):
+        """Дверь другого цвета (с разборки) — у своей «двойки» и у некоторых доноров."""
+        return self.color is None or self.seed % 4 == 0
 
     @property
     def lights_ok(self):
@@ -268,7 +281,7 @@ class Car:
         return self.spec["length"]
 
     # ------------------------------------------------------------ сохранение
-    SAVE_FIELDS = ["model", "color", "fade", "dirt", "dents", "seed", "plate_text", "preservation",
+    SAVE_FIELDS = ["model", "color", "fade", "dirt", "dents", "seed", "plate_text", "preservation", "snow",
                    "x", "y", "angle", "gear", "choke", "lights", "temp", "fuel", "oil",
                    "oil_quality", "coolant", "brake_fluid", "battery_charge", "odometer",
                    "registered", "tuv_until", "parts", "rust", "painted"]
@@ -387,7 +400,7 @@ class Car:
                 p *= 0.08 + 0.92 * glow
                 if glow < 0.2 and self.crank_time > 1.5:
                     return p, "Свечи накаливания не греют — холодный дизель не схватывает."
-            p *= min(1.0, self.battery_charge / 100 * 1.6)
+            p *= min(1.0, self.battery_charge / 100 * 1.6 * (0.7 if self._ambient < 0 else 1.0))
             return p, None
         if not self.has("plugs") or self.c("plugs") < 0.02:
             return 0.0, "Нет искры (свечи)."
@@ -404,12 +417,14 @@ class Car:
             p *= 0.2
         if not cold and self.ch:
             p *= 0.35  # заливает свечи
-        charge = self.battery_charge / 100
+        charge = self.battery_charge / 100 * (0.75 if self._ambient < 0 else 1.0)   # на морозе АКБ слабее
         p *= min(1.0, charge * 2)
         return p, None
 
     # ------------------------------------------------------------ обновление
-    def update(self, dt, inp, rain=False, ambient=11.0):
+    def update(self, dt, inp, rain=False, ambient=11.0, grip_mult=1.0, slush=0.0):
+        """grip_mult — сцепление поверхности (снег, лёд); slush — толщина слякоти под колёсами (м)."""
+        self._ambient = ambient
         throttle = inp.get("throttle", 0.0)
         brake = inp.get("brake", 0.0)
         steer_in = inp.get("steer", 0.0)
@@ -617,10 +632,16 @@ class Car:
             grip *= 0.78
         grip *= 0.85 + 0.15 * self.c("shocks")
         grip *= self.sp("grip", 1.0)
+        grip *= grip_mult
+        if slush > 0.015:
+            grip *= 1.0 - min(0.35, slush * 3.0)
+        self.sink = slush * 0.6
         flats = self.flat_tires()
         missing = [t for t in tires if not self.has(t)]
 
         roll = 0.015 * (self.spec["mass"] + self.tow_mass) * 9.81 + 350 * len(flats) + 3500 * len(missing)
+        if slush > 0.015:     # колёса продавливают слякоть — как езда по песку
+            roll += slush * 26000 * (0.35 + min(1.0, abs(self.speed) / 8))
         drag = 0.5 * 1.2 * self.spec["cda"] * self.speed * self.speed
         brake_eff = (0.72 * min(1, self.c("brakes_f") * 4 + 0.15) + 0.28 * min(1, self.c("brakes_r") * 4 + 0.15))
         brake_eff *= min(1.0, self.brake_fluid / 50.0 + 0.2)
@@ -714,6 +735,8 @@ class Car:
             r = rate * (0.25 if self.painted[p] else 1.0)
             if self.model in MODELS and "duroplast" in MODELS[self.model]["quirks"] and p in ("fender", "doors", "tailgate"):
                 r *= 0.05
+            if p in ("floor", "doors") and not (self.has("door_l") and self.has("door_r")):
+                r *= 1.8          # без дверей в салон задувает снег — пол гниёт быстрее
             # чем больше ржавчины, тем быстрее она ест дальше
             r *= 0.6 + self.rust[p] / 100.0
             self.rust[p] = min(100.0, self.rust[p] + r * minutes)
@@ -754,6 +777,12 @@ class Car:
             d.append("Электрика: проводка неисправна (свет, сигналы)")
         if self.c("glass") < 0.4:
             d.append("Лобовое стекло: трещины в зоне обзора")
+        for sl, txt in (("door_l", "Нет левых дверей"), ("door_r", "Нет правых дверей"), ("hood", "Нет капота"),
+                        ("trunk", "Нет крышки багажника"), ("seats", "Нет сидений")):
+            if not self.has(sl):
+                d.append(txt)
+            elif self.c(sl) < 0.2:
+                d.append(self.slots[sl][0] + ": сгнили петли / не закрывается")
         if not self.running and self.c("engine") > 0:
             pass
         return d
@@ -851,6 +880,22 @@ class Car:
             return self._draw_side_generic(surf, ox, oy, s, texture, side)
         return self._draw_side_vaz(surf, ox, oy, s, texture, side)
 
+    def _clear_doors(self, surf, P, side, texture, polys):
+        """Снятые двери: в борту дыра, видно салон (в текстуре — прозрачно)."""
+        if self.has("door_" + side):
+            return
+        for poly_ in polys:
+            pts = [P(x, y) for x, y in poly_]
+            pygame.draw.polygon(surf, (0, 0, 0, 0) if texture else (35, 33, 30), pts)
+            pygame.draw.lines(surf, (60, 55, 50), True, pts, 3)     # край проёма
+            # петли и замок
+            x0 = min(p_[0] for p_ in poly_)
+            x1 = max(p_[0] for p_ in poly_)
+            y0 = min(p_[1] for p_ in poly_)
+            for hy in (y0 + 0.2, y0 + 0.45):
+                pygame.draw.rect(surf, (90, 85, 80), (*P(x1 - 0.03, hy + 0.04), 5, 6))
+            pygame.draw.rect(surf, (90, 85, 80), (*P(x0 + 0.01, y0 + 0.4), 4, 7))
+
     def _rust_blob(self, surf, P, panel, regs, rscale):
         self._draw_blobs(surf, panel, regs, lambda x, y: P(x, y), rscale)
 
@@ -909,6 +954,8 @@ class Car:
                 pygame.draw.circle(surf, (135, 66, 28) if th < 0.5 else (100, 46, 20), (px, py), r)
                 if rv > 80 and th > 0.75:
                     pygame.draw.circle(surf, (15, 10, 8), (px, py), max(1, r // 2))
+        self._clear_doors(surf, P, side, texture, [
+            [(1.97, 0.34), (1.97, 1.28), (2.45, 1.29), (2.97, 0.9), (3.02, 0.36)]])
         if texture:
             return
         for slot, wx in (("tire_rl", self.spec["axles"][0]), ("tire_fl", self.spec["axles"][1])):
@@ -1063,6 +1110,12 @@ class Car:
                 pygame.draw.circle(surf, (135, 66, 28) if th < 0.5 else (100, 46, 20), (px, py), r)
                 if rv > 80 and th > 0.75:
                     pygame.draw.circle(surf, (15, 10, 8), (px, py), max(1, r // 2))
+        door_polys = [[(bp - 0.02, sill + 0.03), (bp - 0.02, yt + 0.02), (ws_x(yt) - 0.03, yt + 0.02),
+                       (wb - 0.08, belt), (wb - 0.08, sill + 0.03)]]
+        if B["doors"] == 4:
+            rx0 = rear_win[0][0] + 0.28
+            door_polys.append([(rx0, sill + 0.03), (rx0, yt + 0.02), (bp - 0.02, yt + 0.02), (bp - 0.02, sill + 0.03)])
+        self._clear_doors(surf, P, side, texture, door_polys)
         if texture:
             return
         for slot, wx in (("tire_rl" if side == "l" else "tire_rr", ar), ("tire_fl" if side == "l" else "tire_fr", af)):
@@ -1079,6 +1132,7 @@ class Car:
 
     def _draw_side_vaz(self, surf, ox, oy, s, texture=False, side="l"):
         P = lambda x, y: (int(ox + x * s), int(oy - y * s))
+        paint_ = self.paint if self.color else PAINT
         poly = lambda pts: [P(x, y) for x, y in pts]
 
         # тень на полу
@@ -1088,15 +1142,15 @@ class Car:
         body = [(0.02, 0.30), (0.0, 0.45), (0.0, 0.86), (0.3, 0.88), (2.95, 0.88),
                 (3.9, 0.84), (4.0, 0.78), (4.02, 0.55), (4.0, 0.33), (3.62, 0.30)]
         green = [(0.06, 0.86), (0.12, 1.38), (0.22, 1.44), (2.35, 1.44), (2.52, 1.40), (3.0, 0.88)]
-        pygame.draw.polygon(surf, PAINT, poly(green))
-        pygame.draw.polygon(surf, PAINT, poly(body))
+        pygame.draw.polygon(surf, paint_, poly(green))
+        pygame.draw.polygon(surf, paint_, poly(body))
         # вырезы колёсных арок (только выше линии порога)
         old_clip = surf.get_clip()
         surf.set_clip(pygame.Rect(0, 0, surf.get_width(), P(0, 0.30)[1]))
         for wx in (0.83, 3.25):
             pygame.draw.circle(surf, (0, 0, 0, 0) if texture else (22, 20, 20), P(wx, 0.30), int(0.39 * s))
         surf.set_clip(old_clip)
-        if side == "l":
+        if side == "l" and self.odd_door:
             # другая дверь (с разборки)
             pygame.draw.polygon(surf, PAINT_DOOR, poly([(1.87, 0.34), (1.87, 0.88), (2.93, 0.88), (2.93, 0.36)]))
             pygame.draw.polygon(surf, PAINT_DOOR, poly([(1.87, 0.88), (1.87, 1.36), (2.36, 1.36), (2.9, 0.9)]))
@@ -1166,6 +1220,9 @@ class Car:
             x = 0.4 + rr.random() * 3.0
             pygame.draw.line(surf, (120, 58, 24), P(x, 0.30), P(x, 0.30 - 0.03 - rr.random() * 0.04), 2)
 
+        self._clear_doors(surf, P, side, texture, [
+            [(1.87, 0.34), (1.87, 1.36), (2.36, 1.36), (2.9, 0.9), (2.93, 0.36)],
+            [(1.0, 0.34), (1.0, 1.34), (1.80, 1.34), (1.84, 0.34)]])
         if texture:
             return
         # колёса

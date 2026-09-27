@@ -13,7 +13,9 @@ import random
 
 from items import (ITEMS, SLOTS, SLOTS_BY_MODEL, PANELS, item_name, SHOP_SUPERMARKT, SHOP_TEILE, SHOP_TANKE,
                    SHOP_IMBISS, SHOP_TOYOTA, SHOP_MODELS, MODEL_NAMES, CONSUMABLES, shop_for_model)
-from models import MODELS
+from models import MODELS, SLOT_MINUTES, model_info
+from world import JUNKYARD
+from state import BASE_VALUE
 from world import BUILDINGS, BLITZER, PUMP_ZONE, TUV_YARD, GARAGE, PARKING2, SCRAP_DROP, point_in
 from state import WHITE, RED, GREEN, YELLOW, RENT, AE86_PRICE, CAR_NAMES, ROPE_SNAP_KMH, MAIN_CARS
 
@@ -43,6 +45,12 @@ CONTROLS = [
     "I (держать) — стартер / заглушить, C — подсос, L — фары, H — гудок, V — вид (салон / сзади).",
     "F — выйти, E — действие (заправка, TÜV, доставка, сдать машину на лом).",
     "T — буксировочный трос: привязать брошенную машину (или свою) к машине рядом / отвязать.",
+    "G — второе действие рядом (например, если рядом и своя машина, и брошенная).",
+    "R у брошенной или своей машины — РАЗОБРАТЬ на запчасти (на свалке можно снять и мотор с коробкой).",
+    "ПОДЗЕМНЫЕ ГАРАЖИ: въезды «P» у Hauptstraße и Am Wald — въезжайте машиной или заходите пешком; пандусы "
+    "ведут на уровень −2.",
+    "ЗАБРОШЕННЫЕ ГАРАЖИ (коричневые квадраты на карте): E у ворот — открыть (некоторые заперты — нужна монтировка),",
+    "внутри — забытая машина (забрать бесплатно) и полки с деталями и инструментами (E — обыскать).",
     "НАХОДКИ: брошенные машины у дорог (серые точки на карте) можно ЗАБРАТЬ СЕБЕ бесплатно (E у машины),",
     "дотащить тросом до гаража, восстановить и ездить. Сдать на лом — только если сами захотите.",
     "У машины: E — открыть капот (детали, жидкости, сварка). Мышь/колесо — осмотр машины.",
@@ -55,7 +63,7 @@ CONTROLS = [
 ]
 
 INTRO = [
-    "Октябрь 1998 года. Нижняя Саксония, городок Kleinbruck.",
+    "Декабрь 1998 года. Нижняя Саксония, городок Kleinbruck. Снег, мороз, на дорогах — каша из снега и соли.",
     "У вас однокомнатная квартира на Lindenstraße 7 и ВАЗ 2102 «Жигули» 1979 года от дяди Вити: "
     "ржавая насквозь, но на ходу, с номерами KB-VZ 102 и TÜV до весны.",
     "Прямо за вашим гаражом — Autoverwertung Kowalski (въезд с Hauptstraße, справа от гаража). "
@@ -66,10 +74,16 @@ INTRO = [
     "изредка Mercedes W123 (серые точки на карте M). Любую можно ЗАБРАТЬ СЕБЕ бесплатно: подойдите и нажмите E. "
     "У каждой своё состояние — от почти живой до гнилой насквозь. Дотащите её тросом (T) к гаражу и восстанавливайте.",
     "Не нужна — тащите на площадку у пресса Ковальского и сдавайте на лом (35–120 DM).",
+    "ЗАБРОШЕННЫЕ ГАРАЖИ: по округе стоят старые гаражи и сараи (коричневые квадраты на карте). Внутри — забытые "
+    "машины, которые сохранились лучше придорожных, и полки с деталями. Часть ворот заперта: нужна монтировка (12 DM).",
     "Ещё работа: смены на складе (Lager, по будням 6–9 утра) и доставка пиццы (Pizzeria Da Luigi).",
     "",
-    "Квартплата (105 DM) и страховка каждой машины на учёте (24 DM) списываются каждые 7 дней. "
-    "Минус больше 400 DM — выселение. Утром мотор холодный: вытяните подсос (C), держите I для стартера.",
+    "ЧТО ИССЛЕДОВАТЬ: два подземных гаража (много машин, мало деталей), три заброшенные парковки "
+    "(ржавые и полуразобранные машины, детали на земле), свалка Ковальского (доноры — разбирайте на запчасти, R), "
+    "площадка «Gebrauchtwagen Weber» на L 342 — купить или продать машину.",
+    "Зимой: холодный мотор заводится хуже, аккумулятор слабее, на снегу и в слякоти машину несёт.",
+    "Квартира ваша собственная — квартплаты нет. Страховка каждой машины на учёте (24 DM) списывается каждые 7 дней. "
+    "На старте у вас 3000 DM. Утром мотор холодный: вытяните подсос (C), держите I для стартера.",
 ]
 
 
@@ -503,6 +517,214 @@ class CarWork(Menu):
         return "Enter — выбрать, Esc — назад, мышь — осмотр машины"
 
 
+class Dealer(Menu):
+    """Gebrauchtwagen Weber: купить машину с площадки или продать свою."""
+    wide = True
+
+    def __init__(self, g, start=None):
+        self.g = g
+        self.stack = ["root"]
+        self.key = None
+        if start:
+            self.key = start
+            self.stack.append("car")
+
+    def score(self, car):
+        base = BASE_VALUE.get(car.model, 900)
+        return max(0, min(100, int((self.g.car_value(car) - (250 if car.tuv_until >= self.g.day else 0)) / base * 100)))
+
+    @property
+    def title(self):
+        m = self.stack[-1]
+        if m == "car":
+            return f"Weber: {self.g.cars[self.key].name}"
+        if m == "sell":
+            return "Weber: продать машину"
+        if m == "confirm":
+            return "Продать машину?"
+        return "Gebrauchtwagen Weber — An- & Verkauf"
+
+    def lines(self):
+        g = self.g
+        m = self.stack[-1]
+        if m == "root":
+            return ["Herr Weber, в дублёнке и с термосом: «Alles mit Garantie... bis zum Hoftor.»",
+                    f"На площадке {len(g.dealer['stock'])} машин. Хотите продать свою — поставьте её на "
+                    "площадку приёма (правая часть стоянки, у таблички «Ankauf»).",
+                    f"У вас: {g.p.money:.2f} DM."]
+        if m == "car":
+            car = g.cars[self.key]
+            info = model_info(car.model) or {}
+            price = g.dealer["stock"].get(self.key)
+            tuv = "свежий TÜV (2 года)" if car.tuv_until >= g.day else "без TÜV"
+            worst = sorted(((pt["cond"], car.slots[sl][0]) for sl, pt in car.parts.items() if pt), key=lambda x: x[0])[:3]
+            return [f"{car.name}, пробег {car.odometer:,.0f} км, {tuv}, без номеров.".replace(",", " "),
+                    info.get("desc", "Проверенная «двойка» — ездит, и ладно.") if car.model != "vaz2102" else
+                    "ВАЗ 2102 — «Жигули»-универсал. Простой, ремонтопригодный.",
+                    f"Состояние: {self.score(car)}% · мотор {car.c('engine') * 100:.0f}% · КПП {car.c('gearbox') * 100:.0f}% · "
+                    f"ржавчина до {car.max_rust():.0f}%.",
+                    "Слабые места: " + ", ".join(f"{n} {c:.0f}%" for c, n in worst) + ".",
+                    f"Цена: {price:.0f} DM. У вас: {g.p.money:.2f} DM." if price else "Эта машина уже продана."]
+        if m == "sell":
+            ks = g.cars_in_sell_zone()
+            return ["Weber осматривает машины на площадке приёма и называет цену (обычно ~60% от рыночной).",
+                    "" if ks else "На площадке приёма нет ваших машин. Подгоните машину к табличке «Ankauf»."]
+        if m == "confirm":
+            car = g.cars[self.key]
+            return [f"Weber даст за {car.name} {g.dealer_offer(self.key):.0f} DM наличными.",
+                    "После продажи машина станет товаром на площадке — выкупить обратно можно, но дороже."]
+        return []
+
+    def items(self):
+        g = self.g
+        m = self.stack[-1]
+        if m == "root":
+            return [("Купить машину", "buy", True), ("Продать свою машину", "sell", True), ("Уйти", CLOSE, True)]
+        if m == "buy":
+            out = []
+            for k, price in sorted(g.dealer["stock"].items(), key=lambda kv: kv[1]):
+                car = g.cars.get(k)
+                if car is None:
+                    continue
+                tuv = " · TÜV" if car.tuv_until >= g.day else ""
+                out.append(((f"{car.name} · {car.odometer / 1000:.0f} тыс. км · {self.score(car)}%{tuv}",
+                             f"{price:.0f} DM"), ("car", k), True))
+            if not out:
+                out.append(("Площадка пуста — новые машины по понедельникам.", None, False))
+            out.append(("← Назад", "back", True))
+            return out
+        if m == "car":
+            price = g.dealer["stock"].get(self.key)
+            return [((f"Купить за {price:.0f} DM", ""), "buy_it", price is not None), ("← Назад", "back", True)]
+        if m == "sell":
+            out = []
+            for k in g.cars_in_sell_zone():
+                car = g.cars[k]
+                ok = not (k == "ae86" and not g.goal_done)
+                out.append(((f"{car.name} · {self.score(car)}%", f"{g.dealer_offer(k):.0f} DM"), ("sell", k), ok))
+            out.append(("← Назад", "back", True))
+            return out
+        if m == "confirm":
+            return [("Да, продать", "sell_it", True), ("← Нет", "back", True)]
+        return []
+
+    def back(self):
+        if len(self.stack) > 1:
+            self.stack.pop()
+            return False
+        return True
+
+    def select(self, sel):
+        g = self.g
+        if sel == CLOSE:
+            return "close"
+        if sel == "back":
+            self.back()
+            return None
+        if sel in ("buy", "sell"):
+            if not g.is_open("dealer"):
+                g.notify(f"Weber закрыт. {g.hours_str('dealer')}.", RED)
+                return None
+            self.stack.append(sel)
+            return None
+        if isinstance(sel, tuple) and sel[0] == "car":
+            self.key = sel[1]
+            self.stack.append("car")
+            return None
+        if sel == "buy_it":
+            car = g.cars[self.key]
+            if g.buy_from_dealer(self.key):
+                g.notify(f"Вы купили {car.name}! Ключи у вас, машина на площадке Weber. Номера — в Rathaus.", GREEN, 8)
+                return "close"
+            return None
+        if isinstance(sel, tuple) and sel[0] == "sell":
+            self.key = sel[1]
+            self.stack.append("confirm")
+            return None
+        if sel == "sell_it":
+            if g.tow and self.key in (g.tow.get("key"), g.tow.get("by")):
+                g.notify("Сначала отвяжите трос.", RED)
+                return None
+            g.sell_to_dealer(self.key)
+            return "close"
+        return None
+
+
+class Dismantle(Menu):
+    """Разборка машины на запчасти. Детали идут в инвентарь и ставятся на машины той же модели."""
+    time_flows = True
+    side = True
+    HEAVY = ("engine", "gearbox", "clutch")
+
+    def __init__(self, g, key):
+        self.g = g
+        self.key = key
+
+    @property
+    def car(self):
+        return self.g.cars[self.key]
+
+    def crane(self):
+        c = self.car
+        return point_in(JUNKYARD, c.x, c.y) or point_in(GARAGE, c.x, c.y)
+
+    @property
+    def title(self):
+        return f"Разборка: {self.car.name}"
+
+    def lines(self):
+        c = self.car
+        whose = "ваша машина" if self.g.owned.get(self.key) else (
+            "машина Ковальского — «бери, что открутишь»" if point_in(JUNKYARD, c.x, c.y) else "бесхозная машина")
+        n = sum(1 for p_ in c.parts.values() if p_)
+        return [f"{whose}. Осталось деталей: {n} из {len(c.slots)}.",
+                "Снятые детали подходят к машинам той же модели." +
+                ("" if self.crane() else " Мотор, коробку и сцепление без крана не снять — только на свалке или в гараже.")]
+
+    def items(self):
+        c = self.car
+        out = []
+        for sl, (name, pid, mins) in c.slots.items():
+            p_ = c.parts.get(sl)
+            if p_ is None:
+                continue
+            heavy_ok = sl not in self.HEAVY or self.crane()
+            out.append(((f"Снять: {name} ({p_['cond']:.0f}%)", f"{max(5, int(mins * 0.6))} мин"), ("take", sl), heavy_ok))
+        if not out:
+            out.append(("Снимать больше нечего — только кузов на пресс.", None, False))
+        out.append(("Закончить", CLOSE, True))
+        return out
+
+    def select(self, sel):
+        g = self.g
+        if sel == CLOSE:
+            return "close"
+        if isinstance(sel, tuple) and sel[0] == "take":
+            sl = sel[1]
+            c = self.car
+            if not g.has("toolbox"):
+                g.notify("Нужен набор ключей.", RED)
+                return None
+            if c.running:
+                c.engine_off()
+            part = c.parts.get(sl)
+            if part is None:
+                return None
+            mins = max(5, int(c.slots[sl][2] * 0.6))
+            g.play_sound("tool", 0.6)
+            left = mins
+            while left > 0:
+                g.advance(min(10, left), working=True)
+                left -= 10
+            c.parts[sl] = None
+            g.add_item(part["id"], part["cond"])
+            g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
+        return None
+
+    def hint(self):
+        return "Enter — снять деталь, Esc — закончить"
+
+
 # ====================================================================== действия
 class ActionsMixin:
     """Методы игры: здания, работа, полиция, квартира. Требует от класса:
@@ -545,6 +767,8 @@ class ActionsMixin:
             self.schrott()
         elif bid == "autohaus":
             self.autohaus()
+        elif bid == "dealer":
+            self.open_menu(Dealer(self))
 
     def parts_shop(self, where, title, subtitle):
         """Выбор марки, затем список запчастей этой марки."""
@@ -604,7 +828,12 @@ class ActionsMixin:
     def find_offer(self, key):
         """Осмотр брошенной машины: описание модели, состояние, забрать себе бесплатно."""
         car = self.cars[key]
-        info = MODELS[car.model]
+        info = dict(model_info(car.model) or {})
+        info.setdefault("origin", "СССР" if car.model == "vaz2102" else "?")
+        info.setdefault("desc", "«Жигули»-универсал: простой, ремонтопригодный, запчасти есть в Ost-Autoteile.")
+        if key in self.dealer["stock"]:
+            self.open_menu(Dealer(self, key))
+            return
         p = car.preservation
         grade = ("почти живая — может, и заведётся после мелочей" if p > 0.7 else
                  "потрёпанная, но целая" if p > 0.5 else
@@ -618,11 +847,55 @@ class ActionsMixin:
                  "Хуже всего: " + ", ".join(f"{n} {c:.0f}%" for c, n in worst) + "."]
         if missing:
             lines.append("Нет совсем: " + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else "") + ".")
-        lines.append("Хозяина нет — машину можно забрать себе бесплатно.")
-        opts = [("Забрать себе (бесплатно)", lambda: self.take_find(key), True)]
+        if key.startswith("j"):
+            lines.append("Ковальский: «Забирай даром, если утащишь. Или разбери на запчасти (R) — тоже бесплатно.»")
+        else:
+            lines.append("Хозяина нет — машину можно забрать себе бесплатно. Или разобрать на запчасти (R).")
+        opts = [("Забрать себе (бесплатно)", lambda: self.take_find(key), True),
+                ("Разобрать на запчасти", lambda: self.open_menu(Dismantle(self, key)), True)]
         if key in self.wrecks_in_drop():
             opts.append((f"Сдать на лом (+{self.scrap_value(key):.2f} DM)", lambda: self.scrap_car(key), True))
         self.dialog(f"Находка: {info['name']}", lines, opts, wide=True)
+
+    # ----------------------------------------------------------------- заброшенные гаражи
+    def garage_door(self, gid):
+        ag = self.world.abandoned_by_id(gid)
+        gs = self.garages[gid]
+        if gs["open"]:
+            return
+        if ag["locked"] and not self.has("crowbar"):
+            self.info(ag["name"], [
+                "Ржавые ворота заперты на амбарный замок. Сквозь щель видно силуэт машины под слоем пыли.",
+                "Хозяин давно уехал, соседи говорят — «забирай, всё равно сгниёт». Но замок так не открыть.",
+                "Нужна монтировка (Brecheisen): Ost-Autoteile или заправка, 12 DM."], wide=True)
+            return
+        self.advance(15)
+        self.play_sound("grind", 0.8)
+        self.open_garage(gid)
+        how = "Монтировка, скрежет — замок сдался." if ag["locked"] else "Ворота заржавели, но поддались."
+        car = self.cars.get("g" + gid)
+        what = f" Внутри под пыльным брезентом — {car.name}!" if car and not self.owned.get("g" + gid) else ""
+        self.notify(f"{how}{what}", GREEN, 8)
+
+    def search_shelves(self, gid):
+        gs = self.garages[gid]
+        if gs["looted"]:
+            self.notify("Полки пустые — вы уже всё забрали.")
+            return
+        self.advance(20)
+        gs["looted"] = True
+        names = []
+        for e in gs["loot"]:
+            self.add_item(e["id"], e["cond"])
+            it = ITEMS.get(e["id"], {})
+            names.append(it.get("name", e["id"]) + (f" ({e['cond']:.0f}%)" if it.get("kind") == "part" else ""))
+        self.play_sound("tool", 0.6)
+        self.info("Полки в гараже", ["Под пылью и паутиной нашлось:", ""] + [f"• {n}" for n in names], wide=True)
+
+    def pick_loose(self, idx):
+        it = self.pickup(idx)
+        self.play_sound("tool", 0.4)
+        self.notify(f"Подобрано: {item_name(it['id'])} ({it['cond']:.0f}%)", GREEN)
 
     def take_find(self, key):
         car = self.cars[key]
@@ -663,7 +936,7 @@ class ActionsMixin:
             self.notify("Нет троса. Купите Abschleppseil на заправке или в Ost-Autoteile (15 DM).", RED)
             return
         tgt = self.cars[target]
-        best, bd = None, 12.0
+        best, bd = None, 14.0
         for k, c in self.owned_cars():
             if k == target:
                 continue
@@ -671,7 +944,7 @@ class ActionsMixin:
             if d < bd:
                 best, bd = k, d
         if best is None:
-            self.notify("Подгоните свою машину поближе (до 12 м), чтобы привязать трос.", YELLOW)
+            self.notify("Подгоните свою машину поближе (до 14 м), чтобы привязать трос.", YELLOW)
             return
         if tgt.running:
             tgt.engine_off()
@@ -1098,7 +1371,7 @@ class ActionsMixin:
 
     def status(self):
         lines = [self.goal_text(), "",
-                 f"Деньги: {self.p.money:.2f} DM.  Квартплата {RENT:.0f} DM — через {7 - self.day % 7} дн."]
+                 f"Деньги: {self.p.money:.2f} DM.  Квартира своя — за жильё платить не нужно."]
         for k, car in self.owned_cars():
             tuv = "нет" if car.tuv_until < self.day else f"до дня {car.tuv_until}"
             lines.append(f"{car.name}: TÜV — {tuv}; номера — {car.plate if car.registered else 'нет'}; "

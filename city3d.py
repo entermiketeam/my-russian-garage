@@ -26,6 +26,7 @@ SPECIAL = {
     "lager": (9.0, "flat", 0), "kirche": (11.0, "gable", 0), "bahnhof": (7.0, "gable", 2),
     "schrott": (3.2, "flat", 1),
     "autohaus": (6.0, "flat", 0),
+    "dealer": (4.2, "flat", 1),
 }
 
 
@@ -45,6 +46,7 @@ class City:
         self.build_ground()
         self.build_buildings(rng)
         self.build_props(rng)
+        self.build_abandoned()
         self.build_lights()
         self.build_signs()
 
@@ -171,6 +173,7 @@ class City:
 
     def build_buildings(self, rng):
         mb = MeshBuilder()
+        self.roofs = []      # (вид, прямоугольник, высота стен, высота конька) — для снега на крышах
         wb = MeshBuilder()   # окна днём
         nb = MeshBuilder()   # окна ночью
         for i, hh in enumerate(self.world.houses):
@@ -180,7 +183,9 @@ class City:
             mb.box2d(x, y, w, h, 0, 0.5, (120, 116, 110))          # цоколь
             mb.box2d(x, y, w, h, 0.5, wh, wall)
             gable = tuple(max(0, c - 12) for c in wall)
-            mb.gable2d(x, y, w, h, wh, rng.uniform(2.5, 4.0), roof, gable)
+            rh_ = rng.uniform(2.5, 4.0)
+            mb.gable2d(x, y, w, h, wh, rh_, roof, gable)
+            self.roofs.append(("gable", (x, y, w, h), wh, rh_))
             if rng.random() < 0.5:   # печная труба
                 cx, cy = x + w * rng.uniform(0.25, 0.75), y + h * rng.uniform(0.3, 0.7)
                 mb.box2d(cx, cy, 0.6, 0.6, wh, wh + 3.8, (140, 70, 55))
@@ -197,7 +202,9 @@ class City:
             mb.box2d(x, y, w, h, 0, wh, wall)
             if kind == "gable":
                 mb.gable2d(x, y, w, h, wh, 4.0 if bid != "kirche" else 7.0, roof, tuple(max(0, c - 12) for c in wall))
+                self.roofs.append(("gable", (x, y, w, h), wh, 4.0 if bid != "kirche" else 7.0))
             else:
+                self.roofs.append(("flat", (x, y, w, h), wh, 0.0))
                 mb.box2d(x - 0.2, y - 0.2, w + 0.4, h + 0.4, wh, wh + 0.5, roof)   # парапет
                 mb.box2d(x + 1, y + 1, w - 2, h - 2, wh + 0.5, wh + 1.2, (110, 110, 112))  # вентиляция
             if door:
@@ -338,6 +345,84 @@ class City:
             mb.box(lx - 0.25, 5.0, -ly - 0.25, lx + 0.25, 5.25, -ly + 0.25, (50, 50, 55))
         self.props = Entity(model=mb.build(), double_sided=True)
 
+    def build_abandoned(self):
+        """Заброшенные гаражи: бетонные стены с потёками, ржавая крыша, мох, полки с хламом, ворота-гармошка."""
+        import random as _r
+        mb = MeshBuilder()
+        self.garage_doors = {}
+        for ag in self.world.abandoned:
+            rng = _r.Random(ag["id"])
+            gx, gy, gw, gh = ag["rect"]
+            wall_c = rng.choice([(150, 146, 138), (135, 120, 105), (160, 150, 130)])
+            H = 2.9
+            mb.flat2d(gx, gy, gw, gh, 0.03, (70, 66, 60))                                  # бетонный пол
+            mb.flat2d(*ag["apron"], 0.025, (88, 82, 70))                                   # заросший подъезд
+            for w in ag["walls"][:-1]:
+                mb.box2d(*w, 0, H, wall_c)
+            # потёки ржавчины и мох по стенам снаружи
+            for w in ag["walls"][:-1]:
+                wx, wy, ww, wh = w
+                for k in range(6):
+                    if ww > wh:
+                        px, py = wx + rng.uniform(0.3, ww - 0.5), wy - 0.02
+                        mb.box2d(px, py - 0.01, rng.uniform(0.15, 0.4), wh + 0.02, rng.uniform(0.6, 1.8), H - 0.1,
+                                 rng.choice([(120, 80, 50), (70, 90, 55), (100, 95, 85)]))
+                    else:
+                        px, py = wx - 0.02, wy + rng.uniform(0.3, wh - 0.5)
+                        mb.box2d(px - 0.01, py, ww + 0.02, rng.uniform(0.15, 0.4), rng.uniform(0.6, 1.8), H - 0.1,
+                                 rng.choice([(120, 80, 50), (70, 90, 55), (100, 95, 85)]))
+            mb.box2d(gx - 0.3, gy - 0.3, gw + 0.6, gh + 0.6, H, H + 0.12, (115, 70, 45), top=(125, 80, 50))   # ржавая крыша
+            for k in range(5):     # мох/листья на крыше
+                mb.box2d(gx + rng.uniform(0, gw - 1.5), gy + rng.uniform(0, gh - 1.5), 1.4, 1.2, H + 0.12, H + 0.16,
+                         (70, 95, 50))
+            # перемычка над воротами
+            dx, dy, dw, dh = ag["door_rect"]
+            mb.box2d(dx, dy, dw, dh, 2.35, H, wall_c)
+            # полки с хламом
+            sx, sy, sw, sh = ag["shelf"]
+            mb.box2d(sx, sy, sw, sh, 0, 1.9, (95, 75, 55))
+            for lvl in (0.5, 1.1, 1.7):
+                for k in range(5):
+                    along = sw > sh
+                    bx = sx + (rng.uniform(0.1, sw - 0.5) if along else 0.05)
+                    by = sy + (0.05 if along else rng.uniform(0.1, sh - 0.5))
+                    col = rng.choice([(180, 60, 40), (200, 170, 50), (60, 80, 140), (90, 90, 90), (150, 120, 80)])
+                    mb.box2d(bx, by, 0.35 if along else 0.4, 0.4 if along else 0.35, lvl, lvl + rng.uniform(0.2, 0.4), col)
+            # старые покрышки и верстак у стены
+            w0 = ag["walls"][0]
+            for k in range(3):
+                mb.cylinder(w0[0] + (0.8 if w0[2] < 1 else 1.2), 0.03 + k * 0.2, -(w0[1] + (1.2 if w0[2] < 1 else 0.8)),
+                            0.3, 0.18, (25, 25, 25), seg=10)
+            ww = ag["walls"][1]
+            if ww[2] < 1:
+                mb.box2d(ww[0] - 0.7, ww[1] + ww[3] * 0.35, 0.7, 1.6, 0, 0.9, (110, 85, 55))
+            else:
+                mb.box2d(ww[0] + ww[2] * 0.35, ww[1] - 0.7, 1.6, 0.7, 0, 0.9, (110, 85, 55))
+            # ворота-гармошка (отдельно — поднимаются)
+            door = Entity()
+            dm = MeshBuilder()
+            ribs = 12
+            if dw > dh:
+                for k in range(ribs):
+                    y0 = k * 2.35 / ribs
+                    dm.box2d(dx, dy + 0.05, dw, dh - 0.1, y0, y0 + 2.35 / ribs - 0.015, (120 + (k % 2) * 12, 72, 45))
+            else:
+                for k in range(ribs):
+                    y0 = k * 2.35 / ribs
+                    dm.box2d(dx + 0.05, dy, dw - 0.1, dh, y0, y0 + 2.35 / ribs - 0.015, (120 + (k % 2) * 12, 72, 45))
+            door.model = dm.build()
+            door.double_sided = True
+            self.garage_doors[ag["id"]] = door
+        self.abandoned_mesh = Entity(model=mb.build(), double_sided=True)
+
+    def set_garage_door(self, gid, open_):
+        d = self.garage_doors.get(gid)
+        if d is None:
+            return
+        # ворота «сворачиваются» под потолок
+        d.y = 2.0 if open_ else 0.0
+        d.scale_y = 0.15 if open_ else 1.0
+
     def build_lights(self):
         bulbs = MeshBuilder()
         glows = MeshBuilder(uv_tile=None)
@@ -390,8 +475,10 @@ class City:
         return board
 
     def set_visible(self, v):
-        for e in (self.ground, self.buildings, self.windows_day, self.props, self.garage):
+        for e in (self.ground, self.buildings, self.windows_day, self.props, self.garage, self.abandoned_mesh):
             e.enabled = v
+        for d in self.garage_doors.values():
+            d.enabled = v
         for t in self.signs:
             t.enabled = v
         if not v:
