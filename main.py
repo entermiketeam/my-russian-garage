@@ -7,6 +7,8 @@ import math
 import os
 import random
 import sys
+import i18n
+from i18n import T, src
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -33,11 +35,9 @@ window.center_on_screen()
 window.exit_button.visible = False
 window.fps_counter.enabled = False
 window.color = color.rgb(135, 170, 210)
-for _f in ("/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf",
-           "C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
-    if os.path.exists(_f):
-        Text.default_font = _f
-        break
+from config import ui_font_path  # noqa: E402
+if ui_font_path():
+    Text.default_font = ui_font_path()          # шрифт с кириллицей и знаком ₽
 Text.default_resolution = 48
 
 from panda3d.core import DirectionalLight, AmbientLight, Fog, TransparencyAttrib, WindowProperties  # noqa: E402
@@ -163,8 +163,8 @@ class TitleMenu(Menu):
         self.g = g
 
     def items(self):
-        return [("Новая игра", "new", True), ("Продолжить", "load", os.path.exists(SAVE_FILE)),
-                ("Управление", "help", True), ("Выход", "quit", True)]
+        return [(T("Новая игра"), "new", True), (T("Продолжить"), "load", os.path.exists(SAVE_FILE)),
+                (language_button(), "lang", True), (T("Управление"), "help", True), (T("Выход"), "quit", True)]
 
     def select(self, s):
         g = self.g
@@ -172,6 +172,9 @@ class TitleMenu(Menu):
             return g.start_new_game
         if s == "load":
             return g.load_game
+        if s == "lang":
+            g.open_menu(LanguageMenu(g))
+            return None
         if s == "help":
             show_controls(g)
             return None
@@ -183,29 +186,63 @@ class TitleMenu(Menu):
         return False
 
 
+def language_button():
+    """«Language» — по-английски всегда: игрок, который не читает текущий язык, всё равно найдёт кнопку."""
+    lab = T("Язык")
+    return lab if lab == "Language" else lab + " · Language"
+
+
+class LanguageMenu(Menu):
+    """Выбор языка: все языки из папки locales/. Применяется сразу и запоминается в settings.json."""
+    title_screen = False
+
+    def __init__(self, g):
+        self.g = g
+
+    @property
+    def title(self):
+        return language_button()
+
+    def lines(self):
+        return [T("Выберите язык интерфейса. Он применится сразу и сохранится в настройках."),
+                T("Текущий: {name}", name=i18n.language_name())]
+
+    def items(self):
+        cur = i18n.current()
+        return [((name, "•" if code == cur else ""), code, True) for code, name in i18n.languages()]
+
+    def start_index(self):
+        return next((i for i, (code, _) in enumerate(i18n.languages()) if code == i18n.current()), 0)
+
+    def select(self, code):
+        if code != i18n.current():
+            self.g.set_language(code)
+        return "close"
+
+
 def show_controls(g, page=0):
     """Справка по управлению — на двух страницах (целиком на экран не влезает крупным шрифтом)."""
-    cut = next((i for i, l in enumerate(CONTROLS) if l.startswith("КЛЮЧИ")), len(CONTROLS) // 2)
+    cut = next((i for i, l in enumerate(CONTROLS) if src(l).startswith("КЛЮЧИ")), len(CONTROLS) // 2)
     pages = [CONTROLS[:cut], CONTROLS[cut:]]
 
     def go(p):
         def f():
             show_controls(g, p)                  # текущую страницу меню закрывает само
         return f
-    opts = [("Дальше →", go(1), True)] if page == 0 else [("← Назад", go(0), True)]
-    g.open_menu(Dialog(f"Управление ({page + 1}/2)", pages[page], options=opts, wide=True))
+    opts = [(T("Дальше →"), go(1), True)] if page == 0 else [(T("← Назад"), go(0), True)]
+    g.open_menu(Dialog(T("Управление ({0}/2)", page + 1), pages[page], options=opts, wide=True))
 
 
 class PauseMenu(Menu):
-    title = "Пауза"
+    title = T("Пауза")
 
     def __init__(self, g):
         self.g = g
 
     def items(self):
-        return [("Продолжить", "back", True), ("Сохранить игру", "save", True),
-                ("Загрузить игру", "load", os.path.exists(SAVE_FILE)), ("Управление", "help", True),
-                ("Выйти в главное меню", "title", True)]
+        return [(T("Продолжить"), "back", True), (T("Сохранить игру"), "save", True),
+                (T("Загрузить игру"), "load", os.path.exists(SAVE_FILE)), (T("Управление"), "help", True),
+                (T("Выйти в главное меню"), "title", True)]
 
     def select(self, s):
         g = self.g
@@ -225,7 +262,7 @@ class PauseMenu(Menu):
 
 
 class GameOverMenu(Menu):
-    title = "ИГРА ОКОНЧЕНА"
+    title = T("ИГРА ОКОНЧЕНА")
 
     def __init__(self, reason):
         self.reason = reason
@@ -234,7 +271,7 @@ class GameOverMenu(Menu):
         return self.reason.split("\n")
 
     def items(self):
-        return [("В главное меню", "title", True)]
+        return [(T("В главное меню"), "title", True)]
 
     def select(self, s):
         return "title"
@@ -445,7 +482,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         if not self.edible(e) or self.hands3d.busy:
             return False
         if self.p.in_car and self.p.seat == "driver" and abs(self.car.speed) > 0.5:
-            self.notify("За рулём на ходу — не до еды.", YELLOW)
+            self.notify(T("За рулём на ходу — не до еды."), YELLOW)
             return False
         kind = "drink" if ITEMS[e["id"]]["kind"] == "drink" else "eat"
         if not self.hands3d.visible or self.mode != "play":
@@ -459,8 +496,8 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         for i in (1, 0):
             e = self.p.hands[i]
             if self.edible(e):
-                verb = "выпить" if ITEMS[e["id"]]["kind"] == "drink" else "съесть"
-                return (f"{verb}: {ITEMS[e['id']]['name']} ({'правая' if i else 'левая'} рука, осталось {e['cond']:.0f}%)",
+                verb = T("выпить") if ITEMS[e["id"]]["kind"] == "drink" else T("съесть")
+                return (T("{verb}: {name} ({0} рука, осталось {cond:.0f}%)", T('правая') if i else T('левая'), verb=verb, name=ITEMS[e['id']]['name'], cond=e['cond']),
                         lambda i=i: self.start_eat(i))
         return None
 
@@ -533,13 +570,22 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             self.city.set_garage_door(ag["id"], self.garages.get(ag["id"], {}).get("open", False))
         self.show_map = False
 
+    def set_language(self, code):
+        """Сменить язык на лету: тексты в таблицах и объектах игры, HUD, карта, вывески в мире."""
+        i18n.set_language(code, roots=(self,))
+        self.hud.destroy()
+        self.hud = HUD(self)                       # подписи HUD и приборки создаются один раз — пересоздаём
+        self.mapview.rebuild()
+        if self.menus:
+            self.menu_view.show(self.menus[-1])
+
     def start_new_game(self):
         self.clear_menus()
         self.new_state()
         self.rebind()
         self.mode = "play"
         self.enter_apartment(silent=True)
-        self.open_menu(Dialog("Добро пожаловать в Кляйнбрук", INTRO, wide=True))
+        self.open_menu(Dialog(T("Добро пожаловать в Кляйнбрук"), INTRO, wide=True))
 
     def load_game(self):
         self.clear_menus()
@@ -596,7 +642,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             return
         if self.cars[key].locked and not self.p.in_car:
             self.play_sound("handle", 0.5)
-            self.notify("Машина заперта — капот открывается рычагом из салона. Отоприте (K с ключом в руке).", RED)
+            self.notify(T("Машина заперта — капот открывается рычагом из салона. Отоприте (K с ключом в руке)."), RED)
             return
         self.cur = key
         self.mode = "carwork"
@@ -615,7 +661,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         p, car = self.p, self.car
         if p.in_car:
             if abs(car.speed) > 1:
-                self.notify("Сначала остановитесь.", RED)
+                self.notify(T("Сначала остановитесь."), RED)
                 return
             car.stop_crank()
             if car.running:
@@ -640,7 +686,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             if self.tow and key == self.tow["key"]:
                 tug = self.cars[self.tow["by"]]
                 if math.hypot(p.x - tug.x, p.y - tug.y) > 14:
-                    self.notify("Эта машина на тросе. Садитесь в машину-тягач.", YELLOW)
+                    self.notify(T("Эта машина на тросе. Садитесь в машину-тягач."), YELLOW)
                     return
                 key = self.tow["by"]          # садимся в тягач, а не в буксируемую машину
             if getattr(self.cars[key], "service", None):
@@ -657,7 +703,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             self.pitch = 0
             self.play_sound("door", 0.6)
             if not car.registered:
-                self.notify(f"Внимание: {car.name} без номеров и страховки. Не попадитесь полиции!", (230, 140, 40), 6)
+                self.notify(T("Внимание: {name} без номеров и страховки. Не попадитесь полиции!", name=car.name), (230, 140, 40), 6)
 
     def _unlock_to_enter(self, key):
         """Садимся в запертую машину: нужен её ключ в руке (отпираем), иначе — заперто."""
@@ -667,7 +713,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         i = keys_mod.key_in_hands(self, car)
         if i is None:
             self.play_sound("handle", 0.6)
-            self.notify(f"{car.name}: заперто. Нужен ключ от этой машины в руке (K — отпереть).", RED, 5)
+            self.notify(T("{name}: заперто. Нужен ключ от этой машины в руке (K — отпереть).", name=car.name), RED, 5)
             return False
         self.lock_car(car, False, i)
         return True
@@ -675,17 +721,17 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
     def _exit_warnings(self, car):
         if car.ign_key and not car.running:
             if car.locked:
-                self.notify("Вы захлопнули машину, а ключ остался в замке зажигания! Запасной — на ключнице дома, "
-                            "или вскрыть дверь монтировкой.", RED, 10)
+                self.notify(T("Вы захлопнули машину, а ключ остался в замке зажигания! Запасной — на ключнице дома, "
+                            "или вскрыть дверь монтировкой."), RED, 10)
             else:
-                self.notify("Ключ остался в замке зажигания — так машину угонят за минуту. E на замке (из салона) — "
-                            "вынуть.", YELLOW, 8)
+                self.notify(T("Ключ остался в замке зажигания — так машину угонят за минуту. E на замке (из салона) — "
+                            "вынуть."), YELLOW, 8)
 
     def lock_car(self, car, lock, hand=None):
         """Запереть/отпереть. Снаружи — ключом (анимация руки), изнутри — кнопкой."""
         if car.lock_broken and lock:
             self.play_sound("handle", 0.5)
-            self.notify(f"{car.name}: замок сломан — не запирается. Замена замков — в меню работы с машиной.", RED, 6)
+            self.notify(T("{name}: замок сломан — не запирается. Замена замков — в меню работы с машиной.", name=car.name), RED, 6)
             return False
         if lock:
             car.door_open = {k: False for k in car.door_open}
@@ -699,8 +745,8 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         k = next((kk for kk, c in self.cars.items() if c is car), None)
         if k and self.owned.get(k):
             self.cur = k
-        self.notify(f"{car.name}: " + ("заперта" + (" (центральный замок)" if keys_mod.has_central(car) else "")
-                                         if lock else "отперта"), GREEN if lock else WHITE, 3)
+        self.notify(f"{car.name}: " + (T("заперта") + (T(" (центральный замок)") if keys_mod.has_central(car) else "")
+                                         if lock else T("отперта")), GREEN if lock else WHITE, 3)
         return True
 
     def key_toggle_lock(self):
@@ -709,7 +755,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         if p.in_car:
             car = self.car
             if car.lock_broken:
-                self.notify("Кнопка блокировки не держит — замок сломан.", RED)
+                self.notify(T("Кнопка блокировки не держит — замок сломан."), RED)
                 return
             self.lock_car(car, not car.locked)
             return
@@ -721,13 +767,13 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             if d < bd:
                 best, bd = k, d
         if best is None:
-            self.notify("Рядом нет машины.", RED)
+            self.notify(T("Рядом нет машины."), RED)
             return
         car = self.cars[best]
         i = keys_mod.key_in_hands(self, car)
         if i is None:
             other = any(e and e.get("id") == "key" for e in p.hands)
-            self.notify(f"{car.name}: " + ("этот ключ не подходит." if other else "нужен ключ от этой машины в руке."), RED, 5)
+            self.notify(f"{car.name}: " + (T("этот ключ не подходит.") if other else T("нужен ключ от этой машины в руке.")), RED, 5)
             return
         self.lock_car(car, not car.locked, i)
 
@@ -736,14 +782,14 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         car = self.car
         if car.ign_key:
             if car.running:
-                return ("Заглушить двигатель ключом", lambda: car.engine_off("Двигатель заглушен."))
-            return ("Вынуть ключ из замка зажигания", self._take_ign_key)
+                return (T("Заглушить двигатель ключом"), lambda: car.engine_off(T("Двигатель заглушен.")))
+            return (T("Вынуть ключ из замка зажигания"), self._take_ign_key)
         i = keys_mod.key_in_hands(self, car)
         if i is not None:
-            return ("Вставить ключ в замок зажигания", lambda: self._insert_key(i))
+            return (T("Вставить ключ в замок зажигания"), lambda: self._insert_key(i))
         if car.hotwired:
-            return ("Замок зажигания разобран — заводится проводами (I)", lambda: None)
-        return ("Нет ключа. Завести напрямую — соединить провода (набор ключей, 4 мин)", self._hotwire)
+            return (T("Замок зажигания разобран — заводится проводами (I)"), lambda: None)
+        return (T("Нет ключа. Завести напрямую — соединить провода (набор ключей, 4 мин)"), self._hotwire)
 
     def _insert_key(self, i):
         car = self.car
@@ -760,10 +806,10 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
     def _take_ign_key(self):
         car = self.car
         if car.running:
-            car.engine_off("Двигатель заглушен.")
+            car.engine_off(T("Двигатель заглушен."))
         fh = self.free_hand()
         if fh is None:
-            self.notify("Обе руки заняты — ключ некуда взять.", RED)
+            self.notify(T("Обе руки заняты — ключ некуда взять."), RED)
             return
         e = car.ign_key
         car.ign_key = None
@@ -778,15 +824,15 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.advance(4, working=True)
         car.hotwired = True
         self.play_sound("tool", 0.6)
-        self.notify("Кожух колонки снят, провода соединены: теперь машина заводится без ключа (I). Замок зажигания "
-                    "испорчен — на техосмотре это заметят; замена замков — в меню работы с машиной.", YELLOW, 10)
+        self.notify(T("Кожух колонки снят, провода соединены: теперь машина заводится без ключа (I). Замок зажигания "
+                    "испорчен — на техосмотре это заметят; замена замков — в меню работы с машиной."), YELLOW, 10)
 
     def shift(self, gear):
         car = self.car
         if gear == car.gear:
             return
         if (gear == -1 and car.speed > 1.5) or (gear > 0 and car.speed < -1.5):
-            self.notify("ХРУСТЬ! Сначала остановитесь.", RED)
+            self.notify(T("ХРУСТЬ! Сначала остановитесь."), RED)
             self.play_sound("grind", 0.7)
             return
         car.gear = gear
@@ -813,7 +859,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             return
         if key in ("-", "="):
             self.sens = max(0.03, min(0.6, self.sens * (0.8 if key == "-" else 1.25)))
-            self.notify(f"Чувствительность мыши: {self.sens / 0.15 * 100:.0f}%")
+            self.notify(T("Чувствительность мыши: {0:.0f}%", self.sens / 0.15 * 100))
             return
         if key == "m" and self.location == "street":
             self.show_map = not self.show_map
@@ -831,10 +877,10 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             if e:
                 where = self.drop_hand(i)
                 if where:
-                    self.notify(f"Положили: {ITEMS.get(e['id'], {}).get('name', e['id'])} — {where}.", GREEN)
+                    self.notify(T("Положили: {name} — {where}.", name=ITEMS.get(e['id'], {}).get('name', e['id']), where=where), GREEN)
                     self.play_sound("tool", 0.3)
                 else:
-                    self.notify("Здесь это положить некуда.", RED)
+                    self.notify(T("Здесь это положить некуда."), RED)
         elif key == "e" and self.actions:
             self.actions[0][1]()
         elif key == "g" and len(self.actions) > 1 and not p.in_car:
@@ -857,7 +903,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 self._blinker(-1 if key == "[" else 1)
             elif key == "i":
                 if car.running:
-                    car.engine_off("Двигатель заглушен.")
+                    car.engine_off(T("Двигатель заглушен."))
                 elif keys_mod.can_start(car):
                     car.start_crank()
                 elif keys_mod.key_in_hands(self, car) is not None:
@@ -865,24 +911,24 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                     self._crank_after_key = True
                 else:
                     other = any(e and e.get("id") == "key" for e in p.hands)
-                    self.notify("Этот ключ не подходит к замку зажигания." if other else
-                                "Нет ключа. Возьмите ключ этой машины в руку (Tab) — или E на замке зажигания: "
-                                "завести напрямую.", RED, 6)
+                    self.notify(T("Этот ключ не подходит к замку зажигания.") if other else
+                                T("Нет ключа. Возьмите ключ этой машины в руку (Tab) — или E на замке зажигания: "
+                                "завести напрямую."), RED, 6)
             elif key == "c":
                 car.choke = not car.choke
-                self.notify("Подсос " + ("ВЫТЯНУТ" if car.choke else "задвинут"))
+                self.notify(T("Подсос ") + (T("ВЫТЯНУТ") if car.choke else T("задвинут")))
             elif key == "l":
                 if car.has("lights") and car.c("lights") > 0.05:
                     car.lights = not car.lights
                 else:
-                    self.notify("Фары не работают.", RED)
+                    self.notify(T("Фары не работают."), RED)
             elif key == "h":
                 if car.battery_charge > 5:
                     car._horn_t = 0.7                     # цепь сигнала под нагрузкой (может сжечь предохранитель)
                     if elec.works(car, "horn"):
                         self.play_sound("horn", 0.7)
                     else:
-                        self.notify("Сигнал молчит. Предохранитель или сам сигнал? — блок предохранителей.", YELLOW)
+                        self.notify(T("Сигнал молчит. Предохранитель или сам сигнал? — блок предохранителей."), YELLOW)
             elif key in ("left shift", "right shift"):
                 self.shift(min(car.max_gear, car.gear + 1))
             elif key in ("left control", "right control"):
@@ -1018,11 +1064,11 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             if service.in_service(c) or abs(c.x - p.x) + abs(c.y - p.y) > 8:
                 continue
             if service.bay_of(c) is not None and abs(c.speed) < 0.5:
-                out.append((f"{service.NAME}: сдать {c.name} на осмотр и ремонт" +
-                            (" (бессрочная гарантия)" if service.has_warranty(c) else ""),
+                out.append((T("{NAME}: сдать {name} на осмотр и ремонт", NAME=service.NAME, name=c.name) +
+                            (T(" (бессрочная гарантия)") if service.has_warranty(c) else ""),
                             lambda k=k: service.reception(self, k)))
         if not p.in_car and math.hypot(p.x - SERVICE_DOOR_PT[0], p.y - SERVICE_DOOR_PT[1]) < 3.0:
-            out.append((f"Приёмка {service.NAME}: мои машины", lambda: service.office(self)))
+            out.append((T("Приёмка {NAME}: мои машины", NAME=service.NAME), lambda: service.office(self)))
         return out
 
     def _build_boards(self):
@@ -1059,13 +1105,13 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
     def _hand_txt(self, i):
         e = self.p.hands[i]
         if not e:
-            return ("Л" if i == 0 else "П") + ": пусто"
+            return (T("Л") if i == 0 else T("П")) + T(": пусто")
         if e["id"] in ("key", "flyer"):
             import storage
-            return ("Л" if i == 0 else "П") + ": " + storage.label(e)
+            return (T("Л") if i == 0 else T("П")) + ": " + storage.label(e)
         it = ITEMS.get(e["id"], {})
         tail = f" {e['cond']:.0f}%" if it.get("kind") in ("food", "drink", "part") else ""
-        return ("Л" if i == 0 else "П") + ": " + it.get("name", e["id"]).split(" (")[0] + tail
+        return (T("Л") if i == 0 else T("П")) + ": " + it.get("name", e["id"]).split(" (")[0] + tail
 
     def _sync_rope(self):
         obj = self.towed_object()
@@ -1081,10 +1127,10 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
 
     def place(self):
         if self.location == "apartment":
-            return "Квартира, Линденштрассе, 7"
+            return T("Квартира, Линденштрассе, 7")
         L = self.world.level_at(self.p.x, self.p.y)
         if L:
-            return f"{L['name']}, уровень {'−1' if L['no'] == -1 else '−2'}"
+            return T("{name}, уровень {0}", '−1' if L['no'] == -1 else '−2', name=L['name'])
         P = self.world.places.parking_at(self.p.x, self.p.y)
         if P:
             return P["name"]
@@ -1092,8 +1138,8 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         if r:
             return r[5]
         if self.p.in_car:
-            return f"{'Пассажир' if self.p.seat == 'passenger' else 'За рулём'} {self.car.name}"
-        return "Кляйнбрук"
+            return T("{0} {name}", T('Пассажир') if self.p.seat == 'passenger' else T('За рулём'), name=self.car.name)
+        return T("Кляйнбрук")
 
     def _view_yaw(self):
         if self.p.in_car:
@@ -1194,7 +1240,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                         self.play_sound("door", 0.5)
             for ai in self.world.ai:
                 if ai.speed > 4 and math.hypot(ai.x - p.x, ai.y - p.y) < 1.5:
-                    self.hospital("Вас сбила машина! Смотрите по сторонам.")
+                    self.hospital(T("Вас сбила машина! Смотрите по сторонам."))
                     self.leave_hospital()
                     return []
             camera.parent = scene
@@ -1205,22 +1251,22 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         if self.pending_faint:
             self.pending_faint = False
             if p.in_car and abs(car.speed) > 3:
-                self.notify("Вы уснули за рулём!", RED, 8)
+                self.notify(T("Вы уснули за рулём!"), RED, 8)
                 if car.impact(abs(car.speed)):
-                    self.hospital("Авария: уснули за рулём.")
+                    self.hospital(T("Авария: уснули за рулём."))
                     self.leave_hospital()
                     return []
                 car.speed = 0
                 car.vlat = car.ang_vel = 0.0
             else:
-                self.notify("Вы уснули прямо на улице...", RED, 8)
+                self.notify(T("Вы уснули прямо на улице..."), RED, 8)
             car.engine_off()
             self.sleep(360)
             if random.random() < 0.3 and p.money > 20:
-                self.charge(min(p.money, random.uniform(10, 60)), "Пока вы спали, у вас украли деньги", RED, 8)
+                self.charge(min(p.money, random.uniform(10, 60)), T("Пока вы спали, у вас украли деньги"), RED, 8)
         d = self.delivery
         if d and self.minutes > d["deadline"] + 60:
-            self.notify("Заказ отменён — клиент не дождался. Пиццерия недовольна.", RED)
+            self.notify(T("Заказ отменён — клиент не дождался. Пиццерия недовольна."), RED)
             self.delivery = None
         return self.find_actions()
 
@@ -1327,53 +1373,53 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         kind = tid[0]
         if kind in ("under", "jackpt"):
             return self._uc_action(key, tid)
-        rear = " заднюю" if kind.startswith("door") and str(tid[1]).endswith("b") else ""
+        rear = T(" заднюю") if kind.startswith("door") and str(tid[1]).endswith("b") else ""
         if kind == "door_open_in":
-            return (f"Открыть{rear} дверь", lambda: self._door(car, tid[1], True, inside=True), None)
+            return (T("Открыть{rear} дверь", rear=rear), lambda: self._door(car, tid[1], True, inside=True), None)
         if kind == "door_open":
             alt = None
             if car.locked and self.has("crowbar"):
-                alt = ("Вскрыть дверь монтировкой (замок сломается)", lambda: self._break_in(car, tid[1]))
-            return (f"Открыть{rear} дверь", lambda: self._door(car, tid[1], True), alt)
+                alt = (T("Вскрыть дверь монтировкой (замок сломается)"), lambda: self._break_in(car, tid[1]))
+            return (T("Открыть{rear} дверь", rear=rear), lambda: self._door(car, tid[1], True), alt)
         if kind == "ign":
             a = self.ignition_action()
             return (a[0], a[1], None)
         if kind == "door_close":
-            return (f"Закрыть{rear} дверь", lambda: self._door(car, tid[1], False), None)
+            return (T("Закрыть{rear} дверь", rear=rear), lambda: self._door(car, tid[1], False), None)
         if kind == "titem":
             idx = tid[1]
             if idx < len(car.trunk_items):
                 e = car.trunk_items[idx]
                 import storage
-                return (f"Взять из багажника: {storage.label(e)}", lambda: self._trunk_take(car, e),
-                        ("Положить в багажник…", lambda: self._trunk_put(car)))
+                return (T("Взять из багажника: {label}", label=storage.label(e)), lambda: self._trunk_take(car, e),
+                        (T("Положить в багажник…"), lambda: self._trunk_put(car)))
             return None
         if kind == "tput":
             n = len(car.trunk_items)
-            return (f"Положить в багажник… (внутри {n})", lambda: self._trunk_put(car), None)
+            return (T("Положить в багажник… (внутри {n})", n=n), lambda: self._trunk_put(car), None)
         if kind == "seat":
             if tid[1] == "r":
-                return (f"Сесть на пассажирское место — {car.name}", lambda: self._sit(key, "passenger"), None)
-            return (f"Сесть за руль — {car.name}", lambda: self._sit(key), None)
+                return (T("Сесть на пассажирское место — {name}", name=car.name), lambda: self._sit(key, "passenger"), None)
+            return (T("Сесть за руль — {name}", name=car.name), lambda: self._sit(key), None)
         if kind == "seat_move":
-            return ("Пересесть за руль", lambda: self._move_seat("driver"), None)
+            return (T("Пересесть за руль"), lambda: self._move_seat("driver"), None)
         if kind == "exit":
-            return ("Выйти из машины", self.toggle_car, None)
+            return (T("Выйти из машины"), self.toggle_car, None)
         if kind == "stalk":
             d = -1 if tid[1] == "l" else 1
-            lab = ("Выключить " if car.turn == d else "Включить ") + ("левый" if d < 0 else "правый") + " поворотник"
+            lab = (T("Выключить ") if car.turn == d else T("Включить ")) + (T("левый") if d < 0 else T("правый")) + T(" поворотник")
             return (lab, lambda: self._blinker(d), None)
         if kind == "hood":
             if getattr(car, "hood_open", False):
-                return ("Закрыть капот", lambda: self._hood(key, False),
-                        ("Работа с машиной (меню)", lambda: self.open_carwork(key)) if self.owned.get(key) else None)
+                return (T("Закрыть капот"), lambda: self._hood(key, False),
+                        (T("Работа с машиной (меню)"), lambda: self.open_carwork(key)) if self.owned.get(key) else None)
             if self.owned.get(key):
-                return ("Открыть капот — работа с машиной", lambda: self.open_carwork(key), None)
-            return ("Открыть капот", lambda: self._hood(key, True), None)
+                return (T("Открыть капот — работа с машиной"), lambda: self.open_carwork(key), None)
+            return (T("Открыть капот"), lambda: self._hood(key, True), None)
         if kind == "fusebox":
             from actions import FuseBox
             nb = sum(1 for v in elec.data(car)["fuses"].values() if v == "blown")
-            return (f"Блок предохранителей — осмотреть" + (f" (перегорело: {nb})" if nb else ""),
+            return (T("Блок предохранителей — осмотреть") + (T(" (перегорело: {nb})", nb=nb) if nb else ""),
                     lambda: self.open_menu(FuseBox(self, key)), None)
         if kind == "efault":
             k = tid[1]
@@ -1381,12 +1427,12 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             if not f:
                 return None
             need, what = elec.fix_needs(car, k)
-            have = "" if (need is None or need.startswith("slot:") or self.has(need)) else " — нет под рукой"
-            return (f"Устранить: {elec.KIND_SHORT[f['kind']]} — {elec.circuit_name(car, k).lower()} "
-                    f"(нужно: {what.split(' (')[0].lower()}{have})",
+            have = "" if (need is None or need.startswith("slot:") or self.has(need)) else T(" — нет под рукой")
+            return (T("Устранить: {0} — {circuit_name} "
+                    "(нужно: {1}{have})", elec.KIND_SHORT[f['kind']], what.split(' (')[0].lower(), circuit_name=elec.circuit_name(car, k).lower(), have=have),
                     lambda: self._elec_fix(car, k), None)
         if kind == "trunk":
-            return (("Закрыть" if car.trunk_open else "Открыть") + " багажник", lambda: self._trunk(car), None)
+            return ((T("Закрыть") if car.trunk_open else T("Открыть")) + T(" багажник"), lambda: self._trunk(car), None)
         if kind == "bolt":
             k, i = tid[1], tid[2]
             st = fast.states(car, k)
@@ -1394,22 +1440,22 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             t = sum(st)
             name = self._part_name(car, k)
             if i < len(st) and st[i]:
-                lab = f"Открутить: {sp[1]} — {name} ({t}/{sp[0]} затянуто)"
+                lab = T("Открутить: {0} — {name} ({t}/{1} затянуто)", sp[1], sp[0], name=name, t=t)
                 act = lambda: self._bolt(key, k, i, False)
             else:
-                lab = f"Затянуть: {sp[1]} — {name} ({t}/{sp[0]} затянуто)"
+                lab = T("Затянуть: {0} — {name} ({t}/{1} затянуто)", sp[1], sp[0], name=name, t=t)
                 act = lambda: self._bolt(key, k, i, True)
             alt = None
             if t == 0:
-                alt = (f"Снять: {name}", lambda: self._take_part(key, k))
+                alt = (T("Снять: {name}", name=name), lambda: self._take_part(key, k))
             return (lab, act, alt)
         if kind == "part":
             k = tid[1]
-            return (f"Снять: {self._part_name(car, k)} (крепёж откручен)", lambda: self._take_part(key, k), None)
+            return (T("Снять: {part_name} (крепёж откручен)", part_name=self._part_name(car, k)), lambda: self._take_part(key, k), None)
         if kind == "place":
             k = tid[1]
             e = self._inv_for(car, k)
-            return (f"Поставить: {ITEMS.get(e['id'], {}).get('name', e['id'])} ({e['cond']:.0f}%) — наживить",
+            return (T("Поставить: {name} ({cond:.0f}%) — наживить", name=ITEMS.get(e['id'], {}).get('name', e['id']), cond=e['cond']),
                     lambda: self._place_part(key, k), None)
         return None
 
@@ -1425,26 +1471,26 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 self.play_sound("unlock", 0.5)
             else:
                 self.play_sound("handle", 0.7)        # подёргали ручку — заперто
-                self.notify(f"{car.name}: заперто." + (" Ключ в руке — K, чтобы отпереть." if
+                self.notify(T("{name}: заперто.", name=car.name) + (T(" Ключ в руке — K, чтобы отпереть.") if
                                                       keys_mod.key_in_hands(self, car) is not None else ""), YELLOW, 3)
                 return
         car.door_open[side] = open_
         self.play_sound("door", 0.6)
 
     def _break_in(self, car, side):
-        if not self.need("crowbar", "монтировка"):
+        if not self.need("crowbar", T("монтировка")):
             return
         self.advance(3, working=True)
         car.locked = False
         car.lock_broken = True
         car.door_open[side] = True
         self.play_sound("crash", 0.3)
-        self.notify(f"Дверь {car.name} вскрыта монтировкой. Замок сломан — машина больше не запирается "
-                    "(замена замков — в меню работы с машиной).", YELLOW, 8)
+        self.notify(T("Дверь {name} вскрыта монтировкой. Замок сломан — машина больше не запирается "
+                    "(замена замков — в меню работы с машиной).", name=car.name), YELLOW, 8)
 
     def _elec_fix(self, car, k):
         if car.running:
-            self.notify("Сначала заглушите двигатель — под напряжением не работают.", RED)
+            self.notify(T("Сначала заглушите двигатель — под напряжением не работают."), RED)
             return
         r = elec.repair(self, car, k)
         if r:
@@ -1454,16 +1500,16 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         import storage
         if storage.take(self, car.trunk_items, e):
             self.play_sound("door", 0.3)
-            self.notify(f"Взяли из багажника: {storage.label(e)}", GREEN)
+            self.notify(T("Взяли из багажника: {label}", label=storage.label(e)), GREEN)
 
     def _trunk_put(self, car):
         from actions import StoragePut
-        self.open_menu(StoragePut(self, car.trunk_items, "trunk", "Положить в багажник — " + car.name))
+        self.open_menu(StoragePut(self, car.trunk_items, "trunk", T("Положить в багажник — ") + car.name))
 
     def _trunk(self, car):
         if not car.trunk_open and car.locked:
             self.play_sound("handle", 0.6)
-            self.notify(f"{car.name}: багажник заперт.", YELLOW, 3)
+            self.notify(T("{name}: багажник заперт.", name=car.name), YELLOW, 3)
             return
         car.trunk_open = not car.trunk_open
         self.play_sound("door", 0.5)
@@ -1484,12 +1530,12 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
     def _move_seat(self, seat):
         self.p.seat = seat
         self.look_yaw = 0
-        self.notify("Вы пересели за руль." if seat == "driver" else "Вы на пассажирском месте.")
+        self.notify(T("Вы пересели за руль.") if seat == "driver" else T("Вы на пассажирском месте."))
 
     def _sit(self, key, seat="driver"):
         """Сесть через открытую дверь (водитель — слева, пассажир — справа)."""
         if self.tow and key == self.tow.get("key"):
-            self.notify("Эта машина на тросе. Садитесь в машину-тягач.", YELLOW)
+            self.notify(T("Эта машина на тросе. Садитесь в машину-тягач."), YELLOW)
             return
         if getattr(self.cars[key], "service", None):
             import service
@@ -1503,19 +1549,19 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.cam_mode = "cockpit"
         self.play_sound("door", 0.4)
         if seat == "passenger":
-            self.notify("Вы на пассажирском месте. Выйти — E на двери (или F). Пересесть за руль — E на водительском "
-                        "сиденье.", YELLOW, 6)
+            self.notify(T("Вы на пассажирском месте. Выйти — E на двери (или F). Пересесть за руль — E на водительском "
+                        "сиденье."), YELLOW, 6)
             return
         car = self.car
         if not car.registered:
-            self.notify(f"Внимание: {car.name} без номеров и страховки. Не попадитесь полиции!", (230, 140, 40), 6)
-        self.notify("Закройте дверь: E на ручке двери изнутри. Выйти — E на открытой двери (или F).", YELLOW, 6)
+            self.notify(T("Внимание: {name} без номеров и страховки. Не попадитесь полиции!", name=car.name), (230, 140, 40), 6)
+        self.notify(T("Закройте дверь: E на ручке двери изнутри. Выйти — E на открытой двери (или F)."), YELLOW, 6)
 
     def _hands_ok(self, car):
         if not self.need("toolbox"):
             return False
         if car.running:
-            self.notify("Сначала заглушите двигатель.", RED)
+            self.notify(T("Сначала заглушите двигатель."), RED)
             return False
         return True
 
@@ -1531,16 +1577,16 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.play_sound("tool", 0.5)
         left = fast.tight(car, k)
         if not tighten and left == 0:
-            self.notify(f"Весь крепёж отпущен — теперь деталь можно снять (G).", GREEN)
+            self.notify(T("Весь крепёж отпущен — теперь деталь можно снять (G)."), GREEN)
         if tighten and fast.fully(car, k):
-            self.notify(f"{self._part_name(car, k)}: весь крепёж затянут.", GREEN)
+            self.notify(T("{part_name}: весь крепёж затянут.", part_name=self._part_name(car, k)), GREEN)
 
     def _take_part(self, key, k):
         car = self.cars[key]
         if not self._hands_ok(car):
             return
         if fast.tight(car, k):
-            self.notify("Сначала открутите весь крепёж.", RED)
+            self.notify(T("Сначала открутите весь крепёж."), RED)
             return
         if k.startswith("eng:"):
             ok, why = eng_mod.can_remove(car, k[4:])
@@ -1552,7 +1598,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         else:
             b = eng_mod.blockers(car, "slot:" + k) if car.eng and car.parts.get("engine") else []
             if b:
-                self.notify("Сначала снимите: " + ", ".join(eng_mod.label(car, x) for x in b), RED)
+                self.notify(T("Сначала снимите: ") + ", ".join(eng_mod.label(car, x) for x in b), RED)
                 return
             part = car.parts[k]
             self.advance(max(5, int(car.slots[k][2] * 0.3)), working=True)
@@ -1563,7 +1609,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         fast.on_removed(car, k)
         self.give(entry)
         self.play_sound("tool", 0.6)
-        self.notify(f"Снято руками: {ITEMS.get(entry['id'], {}).get('name', entry['id'])} ({entry['cond']:.0f}%)", GREEN)
+        self.notify(T("Снято руками: {name} ({cond:.0f}%)", name=ITEMS.get(entry['id'], {}).get('name', entry['id']), cond=entry['cond']), GREEN)
 
     def _place_part(self, key, k):
         car = self.cars[key]
@@ -1584,8 +1630,8 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             mn = eng_mod.missing_needs(car, "slot:" + k) if car.eng and car.parts.get("engine") else []
             b = eng_mod.blockers(car, "slot:" + k) if car.eng and car.parts.get("engine") else []
             if mn or b:
-                self.notify(("Сначала поставьте: " + ", ".join(eng_mod.label(car, x) for x in mn)) if mn else
-                            ("Мешает: " + ", ".join(eng_mod.label(car, x) for x in b)), RED)
+                self.notify((T("Сначала поставьте: ") + ", ".join(eng_mod.label(car, x) for x in mn)) if mn else
+                            (T("Мешает: ") + ", ".join(eng_mod.label(car, x) for x in b)), RED)
                 return
             self.take_item(e["id"], e)
             self.advance(max(5, int(car.slots[k][2] * 0.3)), working=True)
@@ -1595,7 +1641,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 eng_mod.install_whole(car, e)
         fast.on_placed(car, k, tightened=False)
         self.play_sound("tool", 0.6)
-        self.notify(f"Деталь на месте, но крепёж только наживлен — затяните все {fast.total(car, k)} шт. (E на каждом).",
+        self.notify(T("Деталь на месте, но крепёж только наживлен — затяните все {total} шт. (E на каждом).", total=fast.total(car, k)),
                     YELLOW, 7)
 
     def find_actions(self):
@@ -1626,56 +1672,56 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.dismantle_action = None
         d = self.delivery
         if d and math.hypot(p.x - d["x"], p.y - d["y"]) < (9 if p.in_car else 4):
-            acts.append(("Отдать пиццу клиенту", self.deliver))
+            acts.append((T("Отдать пиццу клиенту"), self.deliver))
         near_drop = point_in((SCRAP_DROP[0] - 6, SCRAP_DROP[1] - 6, SCRAP_DROP[2] + 12, SCRAP_DROP[3] + 12), p.x, p.y)
         if near_drop:
             for k in self.wrecks_in_drop():
-                mine = " (ваша!)" if self.owned.get(k) else ""
-                acts.append((f"Сдать на лом: {self.cars[k].name}{mine} (+{self.scrap_value(k):.2f} DM)",
+                mine = T(" (ваша!)") if self.owned.get(k) else ""
+                acts.append((T("Сдать на лом: {name}{mine} (+{scrap_value:.2f} ₽)", name=self.cars[k].name, mine=mine, scrap_value=self.scrap_value(k)),
                              lambda k=k: self.scrap_car(k)))
         if p.in_car:
             if point_in(PUMP_ZONE, car.x, car.y):
-                acts.append(("Заправиться", self.refuel))
-                acts.append(("Колонка «Воздух»: проверить и подкачать шины (бесплатно)",
+                acts.append((T("Заправиться"), self.refuel))
+                acts.append((T("Колонка «Воздух»: проверить и подкачать шины (бесплатно)"),
                              lambda: self.open_menu(__import__("actions").TireMenu(self, self.cur, station=True))))
             if point_in(TUV_YARD, car.x, car.y):
-                acts.append(("Пройти техосмотр (TÜV)", self.tuv))
+                acts.append((T("Пройти техосмотр (TÜV)"), self.tuv))
             acts += self._service_actions()
             if self.cur in self.cars_in_sell_zone() and abs(car.speed) < 1:
-                acts.append((f"Предложить Веберу: {car.name} ({self.dealer_offer(self.cur):.0f} DM) — выйдите и зайдите в контору",
-                             lambda: self.notify("Заглушите мотор, выйдите и зайдите в контору Вебера (E у двери).")))
+                acts.append((T("Предложить Веберу: {name} ({dealer_offer:.0f} ₽) — выйдите и зайдите в контору", name=car.name, dealer_offer=self.dealer_offer(self.cur)),
+                             lambda: self.notify(T("Заглушите мотор, выйдите и зайдите в контору Вебера (E у двери)."))))
         else:
             for bid, b in BUILDINGS.items():
                 door = b[7]
                 if door and math.hypot(p.x - door[0], p.y - door[1]) < 3.0:
-                    acts.append((f"Войти: {b[4]}", lambda bid=bid: self.enter_building(bid)))
+                    acts.append((T("Войти: {0}", b[4]), lambda bid=bid: self.enter_building(bid)))
                     break
             # заброшенные гаражи: ворота и полки
             for ag in self.world.abandoned:
                 gs = self.garages.get(ag["id"], {})
                 dpx, dpy = ag["door_pt"]
                 if not gs.get("open") and math.hypot(p.x - dpx, p.y - dpy) < 3.2:
-                    lock = " (заперто — нужна монтировка)" if ag["locked"] and not self.has("crowbar") else ""
-                    acts.append((f"Открыть ворота: {ag['name']}{lock}", lambda g_=ag["id"]: self.garage_door(g_)))
+                    lock = T(" (заперто — нужна монтировка)") if ag["locked"] and not self.has("crowbar") else ""
+                    acts.append((T("Открыть ворота: {name}{lock}", name=ag['name'], lock=lock), lambda g_=ag["id"]: self.garage_door(g_)))
                 spx, spy = ag["shelf_pt"]
                 if gs.get("open") and not gs.get("looted") and math.hypot(p.x - spx, p.y - spy) < 2.0:
-                    acts.append(("Обыскать полки", lambda g_=ag["id"]: self.search_shelves(g_)))
+                    acts.append((T("Обыскать полки"), lambda g_=ag["id"]: self.search_shelves(g_)))
             gx, gy, gw, gh = GARAGE
             if math.hypot(p.x - (gx + 6.85), p.y - (gy + gh - 0.9)) < 2.2:
                 from actions import StorageTake
-                acts.append((f"Стеллаж в гараже (вещей: {len(self.shelf)})",
-                             lambda: self.open_menu(StorageTake(self, self.shelf, "shelf", "Стеллаж в гараже"))))
+                acts.append((T("Стеллаж в гараже (вещей: {0})", len(self.shelf)),
+                             lambda: self.open_menu(StorageTake(self, self.shelf, "shelf", T("Стеллаж в гараже")))))
             acts += theft.board_actions(self)
             acts += self._service_actions()
             li = self.nearest_loose(p.x, p.y)
             if li is not None:
                 it = self.loose[li]
-                acts.append((f"Подобрать: {item_name(it['id'])} ({it['cond']:.0f}%)", lambda i=li: self.pick_loose(i)))
+                acts.append((T("Подобрать: {item_name} ({cond:.0f}%)", item_name=item_name(it['id']), cond=it['cond']), lambda i=li: self.pick_loose(i)))
             wreck = self.nearest_wreck(p.x, p.y)
             own = self.nearest_car(p.x, p.y) if self.near_car() else None
             sale = wreck if wreck is not None and wreck in self.dealer["stock"] else None
             if sale is not None:
-                acts.append((f"Вебер продаёт: {self.cars[sale].name} — {self.dealer['stock'][sale]:.0f} DM (осмотреть)",
+                acts.append((T("Вебер продаёт: {name} — {0:.0f} ₽ (осмотреть)", self.dealer['stock'][sale], name=self.cars[sale].name),
                              lambda k=sale: self.open_menu(Dealer(self, k))))
                 wreck = None
 
@@ -1685,18 +1731,18 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             # E относится к той машине, что ближе: брошенная находка важнее, если стоим у неё
             find_first = wreck is not None and (own is None or dist_to(wreck) <= dist_to(own) + 0.3)
             if find_first:
-                acts.append((f"Забрать себе бесплатно: {self.cars[wreck].name} (осмотреть)",
+                acts.append((T("Забрать себе бесплатно: {name} (осмотреть)", name=self.cars[wreck].name),
                              lambda k=wreck: self.find_offer(k)))
             if own is not None:
-                acts.append((f"Открыть капот — {self.cars[own].name}", self.open_carwork))
+                acts.append((T("Открыть капот — {name}", name=self.cars[own].name), self.open_carwork))
                 if point_in(PUMP_ZONE, self.cars[own].x, self.cars[own].y):
-                    acts.append(("Заправить машину", self.refuel))
-                    acts.append(("Колонка «Воздух»: шины (давление, бесплатно)",
+                    acts.append((T("Заправить машину"), self.refuel))
+                    acts.append((T("Колонка «Воздух»: шины (давление, бесплатно)"),
                                  lambda k=own: self.open_menu(__import__("actions").TireMenu(self, k, station=True))))
             if not find_first and self.nearest_car(p.x, p.y, 3.0, owned_only=False) == "ae86" and not self.owned["ae86"]:
-                acts.append(("Осмотреть Toyota AE86 (Ковальский отдаёт даром)", self.ae86_offer))
+                acts.append((T("Осмотреть Toyota AE86 (Ковальский отдаёт даром)"), self.ae86_offer))
             if wreck is not None and not find_first:
-                acts.append((f"Забрать себе бесплатно: {self.cars[wreck].name} (осмотреть)",
+                acts.append((T("Забрать себе бесплатно: {name} (осмотреть)", name=self.cars[wreck].name),
                              lambda k=wreck: self.find_offer(k)))
             # разборка (R): бесхозные машины и свои (кроме ВАЗ/AE86 и машины на тросе)
             dk = wreck if wreck is not None else own
@@ -1708,14 +1754,14 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 tcar = self.cars[self.tow["by"]]
                 tx, ty = towed.x, towed.y
                 if math.hypot(p.x - tx, p.y - ty) < 4 or math.hypot(p.x - tcar.x, p.y - tcar.y) < 4:
-                    self.rope_action = (f"Отвязать трос ({self.tow_name()})", self.detach_rope)
+                    self.rope_action = (T("Отвязать трос ({tow_name})", tow_name=self.tow_name()), self.detach_rope)
             elif wreck is not None:
-                self.rope_action = (f"Привязать трос: {self.cars[wreck].name}", lambda k=wreck: self.attach_rope(k))
+                self.rope_action = (T("Привязать трос: {name}", name=self.cars[wreck].name), lambda k=wreck: self.attach_rope(k))
             elif self.near_car():
                 key = self.nearest_car(p.x, p.y)
                 others = [k for k, c in self.owned_cars() if k != key]
                 if others:
-                    self.rope_action = (f"Привязать трос: {self.cars[key].name} (тянуть другой машиной)",
+                    self.rope_action = (T("Привязать трос: {name} (тянуть другой машиной)", name=self.cars[key].name),
                                         lambda key=key: self.attach_rope(key))
         ea = self.eat_action()
         if ea:
@@ -1731,18 +1777,18 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             nk = self.nearest_car(p.x, p.y)
             if self.tow and nk == self.tow["key"]:
                 nk = self.tow["by"]
-            extra.append(f"F — сесть за руль ({self.cars[nk].name})")
+            extra.append(T("F — сесть за руль ({name})", name=self.cars[nk].name))
         elif p.in_car and abs(car.speed) < 1:
-            extra.append("F — выйти   ·   V — вид")
+            extra.append(T("F — выйти   ·   V — вид"))
         if len(acts) > 1 and not p.in_car:
             extra.append(f"G — {acts[1][0]}")
         if self.rope_action:
             extra.append(f"T — {self.rope_action[0]}")
         if self.dismantle_action and not p.in_car:
-            extra.append(f"R — разобрать на запчасти")
+            extra.append(T("R — разобрать на запчасти"))
         if p.in_car and self.tow and self.tow["by"] == self.cur:
-            warn = "  ⚠ ТИШЕ!" if car.kmh() > 45 else ""
-            extra.append(f"На тросе: {self.tow_name()} — не быстрее 50 км/ч{warn}")
+            warn = T("  ⚠ ТИШЕ!") if car.kmh() > 45 else ""
+            extra.append(T("На тросе: {tow_name} — не быстрее 50 км/ч{warn}", tow_name=self.tow_name(), warn=warn))
         if extra:
             prompt.append("   ·   ".join(extra))
         return prompt
@@ -1766,13 +1812,13 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 alt = a[2]
         if alt:
             acts.append(alt)
-        acts.append(("Работы снизу — меню (детали, низ двигателя, слить масло)", self.open_underwork))
+        acts.append((T("Работы снизу — меню (детали, низ двигателя, слить масло)"), self.open_underwork))
         self.actions = acts
         prompt = [f"E — {acts[0][0]}"]
         extra = []
         if len(acts) > 1:
             extra.append(f"G — {acts[1][0]}")
-        extra.append("F — вылезти")
+        extra.append(T("F — вылезти"))
         prompt.append("   ·   ".join(extra))
         return prompt
 
@@ -1798,7 +1844,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         camera.rotation = Vec3(self.pitch, self.yaw, 0)
         if self.pending_faint:
             self.pending_faint = False
-            self.notify("Вы уснули прямо на полу...", RED)
+            self.notify(T("Вы уснули прямо на полу..."), RED)
             self.sleep(360)
         # что перед глазами
         yr = math.radians(self.yaw)

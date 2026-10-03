@@ -7,6 +7,7 @@ import wave
 
 import numpy as np
 from panda3d.core import Filename, AudioSound
+from i18n import T
 
 SR = 22050
 BASE_RPM = 1500.0
@@ -149,7 +150,7 @@ class Audio3D:
                 s.play()
             self.ok = True
         except Exception as e:  # без звука игра тоже работает
-            print("Звук отключён:", e)
+            print(T("Звук отключён:"), e)
 
     def _load(self, name, loop=False):
         s = self.loader.loadSfx(Filename.fromOsSpecific(os.path.join(DIR, name + ".wav")))

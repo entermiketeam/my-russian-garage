@@ -6,28 +6,30 @@
 Физика влияния — в car.py (Car.update), меню установки — actions.CarWork («Тюнинг»).
 """
 
+from i18n import T
+
 # детали тюнинга (попадают в общий каталог ITEMS)
 TUNE_ITEMS = {
-    "civic_turbo": dict(name="Турбокит IHI RHB5 для Honda Civic (турбина, коллектор, маслопровод)",
+    "civic_turbo": dict(name=T("Турбокит IHI RHB5 для Honda Civic (турбина, коллектор, маслопровод)"),
                         kind="part", price=1450.0, model="civic"),
-    "civic_intercooler": dict(name="Интеркулер фронтальный — Honda Civic", kind="part", price=380.0, model="civic"),
-    "boost_ctrl": dict(name="Механический буст-контроллер (регулятор наддува)", kind="part", price=120.0),
+    "civic_intercooler": dict(name=T("Интеркулер фронтальный — Honda Civic"), kind="part", price=380.0, model="civic"),
+    "boost_ctrl": dict(name=T("Механический буст-контроллер (регулятор наддува)"), kind="part", price=120.0),
     # ---- Ford Mustang → Shelby GT500 «Eleanor»
-    "mus_engine": dict(name="Big-Block V8 428 Cobra Jet (7.0 л, 355 л.с.) — двигатель в сборе", kind="part",
+    "mus_engine": dict(name=T("Big-Block V8 428 Cobra Jet (7.0 л, 355 л.с.) — двигатель в сборе"), kind="part",
                        price=14500.0, model="mustang"),
-    "mus_gearbox": dict(name="КПП Toploader 4-ступ. с близкими передачами + мост 3.50", kind="part", price=3200.0, model="mustang"),
-    "mus_susp": dict(name="Подвеска Shelby: пружины, стабилизаторы, амортизаторы Koni", kind="part", price=2800.0,
+    "mus_gearbox": dict(name=T("КПП Toploader 4-ступ. с близкими передачами + мост 3.50"), kind="part", price=3200.0, model="mustang"),
+    "mus_susp": dict(name=T("Подвеска Shelby: пружины, стабилизаторы, амортизаторы Koni"), kind="part", price=2800.0,
                      model="mustang"),
-    "mus_brakes": dict(name="Дисковые тормоза Kelsey-Hayes, 4 поршня", kind="part", price=2100.0, model="mustang"),
-    "mus_wheels": dict(name="Диски Shelby 17\" + шины 245/45 (комплект)", kind="part", price=2600.0, model="mustang"),
-    "mus_exhaust": dict(name="Боковые выпускные трубы", kind="part", price=1900.0, model="mustang"),
-    "mus_body": dict(name="Обвес GT500: бампер с «пастью», противотуманки, пороги, боковые воздухозаборники, спойлер",
+    "mus_brakes": dict(name=T("Дисковые тормоза Kelsey-Hayes, 4 поршня"), kind="part", price=2100.0, model="mustang"),
+    "mus_wheels": dict(name=T("Диски Shelby 17\" + шины 245/45 (комплект)"), kind="part", price=2600.0, model="mustang"),
+    "mus_exhaust": dict(name=T("Боковые выпускные трубы"), kind="part", price=1900.0, model="mustang"),
+    "mus_body": dict(name=T("Обвес GT500: бампер с «пастью», противотуманки, пороги, боковые воздухозаборники, спойлер"),
                      kind="part", price=5200.0, model="mustang"),
-    "mus_hood": dict(name="Капот GT500 с воздухозаборниками и замками-шпильками", kind="part", price=1400.0,
+    "mus_hood": dict(name=T("Капот GT500 с воздухозаборниками и замками-шпильками"), kind="part", price=1400.0,
                      model="mustang"),
-    "mus_paint": dict(name="Покраска в серый «Pepper Grey» + чёрные гоночные полосы (работа маляра)", kind="part", price=3800.0,
+    "mus_paint": dict(name=T("Покраска в серый «Pepper Grey» + чёрные гоночные полосы (работа маляра)"), kind="part", price=3800.0,
                       model="mustang"),
-    "mus_interior": dict(name="Салон: ковши, трёхспицевый руль, приборы Stewart-Warner", kind="part", price=1200.0,
+    "mus_interior": dict(name=T("Салон: ковши, трёхспицевый руль, приборы Stewart-Warner"), kind="part", price=1200.0,
                          model="mustang"),
 }
 
@@ -51,11 +53,11 @@ TUNING["mustang"] = {
     "paint": ("mus_paint", 1440, True),
     "interior": ("mus_interior", 150, False),
 }
-TUNE_NAMES = {"turbo": "Турбина", "intercooler": "Интеркулер", "boost_ctrl": "Буст-контроллер",
-              "engine428": "Двигатель 428 Cobra Jet", "toploader": "КПП Toploader", "susp": "Подвеска Shelby",
-              "brakes": "Тормоза Kelsey-Hayes", "wheels": "Колёса Shelby 17\"", "sidepipes": "Боковой выхлоп",
-              "bodykit": "Обвес GT500", "hood": "Капот GT500", "paint": "Покраска и полосы",
-              "interior": "Салон GT500"}
+TUNE_NAMES = {"turbo": T("Турбина"), "intercooler": T("Интеркулер"), "boost_ctrl": T("Буст-контроллер"),
+              "engine428": T("Двигатель 428 Cobra Jet"), "toploader": T("КПП Toploader"), "susp": T("Подвеска Shelby"),
+              "brakes": T("Тормоза Kelsey-Hayes"), "wheels": T("Колёса Shelby 17\""), "sidepipes": T("Боковой выхлоп"),
+              "bodykit": T("Обвес GT500"), "hood": T("Капот GT500"), "paint": T("Покраска и полосы"),
+              "interior": T("Салон GT500")}
 # что делает каждая деталь: mul — умножить, add — прибавить, set — заменить значение в характеристиках
 TUNE_EFFECTS = {
     "mustang": {
@@ -79,9 +81,9 @@ NEEDS_TURBO = ("intercooler", "boost_ctrl")
 
 # режимы наддува: (ключ, название, давление бар, что нужно кроме турбины)
 BOOST_PRESETS = [
-    ("soft", "Мягкий — 0.4 бар (пружина вестгейта)", 0.40, ()),
-    ("sport", "Спорт — 0.6 бар", 0.60, ("boost_ctrl",)),
-    ("race", "Гонка — 0.85 бар (без интеркулера — детонация!)", 0.85, ("boost_ctrl",)),
+    ("soft", T("Мягкий — 0.4 бар (пружина вестгейта)"), 0.40, ()),
+    ("sport", T("Спорт — 0.6 бар"), 0.60, ("boost_ctrl",)),
+    ("race", T("Гонка — 0.85 бар (без интеркулера — детонация!)"), 0.85, ("boost_ctrl",)),
 ]
 BOOST_BY_KEY = {k: (name, bar, need) for k, name, bar, need in BOOST_PRESETS}
 
@@ -140,7 +142,7 @@ def apply_spec(car, base):
             sp[k] = sp[k] * v
         sp["name"] = L["name"]
     elif installed:
-        sp["name"] = f"{base['name']} · тюнинг {len(installed)}/{len(eff)}"
+        sp["name"] = T("{name} · тюнинг {0}/{1}", len(installed), len(eff), name=base['name'])
     return sp
 
 

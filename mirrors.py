@@ -6,6 +6,7 @@
 Работают, только пока игрок в салоне (вид из кабины) — иначе выключены и ничего не стоят.
 """
 from panda3d.core import Camera, PerspectiveLens, Texture, Vec3
+from i18n import T
 
 SPEC = {"inner": dict(size=(256, 80), fov=(34, 11), yaw=180.0),       # широкое узкое салонное
         "side": dict(size=(160, 108), fov=(26, 18), yaw=184.0),        # левое: назад и чуть наружу от кузова
@@ -23,7 +24,7 @@ class Mirrors:
             for name, sp in SPEC.items():
                 buf = app.win.makeTextureBuffer("mirror_" + name, *sp["size"])
                 if buf is None:
-                    raise RuntimeError("нет внеэкранного буфера")
+                    raise RuntimeError(T("нет внеэкранного буфера"))
                 buf.setSort(-25)
                 buf.setClearColorActive(True)
                 tex = buf.getTexture()
@@ -40,7 +41,7 @@ class Mirrors:
                 self.views[name] = {"buf": buf, "tex": tex, "cam": cnp, "glass": None}
             self.ok = True
         except Exception as ex:
-            print("Зеркала без отражения:", ex)
+            print(T("Зеркала без отражения:"), ex)
 
     def update(self, c3, active, sky=(140, 178, 222)):
         """c3 — Car3D машины игрока (или None); active — игрок сидит в салоне и смотрит из кабины."""

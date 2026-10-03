@@ -8,6 +8,7 @@ from ursina import Entity, Text, camera, color, window, Vec3, destroy
 
 from car import GEAR_NAMES, TANK
 from world import BUILDINGS, ROADS, MAP_W, MAP_H
+from i18n import T
 
 UI = camera.ui
 AR = window.aspect_ratio
@@ -90,7 +91,7 @@ class HUD:
         panel(RIGHT - 0.53, 0.49, 0.52, 0.075, parent=r)
         self.money_t = label("", RIGHT - 0.52, 0.48, 1.05, (110, 220, 110), parent=r)
         self.bars = []
-        names = ["Сытость", "Жажда", "Бодрость", "Гигиена"]
+        names = [T("Сытость"), T("Жажда"), T("Бодрость"), T("Гигиена")]
         for i, n in enumerate(names):
             x = RIGHT - 0.35 + (i % 2) * 0.17
             y = 0.483 - (i // 2) * 0.034
@@ -126,6 +127,10 @@ class HUD:
         # тёмная подложка — подписи читаются и на фоне рук/снега
         self.hand_bg = [panel(LEFT + 0.012, -0.447, 0.1, 0.03, a=200, parent=r, z=-0.01),
                         panel(RIGHT - 0.112, -0.447, 0.1, 0.03, a=200, parent=r, z=-0.01)]
+
+    def destroy(self):
+        for e in [self.root, self.flash, self.fade] + self.rain:
+            destroy(e)
 
     def notify(self, s, col=(240, 240, 235), t=5.0):
         self.notes.append([safe(s), t, col])
@@ -198,20 +203,20 @@ class HUD:
             return
         self._set("time", self.time_t, g.time_str())
         if g.p.x >= INTERIOR_X:
-            wth = f"под землёй, {g.ambient_temp(g.p.x):+.0f}°C"
+            wth = T("под землёй, {ambient_temp:+.0f}°C", ambient_temp=g.ambient_temp(g.p.x))
         else:
             wth = f"{g.weather_text()}, {g.ambient_temp():+.0f}°C"
         self._set("place", self.place_t, f"{state['place']}  ·  {wth}")
-        self._set("money", self.money_t, f"{p.money:.2f} DM")
+        self._set("money", self.money_t, f"{p.money:.2f} ₽")
         self._set("goal", self.goal_t, g.goal_text())
         self.money_t.color = rgb((110, 220, 110) if p.money >= 0 else (220, 70, 60))
         for b, v in zip(self.bars, (p.hunger, p.thirst, p.energy, p.hygiene)):
             b.set(v)
         extra = ""
         if p.drunk > 10:
-            extra = f"Опьянение {p.drunk:.0f}%"
+            extra = T("Опьянение {drunk:.0f}%", drunk=p.drunk)
         elif p.health < 100:
-            extra = f"Здоровье {p.health:.0f}%"
+            extra = T("Здоровье {health:.0f}%", health=p.health)
         self._set("extra", self.extra_t, extra)
         self.cross.enabled = state.get("cross", False)
         if self.cross.enabled:
@@ -239,7 +244,7 @@ class HUD:
         if d:
             left = d["deadline"] - g.minutes
             dist = math.hypot(d["x"] - p.x, d["y"] - p.y)
-            self._set("dl", self.deliv_t, f"Доставка пиццы: {max(0, left):.0f} мин  ·  {dist:.0f} м")
+            self._set("dl", self.deliv_t, T("Доставка пиццы: {0:.0f} мин  ·  {dist:.0f} м", max(0, left), dist=dist))
             self.deliv_t.color = rgb((110, 220, 110) if left > 15 else ((230, 140, 40) if left > 0 else (220, 70, 60)))
             ang = math.degrees(math.atan2(d["x"] - p.x, -(d["y"] - p.y)))
             self.arrow.rotation_z = ang - state.get("yaw", 0)
@@ -252,22 +257,22 @@ class Dashboard:
         r = self.root
         panel(-0.46, -0.39, 0.92, 0.105, parent=r, a=225)
         self.speed = label("0", -0.44, -0.395, 2.6, parent=r)
-        label("км/ч", -0.33, -0.42, 0.75, (150, 150, 150), parent=r)
+        label(T("км/ч"), -0.33, -0.42, 0.75, (150, 150, 150), parent=r)
         self.odo = label("", -0.44, -0.462, 0.65, (150, 150, 150), parent=r)
         self.rpm_t = label("", -0.25, -0.397, 0.75, parent=r)
         self.rpm = Bar(-0.25, -0.425, 0.27, 0.02, None, parent=r)
         self.redline = Entity(parent=r, model="quad", color=color.rgb(220, 50, 40), origin=(-0.5, 0.5),
                               position=(-0.25 + 0.27 * 5600 / 7000, -0.42, -0.03), scale=(0.003, 0.03))
         self.gear = label("N", 0.05, -0.39, 2.8, (240, 200, 60), parent=r)
-        label("Бензин", -0.25, -0.452, 0.6, (150, 150, 150), parent=r)
+        label(T("Бензин"), -0.25, -0.452, 0.6, (150, 150, 150), parent=r)
         self.fuel = Bar(-0.19, -0.455, 0.09, 0.014, None, parent=r)
         self.temp = label("", -0.09, -0.448, 0.7, parent=r)
         self.boost = label("", -0.09, -0.472, 0.65, (120, 200, 240), parent=r)
         self.drift = label("", -0.46, -0.335, 1.1, (255, 170, 60), parent=r)
-        label("АКБ", -0.25, -0.473, 0.6, (150, 150, 150), parent=r)
+        label(T("АКБ"), -0.25, -0.473, 0.6, (150, 150, 150), parent=r)
         self.batt = Bar(-0.19, -0.476, 0.09, 0.014, None, parent=r)
         self.lamps = []
-        names = ["МАСЛО", "ЗАРЯД", "ПОДСОС", "ФАРЫ", "СЦЕПЛ."]
+        names = [T("МАСЛО"), T("ЗАРЯД"), T("ПОДСОС"), T("ФАРЫ"), T("СЦЕПЛ.")]
         for i, n in enumerate(names):
             x = 0.16 + (i % 3) * 0.1
             y = -0.405 - (i // 3) * 0.035
@@ -291,8 +296,8 @@ class Dashboard:
             return
         car = g.car
         self._s("sp", self.speed, f"{car.kmh():3.0f}")
-        self._s("odo", self.odo, f"{car.odometer:09.1f} км")
-        self._s("rpm", self.rpm_t, f"об/мин {car.rpm:4.0f}")
+        self._s("odo", self.odo, T("{odometer:09.1f} км", odometer=car.odometer))
+        self._s("rpm", self.rpm_t, T("об/мин {rpm:4.0f}", rpm=car.rpm))
         top = car.spec["cut"] + 1400
         self.redline.x = -0.25 + 0.27 * car.spec["cut"] / top
         self.rpm.set(car.rpm, top, (220, 60, 50) if car.rpm > car.spec["cut"] - 400 else (90, 190, 90))
@@ -302,8 +307,8 @@ class Dashboard:
         self._s("t", self.temp, f"{car.temp:.0f}°C")
         self.temp.color = rgb((220, 60, 50) if car.temp > 105 else (240, 240, 235))
         da = abs(math.degrees(car.drift_angle))
-        self._s("drift", self.drift, f"ЗАНОС {da:.0f}°" if da > 10 and car.kmh() > 12 else "")
-        self._s("boost", self.boost, f"Турбо {car.boost_now:+.2f} бар" if car.has_tune("turbo") else "")
+        self._s("drift", self.drift, T("ЗАНОС {da:.0f}°", da=da) if da > 10 and car.kmh() > 12 else "")
+        self._s("boost", self.boost, T("Турбо {boost_now:+.2f} бар", boost_now=car.boost_now) if car.has_tune("turbo") else "")
         states = [(car.oil < 1.3 and (car.running or car.cranking), (210, 60, 50)),
                   ((not car.running and car.battery_charge > 5) or car.c("belt") < 0.05, (210, 60, 50)),
                   (car.choke, (230, 140, 40)), (car.lights, (80, 140, 220)), (clutch, (200, 200, 200))]
@@ -313,7 +318,7 @@ class Dashboard:
         self._s("lim", self.sign_t, str(lim) if lim else "∞")
         hint = ""
         if not car.running:
-            hint = "I (держать) — стартер" + ("   C — подсос" if car.temp < 45 and not car.choke else "")
+            hint = T("I (держать) — стартер") + (T("   C — подсос") if car.temp < 45 and not car.choke else "")
         self._s("hint", self.hint, hint)
 
 
@@ -334,7 +339,7 @@ class MenuView:
 
     def show(self, model, reset=False):
         if model is not self.model or reset:
-            self.index = 0
+            self.index = model.start_index() if hasattr(model, "start_index") else 0   # курсор — на текущем пункте
             self.scroll = 0
         self.model = model
         self.render()
@@ -354,8 +359,8 @@ class MenuView:
         r = self.root
         if title_screen:
             label("MY RUSSIAN GARAGE", LEFT + 0.06, 0.4, 3.2, (235, 205, 95), parent=r)
-            label("ВАЗ 2102 · Германия · 1998 · 3D", LEFT + 0.065, 0.3, 1.4, parent=r)
-            label("ржавая «двойка», квартира, работа и техосмотр — гаражная жизнь в 1998 году", LEFT + 0.065, 0.25, 0.9,
+            label(T("ВАЗ 2102 · Германия · 1998 · 3D"), LEFT + 0.065, 0.3, 1.4, parent=r)
+            label(T("ржавая «двойка», квартира, работа и техосмотр — гаражная жизнь в 1998 году"), LEFT + 0.065, 0.25, 0.9,
                   (170, 170, 170), parent=r)
             x, y, w = LEFT + 0.07, 0.12, 0.5
             rows = 8
@@ -445,14 +450,15 @@ class MenuView:
         return None
 
 
-MAP_SHORT = {"apartment": "Дом", "imbiss": "Закусочная", "pizzeria": "Пиццерия", "supermarkt": "Супермаркет",
-             "rathaus": "Ратуша", "autoteile": "Запчасти", "tanke": "Заправка", "tuv": "Техосмотр", "polizei": "Полиция",
-             "lager": "Склад", "kirche": "Церковь", "bahnhof": "Вокзал", "schrott": "Разборка",
-             "autohaus": "Автосалон", "dealer": "Автоплощадка"}
+MAP_SHORT = {"apartment": T("Дом"), "imbiss": T("Закусочная"), "pizzeria": T("Пиццерия"), "supermarkt": T("Супермаркет"),
+             "rathaus": T("Ратуша"), "autoteile": T("Запчасти"), "tanke": T("Заправка"), "tuv": T("Техосмотр"), "polizei": T("Полиция"),
+             "lager": T("Склад"), "kirche": T("Церковь"), "bahnhof": T("Вокзал"), "schrott": T("Разборка"),
+             "autohaus": T("Автосалон"), "dealer": T("Автоплощадка")}
 
 
 class MapView:
     def __init__(self, tex, size):
+        self._args = (tex, size)
         h = 0.9
         w = h * MAP_W / MAP_H
         self.w, self.h = w, h
@@ -468,8 +474,16 @@ class MapView:
         self.mine_dots = [Entity(parent=self.root, model="circle", scale=0.014, color=color.rgb(90, 200, 230),
                                  z=-0.02, enabled=False) for _ in range(16)]
         self.target = Entity(parent=self.root, model="circle", scale=0.02, color=color.rgb(255, 230, 60), z=-0.02)
-        label("Кляйнбрук (Нижняя Саксония) · вы — красная · ВАЗ — жёлтая · AE86 — белая · ваши находки — голубые · брошенные — серые · заброшенные гаражи — коричневые · M/Esc — закрыть",
+        label(T("Кляйнбрук (Нижняя Саксония) · вы — красная · ВАЗ — жёлтая · AE86 — белая · ваши находки — голубые · брошенные — серые · заброшенные гаражи — коричневые · M/Esc — закрыть"),
               0, -0.465, 0.75, parent=self.root, origin=(0, 0))
+
+    def rebuild(self):
+        """Пересоздать все подписи карты (после смены языка)."""
+        was, args = self.root.enabled, self._args
+        destroy(self.root)
+        self.__dict__.clear()                      # ag_marks и т. п. построятся заново при первом update()
+        self.__init__(*args)
+        self.root.enabled = was
 
     def _label_buildings(self, squares):
         """Подписи зданий — короткие и без наложений (в том числе на значки гаражей): не влезает над зданием —
@@ -510,7 +524,7 @@ class MapView:
                 sq = Entity(parent=self.root, model="quad", scale=0.018, color=color.rgb(150, 95, 55),
                             position=(*pos, -0.02))
                 # подпись справа от квадрата; у края карты или поверх другой подписи — слева / ниже
-                name_w = max(text_w("? Заброшенный гараж", 0.55), text_w(ag["name"], 0.55))
+                name_w = max(text_w(T("? Заброшенный гараж"), 0.55), text_w(ag["name"], 0.55))
                 left = pos[0] + 0.012 + name_w > self.w / 2
                 tx = pos[0] - 0.012 if left else pos[0] + 0.012
                 ty = pos[1] + 0.01
@@ -525,7 +539,7 @@ class MapView:
         for gid, (sq, t) in self.ag_marks.items():
             gs = g.garages.get(gid, {})
             name = g.world.abandoned_by_id(gid)["name"]
-            txt = ("? " if not gs.get("open") else "") + ("Заброшенный гараж" if not gs.get("open") else name)
+            txt = ("? " if not gs.get("open") else "") + (T("Заброшенный гараж") if not gs.get("open") else name)
             if t.text != txt:
                 t.text = txt
             sq.color = color.rgb(150, 95, 55) if not gs.get("open") else color.rgb(110, 110, 110)

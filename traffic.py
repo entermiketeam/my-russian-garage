@@ -15,6 +15,7 @@ import math
 import random
 
 from world import ROADS, BUILDINGS, point_in
+from i18n import T
 
 PHYS_DIST = 160.0          # ближе — полная физика Car.update
 SIM_RATE_FAR = 0.1         # дальше — упрощённое движение раз в 0.1 с
@@ -933,10 +934,10 @@ class Traffic:
             return d
         for i in range(n_cars):
             make(NORMAL_MODELS[i % len(NORMAL_MODELS)], rng.choice(COLORS), rng.choice(["calm", "normal", "normal"]))
-        names = ["«Турбо-Тимо»", "«Молния»", "«Калле GTI»", "«Ночной сокол»"]
+        names = [T("«Турбо-Тимо»"), T("«Молния»"), T("«Калле GTI»"), T("«Ночной сокол»")]
         for i in range(n_racers):
             make(RACER_MODELS[i % len(RACER_MODELS)], RACER_COLORS[i % len(RACER_COLORS)], "racer", name=names[i % 4])
-        self.police = make("audi80", (235, 235, 235), "police", police=True, name="Полиция")
+        self.police = make("audi80", (235, 235, 235), "police", police=True, name=T("Полиция"))
         self.police.car.spec = dict(self.police.car.spec, drive="fwd")
         self.peds = Pedestrians(self, n_peds, random.Random(seed + 1))
         self._grid = {}

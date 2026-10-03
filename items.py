@@ -1,150 +1,152 @@
 """Каталог предметов: еда, расходники, инструменты и запчасти ВАЗ 2102.
 
-Цены в немецких марках (DM), 1998 год.
+Цены в рублях (₽), 1998 год.
 Запчасти «Жигулей» в Германии — редкость, поэтому они дорогие и их везут
 из магазина «Ost-Autoteile» (там торгует переселенец из Казахстана).
 """
 
+from i18n import T
+
 # Слоты автомобиля: id -> (название, id запчасти, минут на замену)
 SLOTS = {
-    "engine":      ("Двигатель 2101 (1.2 л)", "engine", 480),
-    "battery":     ("Аккумулятор", "battery", 10),
-    "plugs":       ("Свечи зажигания", "plugs", 20),
-    "distributor": ("Трамблёр", "distributor", 40),
-    "carb":        ("Карбюратор ДААЗ", "carb", 60),
-    "fuel_pump":   ("Бензонасос", "fuel_pump", 30),
-    "fuel_filter": ("Топливный фильтр", "fuel_filter", 10),
-    "air_filter":  ("Воздушный фильтр", "air_filter", 5),
-    "starter":     ("Стартер", "starter", 45),
-    "alternator":  ("Генератор Г-221", "alternator", 45),
-    "belt":        ("Ремень генератора", "belt", 15),
-    "radiator":    ("Радиатор", "radiator", 60),
-    "clutch":      ("Диск сцепления", "clutch", 180),
-    "brakes_f":    ("Колодки передние", "brakes_f", 40),
-    "brakes_r":    ("Колодки задние (барабан)", "brakes_r", 60),
-    "shocks":      ("Амортизаторы", "shocks", 90),
-    "exhaust":     ("Глушитель", "exhaust", 50),
-    "lights":      ("Фары", "lights", 30),
-    "tire_fl":     ("Шина перед. лев.", "tire", 20),
-    "tire_fr":     ("Шина перед. прав.", "tire", 20),
-    "tire_rl":     ("Шина зад. лев.", "tire", 20),
-    "tire_rr":     ("Шина зад. прав.", "tire", 20),
+    "engine":      (T("Двигатель 2101 (1.2 л)"), "engine", 480),
+    "battery":     (T("Аккумулятор"), "battery", 10),
+    "plugs":       (T("Свечи зажигания"), "plugs", 20),
+    "distributor": (T("Трамблёр"), "distributor", 40),
+    "carb":        (T("Карбюратор ДААЗ"), "carb", 60),
+    "fuel_pump":   (T("Бензонасос"), "fuel_pump", 30),
+    "fuel_filter": (T("Топливный фильтр"), "fuel_filter", 10),
+    "air_filter":  (T("Воздушный фильтр"), "air_filter", 5),
+    "starter":     (T("Стартер"), "starter", 45),
+    "alternator":  (T("Генератор Г-221"), "alternator", 45),
+    "belt":        (T("Ремень генератора"), "belt", 15),
+    "radiator":    (T("Радиатор"), "radiator", 60),
+    "clutch":      (T("Диск сцепления"), "clutch", 180),
+    "brakes_f":    (T("Колодки передние"), "brakes_f", 40),
+    "brakes_r":    (T("Колодки задние (барабан)"), "brakes_r", 60),
+    "shocks":      (T("Амортизаторы"), "shocks", 90),
+    "exhaust":     (T("Глушитель"), "exhaust", 50),
+    "lights":      (T("Фары"), "lights", 30),
+    "tire_fl":     (T("Шина перед. лев."), "tire", 20),
+    "tire_fr":     (T("Шина перед. прав."), "tire", 20),
+    "tire_rl":     (T("Шина зад. лев."), "tire", 20),
+    "tire_rr":     (T("Шина зад. прав."), "tire", 20),
 }
 
 # Слоты Toyota AE86: те же ключи, свои детали (японские, дорогие — везут через Autohaus Krüger)
 SLOTS_AE86 = {
-    "engine":      ("Двигатель 4A-GE (1.6 16V)", "ae_engine", 540),
-    "battery":     ("Аккумулятор", "battery", 10),
-    "plugs":       ("Свечи зажигания Denso", "ae_plugs", 25),
-    "distributor": ("Трамблёр Toyota", "ae_distributor", 45),
-    "carb":        ("Форсунки впрыска (EFI)", "ae_injectors", 70),
-    "fuel_pump":   ("Электробензонасос", "ae_fuel_pump", 40),
-    "fuel_filter": ("Топливный фильтр", "ae_fuel_filter", 15),
-    "air_filter":  ("Воздушный фильтр", "ae_air_filter", 5),
-    "starter":     ("Стартер", "ae_starter", 45),
-    "alternator":  ("Генератор", "ae_alternator", 45),
-    "belt":        ("Ремень ГРМ (!)", "ae_belt", 150),
-    "radiator":    ("Радиатор", "ae_radiator", 60),
-    "clutch":      ("Сцепление", "ae_clutch", 200),
-    "brakes_f":    ("Колодки передние", "ae_brakes_f", 40),
-    "brakes_r":    ("Колодки задние", "ae_brakes_r", 40),
-    "shocks":      ("Амортизаторы", "ae_shocks", 100),
-    "exhaust":     ("Глушитель", "ae_exhaust", 50),
-    "lights":      ("Фары (поднимающиеся)", "ae_lights", 45),
-    "tire_fl":     ("Шина перед. лев.", "ae_tire", 20),
-    "tire_fr":     ("Шина перед. прав.", "ae_tire", 20),
-    "tire_rl":     ("Шина зад. лев.", "ae_tire", 20),
-    "tire_rr":     ("Шина зад. прав.", "ae_tire", 20),
+    "engine":      (T("Двигатель 4A-GE (1.6 16V)"), "ae_engine", 540),
+    "battery":     (T("Аккумулятор"), "battery", 10),
+    "plugs":       (T("Свечи зажигания Denso"), "ae_plugs", 25),
+    "distributor": (T("Трамблёр Toyota"), "ae_distributor", 45),
+    "carb":        (T("Форсунки впрыска (EFI)"), "ae_injectors", 70),
+    "fuel_pump":   (T("Электробензонасос"), "ae_fuel_pump", 40),
+    "fuel_filter": (T("Топливный фильтр"), "ae_fuel_filter", 15),
+    "air_filter":  (T("Воздушный фильтр"), "ae_air_filter", 5),
+    "starter":     (T("Стартер"), "ae_starter", 45),
+    "alternator":  (T("Генератор"), "ae_alternator", 45),
+    "belt":        (T("Ремень ГРМ (!)"), "ae_belt", 150),
+    "radiator":    (T("Радиатор"), "ae_radiator", 60),
+    "clutch":      (T("Сцепление"), "ae_clutch", 200),
+    "brakes_f":    (T("Колодки передние"), "ae_brakes_f", 40),
+    "brakes_r":    (T("Колодки задние"), "ae_brakes_r", 40),
+    "shocks":      (T("Амортизаторы"), "ae_shocks", 100),
+    "exhaust":     (T("Глушитель"), "ae_exhaust", 50),
+    "lights":      (T("Фары (поднимающиеся)"), "ae_lights", 45),
+    "tire_fl":     (T("Шина перед. лев."), "ae_tire", 20),
+    "tire_fr":     (T("Шина перед. прав."), "ae_tire", 20),
+    "tire_rl":     (T("Шина зад. лев."), "ae_tire", 20),
+    "tire_rr":     (T("Шина зад. прав."), "ae_tire", 20),
 }
 
 SLOTS_BY_MODEL = {"vaz2102": SLOTS, "ae86": SLOTS_AE86}
 
 # Кузовные панели (ржавчина)
 PANELS = {
-    "sill_l":   "Порог левый",
-    "sill_r":   "Порог правый",
-    "floor":    "Днище",
-    "arch_f":   "Передние арки",
-    "arch_r":   "Задние арки",
-    "fender":   "Крылья",
-    "doors":    "Низ дверей",
-    "tailgate": "Дверь багажника",
+    "sill_l":   T("Порог левый"),
+    "sill_r":   T("Порог правый"),
+    "floor":    T("Днище"),
+    "arch_f":   T("Передние арки"),
+    "arch_r":   T("Задние арки"),
+    "fender":   T("Крылья"),
+    "doors":    T("Низ дверей"),
+    "tailgate": T("Дверь багажника"),
 }
 
 # id -> словарь свойств
 # kind: food / drink / part / fluid / tool / material
 ITEMS = {
     # ---- Еда и напитки (Supermarkt) ----
-    "brot":      dict(name="Хлеб", kind="food", price=2.5, hunger=25),
-    "wurst":     dict(name="Жареные колбаски", kind="food", price=4.0, hunger=35),
-    "pizza_tk":  dict(name="Замороженная пицца", kind="food", price=3.5, hunger=10,
-                      note="Лучше разогреть на плите дома"),
-    "pizza_hot": dict(name="Горячая пицца", kind="food", price=0, hunger=60),
-    "apfel":     dict(name="Яблоки", kind="food", price=2.0, hunger=12, thirst=5),
-    "wasser":    dict(name="Минеральная вода 1,5 л", kind="drink", price=0.9, thirst=45),
-    "cola":      dict(name="Кола", kind="drink", price=1.5, thirst=30, energy=6),
-    "kaffee":    dict(name="Кофе", kind="drink", price=6.0, thirst=10, energy=25),
-    "bier":      dict(name="Пиво 0,5", kind="drink", price=1.2, thirst=20, drunk=18),
-    "doener":    dict(name="Дёнер-кебаб", kind="food", price=6.0, hunger=55),
+    "brot":      dict(name=T("Хлеб"), kind="food", price=2.5, hunger=25),
+    "wurst":     dict(name=T("Жареные колбаски"), kind="food", price=4.0, hunger=35),
+    "pizza_tk":  dict(name=T("Замороженная пицца"), kind="food", price=3.5, hunger=10,
+                      note=T("Лучше разогреть на плите дома")),
+    "pizza_hot": dict(name=T("Горячая пицца"), kind="food", price=0, hunger=60),
+    "apfel":     dict(name=T("Яблоки"), kind="food", price=2.0, hunger=12, thirst=5),
+    "wasser":    dict(name=T("Минеральная вода 1,5 л"), kind="drink", price=0.9, thirst=45),
+    "cola":      dict(name=T("Кола"), kind="drink", price=1.5, thirst=30, energy=6),
+    "kaffee":    dict(name=T("Кофе"), kind="drink", price=6.0, thirst=10, energy=25),
+    "bier":      dict(name=T("Пиво 0,5"), kind="drink", price=1.2, thirst=20, drunk=18),
+    "doener":    dict(name=T("Дёнер-кебаб"), kind="food", price=6.0, hunger=55),
 
     # ---- Жидкости ----
-    "fuel_can":  dict(name="Канистра бензина 10 л", kind="fluid", price=22.0),
-    "oil":       dict(name="Моторное масло 15W-40, 4 л", kind="fluid", price=24.0),
-    "coolant":   dict(name="Антифриз, 5 л", kind="fluid", price=15.0),
-    "brake_fl":  dict(name="Тормозная жидкость", kind="fluid", price=9.0),
+    "fuel_can":  dict(name=T("Канистра бензина 10 л"), kind="fluid", price=22.0),
+    "oil":       dict(name=T("Моторное масло 15W-40, 4 л"), kind="fluid", price=24.0),
+    "coolant":   dict(name=T("Антифриз, 5 л"), kind="fluid", price=15.0),
+    "brake_fl":  dict(name=T("Тормозная жидкость"), kind="fluid", price=9.0),
 
     # ---- Инструменты / материалы ----
-    "toolbox":   dict(name="Набор ключей", kind="tool", price=85.0),
-    "rope":      dict(name="Буксировочный трос", kind="tool", price=15.0),
-    "crowbar":   dict(name="Монтировка", kind="tool", price=12.0),
-    "old_radio": dict(name="Старая магнитола Blaupunkt", kind="part", price=60.0),
-    "jerrycan_old": dict(name="Старая канистра с бензином (5 л)", kind="fluid", price=8.0),
-    "charger":   dict(name="Зарядное устройство", kind="tool", price=69.0),
-    "welder":    dict(name="Сварочный аппарат", kind="tool", price=320.0),
-    "metal":     dict(name="Лист металла", kind="material", price=18.0),
-    "paint":     dict(name="Грунт + краска (баллон)", kind="material", price=14.0),
-    "rust_conv": dict(name="Преобразователь ржавчины", kind="material", price=11.0),
+    "toolbox":   dict(name=T("Набор ключей"), kind="tool", price=85.0),
+    "rope":      dict(name=T("Буксировочный трос"), kind="tool", price=15.0),
+    "crowbar":   dict(name=T("Монтировка"), kind="tool", price=12.0),
+    "old_radio": dict(name=T("Старая магнитола Blaupunkt"), kind="part", price=60.0),
+    "jerrycan_old": dict(name=T("Старая канистра с бензином (5 л)"), kind="fluid", price=8.0),
+    "charger":   dict(name=T("Зарядное устройство"), kind="tool", price=69.0),
+    "welder":    dict(name=T("Сварочный аппарат"), kind="tool", price=320.0),
+    "metal":     dict(name=T("Лист металла"), kind="material", price=18.0),
+    "paint":     dict(name=T("Грунт + краска (баллон)"), kind="material", price=14.0),
+    "rust_conv": dict(name=T("Преобразователь ржавчины"), kind="material", price=11.0),
 
     # ---- Запчасти (новые). slot = id запчасти ----
-    "engine":      dict(name="Двигатель 2101 (контрактный)", kind="part", price=950.0),
-    "battery":     dict(name="Аккумулятор 55 А·ч", kind="part", price=110.0),
-    "plugs":       dict(name="Свечи А17ДВ (4 шт.)", kind="part", price=16.0),
-    "distributor": dict(name="Трамблёр 2101", kind="part", price=65.0),
-    "carb":        dict(name="Карбюратор ДААЗ-2101", kind="part", price=180.0),
-    "fuel_pump":   dict(name="Бензонасос", kind="part", price=45.0),
-    "fuel_filter": dict(name="Топливный фильтр", kind="part", price=6.0),
-    "air_filter":  dict(name="Воздушный фильтр", kind="part", price=9.0),
-    "starter":     dict(name="Стартер", kind="part", price=140.0),
-    "alternator":  dict(name="Генератор Г-221", kind="part", price=160.0),
-    "belt":        dict(name="Ремень генератора", kind="part", price=12.0),
-    "radiator":    dict(name="Радиатор медный", kind="part", price=150.0),
-    "clutch":      dict(name="Диск сцепления", kind="part", price=90.0),
-    "brakes_f":    dict(name="Колодки передние", kind="part", price=35.0),
-    "brakes_r":    dict(name="Колодки задние", kind="part", price=40.0),
-    "shocks":      dict(name="Амортизаторы (компл.)", kind="part", price=120.0),
-    "exhaust":     dict(name="Глушитель", kind="part", price=75.0),
-    "lights":      dict(name="Фары (пара)", kind="part", price=60.0),
-    "tire":        dict(name="Шина 165/80 R13", kind="part", price=55.0),
+    "engine":      dict(name=T("Двигатель 2101 (контрактный)"), kind="part", price=950.0),
+    "battery":     dict(name=T("Аккумулятор 55 А·ч"), kind="part", price=110.0),
+    "plugs":       dict(name=T("Свечи А17ДВ (4 шт.)"), kind="part", price=16.0),
+    "distributor": dict(name=T("Трамблёр 2101"), kind="part", price=65.0),
+    "carb":        dict(name=T("Карбюратор ДААЗ-2101"), kind="part", price=180.0),
+    "fuel_pump":   dict(name=T("Бензонасос"), kind="part", price=45.0),
+    "fuel_filter": dict(name=T("Топливный фильтр"), kind="part", price=6.0),
+    "air_filter":  dict(name=T("Воздушный фильтр"), kind="part", price=9.0),
+    "starter":     dict(name=T("Стартер"), kind="part", price=140.0),
+    "alternator":  dict(name=T("Генератор Г-221"), kind="part", price=160.0),
+    "belt":        dict(name=T("Ремень генератора"), kind="part", price=12.0),
+    "radiator":    dict(name=T("Радиатор медный"), kind="part", price=150.0),
+    "clutch":      dict(name=T("Диск сцепления"), kind="part", price=90.0),
+    "brakes_f":    dict(name=T("Колодки передние"), kind="part", price=35.0),
+    "brakes_r":    dict(name=T("Колодки задние"), kind="part", price=40.0),
+    "shocks":      dict(name=T("Амортизаторы (компл.)"), kind="part", price=120.0),
+    "exhaust":     dict(name=T("Глушитель"), kind="part", price=75.0),
+    "lights":      dict(name=T("Фары (пара)"), kind="part", price=60.0),
+    "tire":        dict(name=T("Шина 165/80 R13"), kind="part", price=55.0),
 
     # ---- Запчасти Toyota AE86 (Autohaus Krüger, заказ из Японии/Голландии) ----
-    "ae_engine":      dict(name="Двигатель 4A-GE (контрактный, Япония)", kind="part", price=1450.0),
-    "ae_plugs":       dict(name="Свечи Denso (4 шт.) для 4A-GE", kind="part", price=28.0),
-    "ae_distributor": dict(name="Трамблёр Toyota 4A-GE", kind="part", price=190.0),
-    "ae_injectors":   dict(name="Форсунки EFI (комплект 4 шт.)", kind="part", price=240.0),
-    "ae_fuel_pump":   dict(name="Электробензонасос Toyota", kind="part", price=130.0),
-    "ae_fuel_filter": dict(name="Топливный фильтр Toyota", kind="part", price=19.0),
-    "ae_air_filter":  dict(name="Воздушный фильтр Toyota", kind="part", price=22.0),
-    "ae_starter":     dict(name="Стартер Toyota", kind="part", price=210.0),
-    "ae_alternator":  dict(name="Генератор Toyota", kind="part", price=240.0),
-    "ae_belt":        dict(name="Ремень ГРМ + ролик 4A-GE", kind="part", price=85.0),
-    "ae_radiator":    dict(name="Радиатор AE86", kind="part", price=220.0),
-    "ae_clutch":      dict(name="Комплект сцепления AE86", kind="part", price=230.0),
-    "ae_brakes_f":    dict(name="Колодки передние AE86", kind="part", price=60.0),
-    "ae_brakes_r":    dict(name="Колодки задние AE86 (диск)", kind="part", price=60.0),
-    "ae_shocks":      dict(name="Амортизаторы Tokico (компл.)", kind="part", price=390.0),
-    "ae_exhaust":     dict(name="Глушитель AE86", kind="part", price=180.0),
-    "ae_lights":      dict(name="Поднимающиеся фары (пара)", kind="part", price=160.0),
-    "ae_tire":        dict(name="Шина 185/70 R13", kind="part", price=82.0),
+    "ae_engine":      dict(name=T("Двигатель 4A-GE (контрактный, Япония)"), kind="part", price=1450.0),
+    "ae_plugs":       dict(name=T("Свечи Denso (4 шт.) для 4A-GE"), kind="part", price=28.0),
+    "ae_distributor": dict(name=T("Трамблёр Toyota 4A-GE"), kind="part", price=190.0),
+    "ae_injectors":   dict(name=T("Форсунки EFI (комплект 4 шт.)"), kind="part", price=240.0),
+    "ae_fuel_pump":   dict(name=T("Электробензонасос Toyota"), kind="part", price=130.0),
+    "ae_fuel_filter": dict(name=T("Топливный фильтр Toyota"), kind="part", price=19.0),
+    "ae_air_filter":  dict(name=T("Воздушный фильтр Toyota"), kind="part", price=22.0),
+    "ae_starter":     dict(name=T("Стартер Toyota"), kind="part", price=210.0),
+    "ae_alternator":  dict(name=T("Генератор Toyota"), kind="part", price=240.0),
+    "ae_belt":        dict(name=T("Ремень ГРМ + ролик 4A-GE"), kind="part", price=85.0),
+    "ae_radiator":    dict(name=T("Радиатор AE86"), kind="part", price=220.0),
+    "ae_clutch":      dict(name=T("Комплект сцепления AE86"), kind="part", price=230.0),
+    "ae_brakes_f":    dict(name=T("Колодки передние AE86"), kind="part", price=60.0),
+    "ae_brakes_r":    dict(name=T("Колодки задние AE86 (диск)"), kind="part", price=60.0),
+    "ae_shocks":      dict(name=T("Амортизаторы Tokico (компл.)"), kind="part", price=390.0),
+    "ae_exhaust":     dict(name=T("Глушитель AE86"), kind="part", price=180.0),
+    "ae_lights":      dict(name=T("Поднимающиеся фары (пара)"), kind="part", price=160.0),
+    "ae_tire":        dict(name=T("Шина 185/70 R13"), kind="part", price=82.0),
 }
 
 SHOP_SUPERMARKT = ["brot", "wurst", "pizza_tk", "apfel", "wasser", "cola", "kaffee", "bier"]
@@ -180,25 +182,25 @@ from models import MODELS, SLOT_ORDER, model_slots, model_items   # noqa: E402
 
 # КПП, проводка, рулевое и стекло теперь есть у всех машин
 SLOTS.update({
-    "gearbox":  ("Коробка передач 2101 (4-ступ.)", "gearbox", 240),
-    "wiring":   ("Электропроводка", "wiring", 150),
-    "steering": ("Рулевые тяги + маятник", "steering", 60),
-    "glass":    ("Лобовое стекло", "glass", 90),
+    "gearbox":  (T("Коробка передач 2101 (4-ступ.)"), "gearbox", 240),
+    "wiring":   (T("Электропроводка"), "wiring", 150),
+    "steering": (T("Рулевые тяги + маятник"), "steering", 60),
+    "glass":    (T("Лобовое стекло"), "glass", 90),
 })
 SLOTS.update({
-    "door_l": ("Двери левые (с разборки!)", "door_l", 40), "door_r": ("Двери правые", "door_r", 40),
-    "hood": ("Капот", "hood", 20), "trunk": ("Дверь багажника", "trunk", 25), "seats": ("Сиденья", "seats", 40),
+    "door_l": (T("Двери левые (с разборки!)"), "door_l", 40), "door_r": (T("Двери правые"), "door_r", 40),
+    "hood": (T("Капот"), "hood", 20), "trunk": (T("Дверь багажника"), "trunk", 25), "seats": (T("Сиденья"), "seats", 40),
 })
 SLOTS_AE86.update({
-    "door_l": ("Дверь левая", "ae_door_l", 40), "door_r": ("Дверь правая", "ae_door_r", 40),
-    "hood": ("Капот", "ae_hood", 20), "trunk": ("Дверь багажника (люк)", "ae_trunk", 25),
-    "seats": ("Ковшеобразные сиденья", "ae_seats", 40),
+    "door_l": (T("Дверь левая"), "ae_door_l", 40), "door_r": (T("Дверь правая"), "ae_door_r", 40),
+    "hood": (T("Капот"), "ae_hood", 20), "trunk": (T("Дверь багажника (люк)"), "ae_trunk", 25),
+    "seats": (T("Ковшеобразные сиденья"), "ae_seats", 40),
 })
 SLOTS_AE86.update({
-    "gearbox":  ("КПП T50 (5-ступ.)", "ae_gearbox", 240),
-    "wiring":   ("Электропроводка", "ae_wiring", 150),
-    "steering": ("Рулевая рейка и тяги", "ae_steering", 60),
-    "glass":    ("Лобовое стекло", "ae_glass", 90),
+    "gearbox":  (T("КПП T50 (5-ступ.)"), "ae_gearbox", 240),
+    "wiring":   (T("Электропроводка"), "ae_wiring", 150),
+    "steering": (T("Рулевая рейка и тяги"), "ae_steering", 60),
+    "glass":    (T("Лобовое стекло"), "ae_glass", 90),
 })
 
 
@@ -214,24 +216,24 @@ for _m in MODELS:
     SLOTS_BY_MODEL[_m] = model_slots(_m)
 
 ITEMS.update({
-    "gearbox":     dict(name="КПП 2101 (4-ступ.)", kind="part", price=230.0),
-    "wiring":      dict(name="Жгут проводки ВАЗ", kind="part", price=65.0),
-    "steering":    dict(name="Рулевые тяги + маятник ВАЗ", kind="part", price=45.0),
-    "glass":       dict(name="Лобовое стекло ВАЗ", kind="part", price=75.0),
-    "ae_gearbox":  dict(name="КПП T50 (5-ступ.) AE86", kind="part", price=420.0),
-    "ae_wiring":   dict(name="Жгут проводки AE86", kind="part", price=150.0),
-    "ae_steering": dict(name="Рулевая рейка и тяги AE86", kind="part", price=160.0),
-    "ae_glass":    dict(name="Лобовое стекло AE86", kind="part", price=190.0),
-    "door_l":      dict(name="Дверь левая ВАЗ 2102 (пара)", kind="part", price=90.0),
-    "door_r":      dict(name="Дверь правая ВАЗ 2102 (пара)", kind="part", price=90.0),
-    "hood":        dict(name="Капот ВАЗ 2102", kind="part", price=70.0),
-    "trunk":       dict(name="Дверь багажника ВАЗ 2102", kind="part", price=85.0),
-    "seats":       dict(name="Сиденья ВАЗ (комплект)", kind="part", price=60.0),
-    "ae_door_l":   dict(name="Дверь левая AE86", kind="part", price=240.0),
-    "ae_door_r":   dict(name="Дверь правая AE86", kind="part", price=240.0),
-    "ae_hood":     dict(name="Капот AE86", kind="part", price=210.0),
-    "ae_trunk":    dict(name="Дверь багажника AE86 (люк со стеклом)", kind="part", price=260.0),
-    "ae_seats":    dict(name="Ковшеобразные сиденья AE86", kind="part", price=280.0),
+    "gearbox":     dict(name=T("КПП 2101 (4-ступ.)"), kind="part", price=230.0),
+    "wiring":      dict(name=T("Жгут проводки ВАЗ"), kind="part", price=65.0),
+    "steering":    dict(name=T("Рулевые тяги + маятник ВАЗ"), kind="part", price=45.0),
+    "glass":       dict(name=T("Лобовое стекло ВАЗ"), kind="part", price=75.0),
+    "ae_gearbox":  dict(name=T("КПП T50 (5-ступ.) AE86"), kind="part", price=420.0),
+    "ae_wiring":   dict(name=T("Жгут проводки AE86"), kind="part", price=150.0),
+    "ae_steering": dict(name=T("Рулевая рейка и тяги AE86"), kind="part", price=160.0),
+    "ae_glass":    dict(name=T("Лобовое стекло AE86"), kind="part", price=190.0),
+    "door_l":      dict(name=T("Дверь левая ВАЗ 2102 (пара)"), kind="part", price=90.0),
+    "door_r":      dict(name=T("Дверь правая ВАЗ 2102 (пара)"), kind="part", price=90.0),
+    "hood":        dict(name=T("Капот ВАЗ 2102"), kind="part", price=70.0),
+    "trunk":       dict(name=T("Дверь багажника ВАЗ 2102"), kind="part", price=85.0),
+    "seats":       dict(name=T("Сиденья ВАЗ (комплект)"), kind="part", price=60.0),
+    "ae_door_l":   dict(name=T("Дверь левая AE86"), kind="part", price=240.0),
+    "ae_door_r":   dict(name=T("Дверь правая AE86"), kind="part", price=240.0),
+    "ae_hood":     dict(name=T("Капот AE86"), kind="part", price=210.0),
+    "ae_trunk":    dict(name=T("Дверь багажника AE86 (люк со стеклом)"), kind="part", price=260.0),
+    "ae_seats":    dict(name=T("Ковшеобразные сиденья AE86"), kind="part", price=280.0),
 })
 ITEMS.update(model_items())
 from tuning import TUNE_ITEMS, tune_items_for   # noqa: E402
@@ -240,11 +242,11 @@ import engine as _engine   # noqa: E402
 ITEMS.update(_engine.items())          # внутренние детали двигателей: ГБЦ, поршни, вкладыши, помпа...
 import electrics as _electrics   # noqa: E402
 ITEMS.update(_electrics.ITEM_DEFS)     # электрика: предохранители, мультиметр, лампы, реле...
-ITEMS["key"] = dict(name="Ключ зажигания", kind="key", price=0.0)           # у каждого свой код (keys.py)
-ITEMS["lockset"] = dict(name="Комплект замков: личинки дверей + замок зажигания (2 новых ключа)", kind="part", price=45.0)
-ITEMS["compressor"] = dict(name="Автомобильный компрессор 12 В с манометром", kind="tool", price=35.0)
-ITEMS["tire_gauge"] = dict(name="Манометр для шин", kind="tool", price=6.0)
-ITEMS["flyer"] = dict(name="Листовки «Угнана машина!» (объявления об угоне)", kind="material", price=5.0)
+ITEMS["key"] = dict(name=T("Ключ зажигания"), kind="key", price=0.0)           # у каждого свой код (keys.py)
+ITEMS["lockset"] = dict(name=T("Комплект замков: личинки дверей + замок зажигания (2 новых ключа)"), kind="part", price=45.0)
+ITEMS["compressor"] = dict(name=T("Автомобильный компрессор 12 В с манометром"), kind="tool", price=35.0)
+ITEMS["tire_gauge"] = dict(name=T("Манометр для шин"), kind="tool", price=6.0)
+ITEMS["flyer"] = dict(name=T("Листовки «Угнана машина!» (объявления об угоне)"), kind="material", price=5.0)
 _ELEC_SHOP = ["fuse_set", "multimeter", "wire_kit", "bulb", "relay", "coil", "horn", "lockset", "compressor", "tire_gauge"]
 SHOP_TANKE += ["fuse_set", "bulb", "tire_gauge", "compressor"]
 SHOP_TOYOTA += _ELEC_SHOP
@@ -252,8 +254,8 @@ SHOP_TEILE += _ELEC_SHOP + ["gearbox", "wiring", "steering", "glass", "door_l", 
 SHOP_TOYOTA += ["ae_gearbox", "ae_wiring", "ae_steering", "ae_glass", "ae_door_l", "ae_door_r", "ae_hood",
                 "ae_trunk", "ae_seats"]
 
-ITEMS["jack"] = dict(name="Домкрат подкатной (2 т)", kind="tool", price=59.0)
-ITEMS["stands"] = dict(name="Подставки под машину (пара)", kind="tool", price=29.0)
+ITEMS["jack"] = dict(name=T("Домкрат подкатной (2 т)"), kind="tool", price=59.0)
+ITEMS["stands"] = dict(name=T("Подставки под машину (пара)"), kind="tool", price=29.0)
 CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "crowbar", "metal", "paint", "rust_conv",
                "jack", "stands"]
 
@@ -275,5 +277,5 @@ SHOP_MODELS = {
     "ost": ["vaz2102", "trabant", "wartburg", "moskvich"],
     "west": ["ae86", "kadett", "golf", "taunus", "w123", "volvo240", "bmw_e21", "audi80", "civic", "mustang"],
 }
-MODEL_NAMES = {"vaz2102": "ВАЗ 2102", "ae86": "Toyota AE86"}
+MODEL_NAMES = {"vaz2102": T("ВАЗ 2102"), "ae86": "Toyota AE86"}
 MODEL_NAMES.update({m: info["name"] for m, info in MODELS.items()})

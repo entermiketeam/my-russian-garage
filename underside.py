@@ -13,6 +13,7 @@ car.lift = {"f": м, "r": м} — насколько поднят перёд/з�
 """
 import math
 import random
+from i18n import T
 
 UNDER_SLOTS = {"exhaust", "gearbox", "clutch", "shocks", "steering", "starter"}
 UNDER_ENG = {"oil_pan", "oil_pump", "rod_bearings", "conrods", "crankshaft", "main_bearings"}
@@ -26,7 +27,7 @@ FREE = 0.24            # от этого — можно ползать под м
 HEAVY_NEED = 0.30      # для тяжёлых работ
 SLIP_PER_MIN = 0.004   # шанс соскочить с домкрата за минуту работы под машиной без подставок
 
-END_RU = {"f": "перёд", "r": "зад"}
+END_RU = {"f": T("перёд"), "r": T("зад")}
 # где деталь по длине: 0 — задняя ось, 1 — передняя (для просвета в этом месте)
 POS_T = {"gearbox": 0.72, "clutch": 0.82, "exhaust": 0.45, "steering": 1.0, "starter": 0.9, "shocks": 0.5}
 
@@ -121,7 +122,7 @@ def part_t(k):
 
 
 def where_text(k):
-    return "снизу (под машиной)" if is_under(k) else "сверху (у открытого капота)"
+    return T("снизу (под машиной)") if is_under(k) else T("сверху (у открытого капота)")
 
 
 # ------------------------------------------------------------------ доступ
@@ -134,15 +135,15 @@ def access(g, key, k, heavy=None):
     lying = getattr(g.p, "under_car", None) == key
     if is_under(k):
         if not lying:
-            return False, "Эта деталь — снизу машины. Лягте под машину (подойдите к порогу, E «Лечь под машину»)."
+            return False, T("Эта деталь — снизу машины. Лягте под машину (подойдите к порогу, E «Лечь под машину»).")
         need_heavy = (k in HEAVY) if heavy is None else heavy
         c = clearance(car, part_t(k))
         if need_heavy and c < HEAVY_NEED:
-            return False, (f"Тесно: просвет здесь {c * 100:.0f} см — так это не снять. Поднимите машину домкратом "
-                           f"и поставьте на подставки (нужно ≥ {HEAVY_NEED * 100:.0f} см).")
+            return False, (T("Тесно: просвет здесь {0:.0f} см — так это не снять. Поднимите машину домкратом "
+                           "и поставьте на подставки (нужно ≥ {1:.0f} см).", c * 100, HEAVY_NEED * 100))
         return True, ""
     if lying and k not in ("tire_fl", "tire_fr", "tire_rl", "tire_rr"):
-        return False, "Из-под машины до этого не дотянуться — вылезьте (F) и работайте сверху."
+        return False, T("Из-под машины до этого не дотянуться — вылезьте (F) и работайте сверху.")
     return True, ""
 
 
@@ -161,13 +162,13 @@ def chain_split(g, key, chain):
 def can_lift(g, key):
     car = g.cars[key]
     if car.running:
-        return "Сначала заглушите двигатель."
+        return T("Сначала заглушите двигатель.")
     if abs(car.speed) > 0.1:
-        return "Машина катится."
+        return T("Машина катится.")
     if g.p.in_car:
-        return "Выйдите из машины."
+        return T("Выйдите из машины.")
     if getattr(g.p, "under_car", None):
-        return "Сначала вылезьте из-под машины."
+        return T("Сначала вылезьте из-под машины.")
     return None
 
 
@@ -179,23 +180,23 @@ def jack_up(g, key, end):
         g.notify(why, (255, 80, 80))
         return False
     if lf[end] > 0.01:
-        g.notify(f"{END_RU[end].capitalize()} уже поднят.", (255, 210, 60))
+        g.notify(T("{0} уже поднят.", END_RU[end].capitalize()), (255, 210, 60))
         return False
     for k2, c2 in g.cars.items():
         for e2, it in (getattr(c2, "lift_by", None) or {}).items():
             if isinstance(it, dict) and it.get("id") == "jack" and not g.has("jack"):
-                g.notify(f"Домкрат стоит под машиной {c2.name} ({END_RU[e2]}). Подставьте там подставки или опустите.",
+                g.notify(T("Домкрат стоит под машиной {name} ({0}). Подставьте там подставки или опустите.", END_RU[e2], name=c2.name),
                          (255, 80, 80), 6)
                 return False
-    if not g.need("jack", "домкрат — магазин «Восток» или автосалон Крюгера"):
+    if not g.need("jack", T("домкрат — магазин «Восток» или автосалон Крюгера")):
         return False
     e = g.take_item("jack")
     car.lift_by[end] = e
     g.play_sound("tool", 0.6)
     g.advance(3, working=True)
     lf[end] = JACK_H
-    g.notify(f"{car.name}: {END_RU[end]} поднят домкратом на {JACK_H * 100:.0f} см. Лежать под машиной на одном "
-             "домкрате опасно — подставьте подставки.", (255, 210, 60), 7)
+    g.notify(T("{name}: {0} поднят домкратом на {1:.0f} см. Лежать под машиной на одном "
+             "домкрате опасно — подставьте подставки.", END_RU[end], JACK_H * 100, name=car.name), (255, 210, 60), 7)
     return True
 
 
@@ -203,9 +204,9 @@ def put_stands(g, key, end):
     car = g.cars[key]
     lf = lift(car)
     if held_by(car, end) != "jack":
-        g.notify("Подставки ставят под сторону, поднятую домкратом.", (255, 80, 80))
+        g.notify(T("Подставки ставят под сторону, поднятую домкратом."), (255, 80, 80))
         return False
-    if not g.need("stands", "подставки — магазин «Восток» или автосалон Крюгера"):
+    if not g.need("stands", T("подставки — магазин «Восток» или автосалон Крюгера")):
         return False
     st = g.take_item("stands")
     jack = car.lift_by[end]
@@ -214,7 +215,7 @@ def put_stands(g, key, end):
     lf[end] = STAND_H
     g.give(jack)
     g.play_sound("tool", 0.5)
-    g.notify(f"{car.name}: {END_RU[end]} стоит на подставках ({STAND_H * 100:.0f} см). Домкрат свободен.", (90, 220, 90), 6)
+    g.notify(T("{name}: {0} стоит на подставках ({1:.0f} см). Домкрат свободен.", END_RU[end], STAND_H * 100, name=car.name), (90, 220, 90), 6)
     return True
 
 
@@ -222,13 +223,13 @@ def lower(g, key, end):
     car = g.cars[key]
     lf = lift(car)
     if getattr(g.p, "under_car", None) == key:
-        g.notify("Сначала вылезьте из-под машины!", (255, 80, 80))
+        g.notify(T("Сначала вылезьте из-под машины!"), (255, 80, 80))
         return False
     what = held_by(car, end)
     if what is None:
         return False
     if what == "stands":
-        if not g.need("jack", "домкрат — приподнять машину, чтобы убрать подставки"):
+        if not g.need("jack", T("домкрат — приподнять машину, чтобы убрать подставки")):
             return False
         g.advance(4, working=True)
     else:
@@ -238,8 +239,8 @@ def lower(g, key, end):
     g.give(it)
     g.play_sound("tool", 0.5)
     wheels = ("tire_fl", "tire_fr") if end == "f" else ("tire_rl", "tire_rr")
-    g.notify(f"{car.name}: {END_RU[end]} опущен" + (" на колёса." if all(car.has(w) for w in wheels)
-                                                    else " — колеса нет, встала на кирпичи."), (90, 220, 90))
+    g.notify(T("{name}: {0} опущен", END_RU[end], name=car.name) + (T(" на колёса.") if all(car.has(w) for w in wheels)
+                                                    else T(" — колеса нет, встала на кирпичи.")), (90, 220, 90))
     return True
 
 
@@ -257,8 +258,8 @@ def tick(g, minutes, working):
                             "y": round(car.y, 2), "place": "road", "rot": 0.0})
             g.p.health = max(1.0, g.p.health - 45)
             g.p.under_car = None
-            g.notify("Домкрат соскочил — машина рухнула! Вы чудом успели откатиться, но сильно ударились. "
-                     "Под машину — только на подставках.", (255, 80, 80), 10)
+            g.notify(T("Домкрат соскочил — машина рухнула! Вы чудом успели откатиться, но сильно ударились. "
+                     "Под машину — только на подставках."), (255, 80, 80), 10)
             if hasattr(g, "on_crawl_out"):
                 g.on_crawl_out(key, None)
             return
@@ -269,5 +270,5 @@ def status(car):
     parts = []
     for end in ("f", "r"):
         if lf[end] > 0.01:
-            parts.append(f"{END_RU[end]} — {'подставки' if held_by(car, end) == 'stands' else 'домкрат'}")
+            parts.append(T("{0} — {1}", END_RU[end], T('подставки') if held_by(car, end) == 'stands' else T('домкрат')))
     return ", ".join(parts)

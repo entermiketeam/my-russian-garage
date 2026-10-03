@@ -12,11 +12,12 @@ import math
 
 from world import SERVICE_BAYS, SERVICE_PARK, SERVICE_DOOR_PT, point_in
 from items import ITEMS
+from i18n import T, src
 
-NAME = "Автосервис Шмидта"
+NAME = T("Автосервис Шмидта")
 HOURS = {d: (7, 18) for d in range(5)}
 HOURS[5] = (8, 13)
-LABOR = 65.0              # DM в час (для сметы)
+LABOR = 65.0              # ₽ в час (для сметы)
 MECHANICS = 2
 
 
@@ -36,7 +37,7 @@ def is_open(g):
 
 
 def hours_text():
-    return "Пн–Пт 7–18, Сб 8–13, Вс закрыто"
+    return T("Пн–Пт 7–18, Сб 8–13, Вс закрыто")
 
 
 def bay_of(car):
@@ -68,64 +69,64 @@ def inspect(car):
         p = car.parts.get(sl)
         nm = car.slots[sl][0]
         if p is None:
-            out.append((what, f"{nm}: отсутствует — поставить новую", car.slots[sl][1], car.slots[sl][2]))
+            out.append((what, T("{nm}: отсутствует — поставить новую", nm=nm), car.slots[sl][1], car.slots[sl][2]))
         elif p["cond"] < lim * 100:
-            out.append((what, f"{nm}: износ {100 - p['cond']:.0f}% — заменить", car.slots[sl][1], car.slots[sl][2]))
+            out.append((what, T("{nm}: износ {0:.0f}% — заменить", 100 - p['cond'], nm=nm), car.slots[sl][1], car.slots[sl][2]))
     if car.parts.get("engine") is None:
-        part("engine", "Двигатель", 1.1)
+        part("engine", T("Двигатель"), 1.1)
     elif car.eng:
         for k in eng.keys(car.model):
             e = car.eng.get(k)
             if e is None or e["cond"] < 60:
                 nm = eng.label(car, k)
-                out.append(("Двигатель", f"{nm}: " + ("нет — поставить" if e is None else f"износ {100 - e['cond']:.0f}% — заменить"),
+                out.append((T("Двигатель"), f"{nm}: " + (T("нет — поставить") if e is None else T("износ {0:.0f}% — заменить", 100 - e['cond'])),
                             eng.part_id(car.model, k), max(20, eng.minutes(car, k) // 2)))
         fl = car.eng_flags or {}
-        for f_, txt in (("timing_off", "метки ГРМ сбиты — выставить"), ("head_loose", "ГБЦ затянута не по схеме — перетянуть"),
-                        ("gasket_reused", "старая прокладка ГБЦ — заменить")):
+        for f_, txt in (("timing_off", T("метки ГРМ сбиты — выставить")), ("head_loose", T("ГБЦ затянута не по схеме — перетянуть")),
+                        ("gasket_reused", T("старая прокладка ГБЦ — заменить"))):
             if fl.get(f_):
-                out.append(("Двигатель", txt, None, 90))
-    for sl, sys_ in (("gearbox", "Трансмиссия"), ("clutch", "Трансмиссия"), ("shocks", "Подвеска"), ("steering", "Рулевое"),
-                     ("brakes_f", "Тормоза"), ("brakes_r", "Тормоза"), ("radiator", "Охлаждение"), ("exhaust", "Выхлоп"),
-                     ("battery", "Электрика"), ("alternator", "Электрика"), ("starter", "Электрика"), ("wiring", "Электрика"),
-                     ("lights", "Свет"), ("glass", "Кузов"), ("carb", "Топливо/зажигание"), ("fuel_pump", "Топливо/зажигание"),
-                     ("fuel_filter", "Топливо/зажигание"), ("air_filter", "Топливо/зажигание"), ("plugs", "Топливо/зажигание"),
-                     ("distributor", "Топливо/зажигание"), ("belt", "Двигатель"), ("seats", "Салон"),
-                     ("door_l", "Кузов"), ("door_r", "Кузов"), ("hood", "Кузов"), ("trunk", "Кузов")):
-        part(sl, sys_, 0.55 if sys_ not in ("Тормоза", "Рулевое") else 0.7)
+                out.append((T("Двигатель"), txt, None, 90))
+    for sl, sys_ in (("gearbox", T("Трансмиссия")), ("clutch", T("Трансмиссия")), ("shocks", T("Подвеска")), ("steering", T("Рулевое")),
+                     ("brakes_f", T("Тормоза")), ("brakes_r", T("Тормоза")), ("radiator", T("Охлаждение")), ("exhaust", T("Выхлоп")),
+                     ("battery", T("Электрика")), ("alternator", T("Электрика")), ("starter", T("Электрика")), ("wiring", T("Электрика")),
+                     ("lights", T("Свет")), ("glass", T("Кузов")), ("carb", T("Топливо/зажигание")), ("fuel_pump", T("Топливо/зажигание")),
+                     ("fuel_filter", T("Топливо/зажигание")), ("air_filter", T("Топливо/зажигание")), ("plugs", T("Топливо/зажигание")),
+                     ("distributor", T("Топливо/зажигание")), ("belt", T("Двигатель")), ("seats", T("Салон")),
+                     ("door_l", T("Кузов")), ("door_r", T("Кузов")), ("hood", T("Кузов")), ("trunk", T("Кузов"))):
+        part(sl, sys_, 0.55 if src(sys_) not in ("Тормоза", "Рулевое") else 0.7)
     for t in car.tire_list():
         if not car.has(t) or T.tread_mm(car, t) < 3.0 or car.c(t) < 0.05:
-            out.append(("Шины", f"{car.slots[t][0]}: протектор {T.tread_mm(car, t):.1f} мм — новая шина", car.slots[t][1], 20))
+            out.append((T("Шины"), T("{0}: протектор {tread_mm:.1f} мм — новая шина", car.slots[t][0], tread_mm=T.tread_mm(car, t)), car.slots[t][1], 20))
         elif abs(T.pressure(car, t) / T.nominal(car, t) - 1) > 0.1:
-            out.append(("Шины", f"{car.slots[t][0]}: давление {T.pressure(car, t):.1f} бар — подкачать", None, 3))
+            out.append((T("Шины"), T("{0}: давление {pressure:.1f} бар — подкачать", car.slots[t][0], pressure=T.pressure(car, t)), None, 3))
     if car.deforms or car.dents or abs(getattr(car, "align", 0.0)) > 0.001:
         zn = damage.zones(car) if car.deforms else {}
         depth = sum(zn.values()) if zn else 0.1
-        out.append(("Кузов", "после аварии: выправить кузов, развал-схождение" + (" (стапель)" if damage.is_totaled(car) else ""),
+        out.append((T("Кузов"), T("после аварии: выправить кузов, развал-схождение") + (T(" (стапель)") if damage.is_totaled(car) else ""),
                     None, int(120 + depth * 900)))
     rust = [(p, v) for p, v in car.rust.items() if v > 20]
     if rust:
-        out.append(("Кузов", f"ржавчина ({len(rust)} мест, до {max(v for _, v in rust):.0f}%) — вырезать, вварить, покрасить",
+        out.append((T("Кузов"), T("ржавчина ({0} мест, до {1:.0f}%) — вырезать, вварить, покрасить", len(rust), max(v for _, v in rust)),
                     None, 60 * len(rust)))
     d = el.data(car)
     bad = [k for k in el.KEYS if d["fuses"][k] != "ok" or k in d["faults"]]
     if bad:
-        out.append(("Электрика", "цепи: " + ", ".join(el.circuit_name(car, k).lower() for k in bad[:5]) +
-                    (" …" if len(bad) > 5 else "") + " — найти и устранить", None, 30 * len(bad)))
+        out.append((T("Электрика"), T("цепи: ") + ", ".join(el.circuit_name(car, k).lower() for k in bad[:5]) +
+                    (" …" if len(bad) > 5 else "") + T(" — найти и устранить"), None, 30 * len(bad)))
     if car.lock_broken or car.hotwired:
-        out.append(("Замки", "сломан замок" + (" и разобран замок зажигания" if car.hotwired else "") + " — новые замки и ключи",
+        out.append((T("Замки"), T("сломан замок") + (T(" и разобран замок зажигания") if car.hotwired else "") + T(" — новые замки и ключи"),
                     "lockset", 60))
     if car.oil_cap > 0 and (car.oil < car.oil_cap * 0.9 or car.oil_quality < 60):
-        out.append(("Жидкости", "масло: замена", "oil", 25))
+        out.append((T("Жидкости"), T("масло: замена"), "oil", 25))
     if car.coolant_cap > 0 and car.coolant < car.coolant_cap * 0.9:
-        out.append(("Жидкости", "антифриз: долить", "coolant", 10))
+        out.append((T("Жидкости"), T("антифриз: долить"), "coolant", 10))
     if car.brake_fluid < 80:
-        out.append(("Жидкости", "тормозная жидкость: прокачать", "brake_fl", 20))
+        out.append((T("Жидкости"), T("тормозная жидкость: прокачать"), "brake_fl", 20))
     if car.bolts:
-        out.append(("Крепёж", f"недотянутый крепёж ({len(car.bolts)} узлов) — протянуть", None, 10 * len(car.bolts)))
+        out.append((T("Крепёж"), T("недотянутый крепёж ({0} узлов) — протянуть", len(car.bolts)), None, 10 * len(car.bolts)))
     for node, p in (car.tune or {}).items():
         if isinstance(p, dict) and p.get("cond", 100) < 55:
-            out.append(("Тюнинг", f"{ITEMS.get(p['id'], {}).get('name', node)}: износ — восстановить", p["id"], 90))
+            out.append((T("Тюнинг"), T("{name}: износ — восстановить", name=ITEMS.get(p['id'], {}).get('name', node)), p["id"], 90))
     return out
 
 
@@ -192,7 +193,7 @@ def start(g, key, found):
     car.door_open = {k: False for k in car.door_open}
     car.locked = False
     if not has_warranty(car):
-        g.charge(total, f"{NAME}: ремонт {car.name}")
+        g.charge(total, T("{NAME}: ремонт {name}", NAME=NAME, name=car.name))
     return hours
 
 
@@ -210,8 +211,8 @@ def tick(g):
         car.hood_open = False
         car.service = None
         car.service_done = {"day": g.day, "found": sv["found"], "total": sv["total"], "warranty": sv["warranty"]}
-        g.notify(f"{NAME}: ваш {car.name} готов — стоит на парковке у мастерской. "
-                 + ("Всё по бессрочной гарантии — 0 DM." if sv["warranty"] else f"Оплачено {sv['total']:.0f} DM."),
+        g.notify(T("{NAME}: ваш {name} готов — стоит на парковке у мастерской. ", NAME=NAME, name=car.name)
+                 + (T("Всё по бессрочной гарантии — 0 ₽.") if sv["warranty"] else T("Оплачено {total:.0f} ₽.", total=sv['total'])),
                  (90, 190, 90), 12)
 
 
@@ -230,7 +231,7 @@ def in_service(car):
 def ready_text(g, car):
     sv = car.service
     left = max(0.0, sv["until"] - g.minutes)
-    return f"в ремонте — готово примерно через {left / 60:.1f} ч"
+    return T("в ремонте — готово примерно через {0:.1f} ч", left / 60)
 
 
 # ------------------------------------------------------------------ приёмка (диалог)
@@ -238,21 +239,21 @@ def reception(g, key):
     """Мастер-приёмщик у машины в ячейке."""
     car = g.cars[key]
     if not is_open(g):
-        g.info(NAME, ["Закрыто. Мастерская не работает.", f"Часы работы: {hours_text()}.",
-                      "Машину можно оставить на парковке и приехать в рабочее время."])
+        g.info(NAME, [T("Закрыто. Мастерская не работает."), T("Часы работы: {hours_text}.", hours_text=hours_text()),
+                      T("Машину можно оставить на парковке и приехать в рабочее время.")])
         return
     if car.running:
-        g.notify("Заглушите двигатель — мастер не примет машину с работающим мотором.", (230, 140, 40))
+        g.notify(T("Заглушите двигатель — мастер не примет машину с работающим мотором."), (230, 140, 40))
         return
     ensure_warranty(car)
     g.advance(30)                                     # осмотр
     found = inspect(car)
     parts, minutes, total = estimate(found)
     hours = max(1.0, minutes / 60 / MECHANICS)
-    lines = [f"Мастер Уве Шмидт обходит {car.name} с фонарём, заглядывает под капот и под днище (подъёмник).",
-             "Гарантия: " + ("БЕССРОЧНАЯ — действует (проверено по сервисной книжке)" if has_warranty(car) else "нет"), ""]
+    lines = [T("Мастер Уве Шмидт обходит {name} с фонарём, заглядывает под капот и под днище (подъёмник).", name=car.name),
+             T("Гарантия: ") + (T("БЕССРОЧНАЯ — действует (проверено по сервисной книжке)") if has_warranty(car) else T("нет")), ""]
     if not found:
-        g.info(NAME, lines + ["«Всё в порядке!» — неисправностей не найдено. Можно ехать."])
+        g.info(NAME, lines + [T("«Всё в порядке!» — неисправностей не найдено. Можно ехать.")])
         return
     by = {}
     for sys_, what, pid, m in found:
@@ -262,31 +263,31 @@ def reception(g, key):
         for w in ws[:6]:
             lines.append("   • " + w)
         if len(ws) > 6:
-            lines.append(f"   • … и ещё {len(ws) - 6}")
-    lines += ["", f"Смета: детали {parts:.0f} DM + работа {minutes / 60:.1f} н·ч × {LABOR:.0f} DM = {total:.0f} DM.",
-              (f"К оплате: 0 DM — всё по бессрочной гарантии." if has_warranty(car) else f"К оплате: {total:.0f} DM."),
-              f"Срок: около {hours:.1f} ч (работают {MECHANICS} механика). Машина остаётся в цеху."]
+            lines.append(T("   • … и ещё {0}", len(ws) - 6))
+    lines += ["", T("Смета: детали {parts:.0f} ₽ + работа {0:.1f} н·ч × {LABOR:.0f} ₽ = {total:.0f} ₽.", minutes / 60, parts=parts, LABOR=LABOR, total=total),
+              (T("К оплате: 0 ₽ — всё по бессрочной гарантии.") if has_warranty(car) else T("К оплате: {total:.0f} ₽.", total=total)),
+              T("Срок: около {hours:.1f} ч (работают {MECHANICS} механика). Машина остаётся в цеху.", hours=hours, MECHANICS=MECHANICS)]
 
     def go():
         if not has_warranty(car) and g.p.money < total:
-            g.notify("Не хватает денег на ремонт.", (210, 60, 50))
+            g.notify(T("Не хватает денег на ремонт."), (210, 60, 50))
             return
         h = start(g, key, found)
         if g.p.in_car and g.cur == key:
             g.p.in_car = False
             g.p.x, g.p.y = SERVICE_DOOR_PT[0] + 2.5, SERVICE_DOOR_PT[1]
-        g.notify(f"{car.name} в работе — примерно {h:.1f} ч. Мы сообщим, когда будет готово.", (90, 190, 90), 8)
-    g.dialog(NAME, lines, [("Ремонтировать всё" + (" (по гарантии, 0 DM)" if has_warranty(car) else f" ({total:.0f} DM)"),
+        g.notify(T("{name} в работе — примерно {h:.1f} ч. Мы сообщим, когда будет готово.", name=car.name, h=h), (90, 190, 90), 8)
+    g.dialog(NAME, lines, [(T("Ремонтировать всё") + (T(" (по гарантии, 0 ₽)") if has_warranty(car) else f" ({total:.0f} ₽)"),
                             go, True)], wide=True)
 
 
 def office(g):
     """Стойка приёмки: какие машины в работе, какие готовы."""
-    lines = [f"{NAME} · {hours_text()}", "Заехать в свободную ячейку цеха, заглушить мотор — мастер примет машину.",
-             "Бессрочная гарантия на все ваши машины: ремонт бесплатно."]
+    lines = [f"{NAME} · {hours_text()}", T("Заехать в свободную ячейку цеха, заглушить мотор — мастер примет машину."),
+             T("Бессрочная гарантия на все ваши машины: ремонт бесплатно.")]
     for k, c in g.owned_cars():
         if in_service(c):
             lines.append(f"• {c.name}: {ready_text(g, c)}")
         elif getattr(c, "service_done", None) and c.service_done.get("day", -9) >= g.day - 1:
-            lines.append(f"• {c.name}: готов, стоит на парковке")
+            lines.append(T("• {name}: готов, стоит на парковке", name=c.name))
     g.info(NAME, lines)

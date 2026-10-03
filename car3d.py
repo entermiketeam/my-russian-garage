@@ -16,6 +16,8 @@ import textures3d
 from car import WHEELBASE
 from models import MODELS
 from car3d_extra import Extras
+import i18n
+from i18n import T
 
 PAINT = (196, 186, 150)
 PAINT_DARK = (178, 168, 134)
@@ -172,7 +174,7 @@ class Car3D(Extras):
         try:
             self._apply_deforms()
         except Exception as ex:                      # pragma: no cover — страховка
-            print("Вмятины: не удалось смять кузов:", ex)
+            print(T("Вмятины: не удалось смять кузов:"), ex)
             self._deform_key = self._deform_sig()
 
     def _apply_deforms(self):
@@ -218,7 +220,7 @@ class Car3D(Extras):
                     e.texture = tex
                 e.double_sided = True
             except Exception as ex:
-                print("Вмятины: деталь пропущена:", ex)
+                print(T("Вмятины: деталь пропущена:"), ex)
         for e, pos0, cb, inv_p in self._def_rigid:
             dv = damage.rigid_offset(defs, cb, dims) if defs else np.zeros(3)
             dl = dv @ inv_p
@@ -1205,10 +1207,11 @@ class AICar3D:
         if police:
             self.siren = Entity(parent=self.root, model="cube", position=(0, 1.5, -0.1), scale=(0.7, 0.12, 0.22),
                                 color=color.rgb(40, 70, 160))
-            t = Text("ПОЛИЦИЯ", parent=self.root, position=(0.86, 0.75, 0), rotation_y=-90, scale=6, origin=(0, 0),
-                     color=color.rgb(30, 90, 60))
-            t2 = Text("ПОЛИЦИЯ", parent=self.root, position=(-0.86, 0.75, 0), rotation_y=90, scale=6, origin=(0, 0),
-                      color=color.rgb(30, 90, 60))
+            word = T("ПОЛИЦИЯ")
+            t = i18n.live(Text(word, parent=self.root, position=(0.86, 0.75, 0), rotation_y=-90, scale=6, origin=(0, 0),
+                               color=color.rgb(30, 90, 60)), word)
+            t2 = i18n.live(Text(word, parent=self.root, position=(-0.86, 0.75, 0), rotation_y=90, scale=6, origin=(0, 0),
+                                color=color.rgb(30, 90, 60)), word)
         self.wheels = []
         for x in (-0.76, 0.76):
             for z in (-1.3, 1.3):

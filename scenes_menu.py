@@ -7,6 +7,8 @@ import pygame
 import ui
 from config import WIDTH, HEIGHT, WHITE, GREY, YELLOW, RED, GREEN, ORANGE, SAVE_FILE, font
 from items import ITEMS, item_name, SLOTS
+import i18n
+from i18n import T
 
 
 class Scene:
@@ -37,7 +39,7 @@ class DialogScene(Scene):
         self.title = title
         self.lines = lines if isinstance(lines, list) else [lines]
         opts = list(options or [])
-        opts.append(("Закрыть", None, True))
+        opts.append((T("Закрыть"), None, True))
         self.menu = ui.ListMenu(opts)
         self.width = width
 
@@ -105,24 +107,24 @@ class ShopScene(Scene):
             for iid in self.item_ids:
                 it = ITEMS[iid]
                 have = g.count(iid)
-                label = (f"{it['name']}" + (f"  (есть {have})" if have else ""), f"{it['price']:.2f} DM")
+                label = (f"{it['name']}" + (T("  (есть {have})", have=have) if have else ""), f"{it['price']:.2f} ₽")
                 items.append((label, ("buy", iid), True))
         elif self.mode == "used":
             for e in self.stock:
-                label = (f"{item_name(e['id'])} — б/у, {e['cond']:.0f}%", f"{e['price']:.2f} DM")
+                label = (T("{item_name} — б/у, {cond:.0f}%", item_name=item_name(e['id']), cond=e['cond']), f"{e['price']:.2f} ₽")
                 items.append((label, ("used", e), True))
             if not self.stock:
-                items.append(("Сегодня ничего нет. Приходите завтра.", None, False))
+                items.append((T("Сегодня ничего нет. Приходите завтра."), None, False))
         else:
             for e in g.p.inventory:
                 it = ITEMS.get(e["id"], {})
                 if it.get("kind") not in ("part", "tool"):
                     continue
                 price = self.sell_price(e)
-                label = (f"{it['name']} ({e['cond']:.0f}%)", f"{price:.2f} DM")
+                label = (f"{it['name']} ({e['cond']:.0f}%)", f"{price:.2f} ₽")
                 items.append((label, ("sell", e), True))
             if not items:
-                items.append(("Нечего продавать (только детали и инструменты).", None, False))
+                items.append((T("Нечего продавать (только детали и инструменты)."), None, False))
         self.menu.set_items(items)
 
     def sell_price(self, e):
@@ -142,17 +144,17 @@ class ShopScene(Scene):
             it = ITEMS[data]
             if g.pay(it["price"]):
                 g.add_item(data)
-                g.notify(f"Куплено: {it['name']}", GREEN)
+                g.notify(T("Куплено: {name}", name=it['name']), GREEN)
         elif kind == "used":
             if data in self.stock and g.pay(data["price"]):
                 g.add_item(data["id"], data["cond"])
                 self.stock.remove(data)
-                g.notify(f"Куплено б/у: {item_name(data['id'])}", GREEN)
+                g.notify(T("Куплено б/у: {item_name}", item_name=item_name(data['id'])), GREEN)
         elif kind == "sell":
             if data in g.p.inventory:
                 price = self.sell_price(data)
                 g.take_item(data["id"], data)
-                g.earn(price, "(продажа)")
+                g.earn(price, T("(продажа)"))
         self.refresh()
 
     def draw(self, surf):
@@ -169,9 +171,9 @@ class ShopScene(Scene):
         ui.text(surf, self.title, (585, 45), 26, YELLOW, bold=True)
         if self.subtitle:
             ui.text(surf, self.subtitle, (585, 80), 15, GREY)
-        ui.text(surf, f"Деньги: {self.game.p.money:.2f} DM", (1230, 48), 18, GREEN, right=True)
+        ui.text(surf, T("Деньги: {money:.2f} ₽", money=self.game.p.money), (1230, 48), 18, GREEN, right=True)
         self.menu.draw(surf, 590, 110, 640, rows=19, size=17)
-        ui.text(surf, "W/S — выбор, Enter — купить/продать, Esc — выйти", (585, 660), 14, GREY)
+        ui.text(surf, T("W/S — выбор, Enter — купить/продать, Esc — выйти"), (585, 660), 14, GREY)
         cur = self.menu.current()
         if cur and cur[0] == "buy" and ITEMS[cur[1]].get("note"):
             ui.text(surf, ITEMS[cur[1]]["note"], (40, 660), 15, ORANGE)
@@ -180,7 +182,7 @@ class ShopScene(Scene):
             it = ITEMS[iid]
             slots = [SLOTS[s][0] for s in SLOTS if SLOTS[s][1] == iid]
             if slots:
-                ui.text(surf, "Ставится: " + ", ".join(slots), (40, 630), 15, WHITE)
+                ui.text(surf, T("Ставится: ") + ", ".join(slots), (40, 630), 15, WHITE)
 
 
 # ============================================================ инвентарь
@@ -188,7 +190,7 @@ class InventoryScene(Scene):
     overlay = True
     time_flows = True
 
-    def __init__(self, game, only_food=False, title="Инвентарь"):
+    def __init__(self, game, only_food=False, title=T("Инвентарь")):
         super().__init__(game)
         self.only_food = only_food
         self.title = title
@@ -213,11 +215,11 @@ class InventoryScene(Scene):
             if it["kind"] == "part":
                 name += f"  [{e['cond']:.0f}%]"
             usable = it["kind"] in ("food", "drink")
-            hint = "съесть/выпить" if usable else it["kind"].replace("part", "деталь").replace(
-                "tool", "инструмент").replace("fluid", "жидкость").replace("material", "материал")
+            hint = T("съесть/выпить") if usable else it["kind"].replace("part", T("деталь")).replace(
+                "tool", T("инструмент")).replace("fluid", T("жидкость")).replace("material", T("материал"))
             items.append(((f"{name}  x{len(es)}", hint), e, usable))
         if not items:
-            items.append(("Пусто", None, False))
+            items.append((T("Пусто"), None, False))
         self.menu.set_items(items)
 
     def handle(self, ev):
@@ -235,38 +237,38 @@ class InventoryScene(Scene):
         ui.panel(surf, r, 240)
         ui.text(surf, self.title, (r.x + 20, r.y + 16), 24, YELLOW, bold=True)
         p = self.game.p
-        ui.text(surf, f"{p.money:.2f} DM", (r.right - 20, r.y + 18), 20, GREEN, right=True)
+        ui.text(surf, f"{p.money:.2f} ₽", (r.right - 20, r.y + 18), 20, GREEN, right=True)
         self.menu.draw(surf, r.x + 26, r.y + 64, r.w - 50, rows=17, size=17)
-        ui.text(surf, "Enter — использовать, Tab/Esc — закрыть", (r.x + 20, r.bottom - 28), 14, GREY)
+        ui.text(surf, T("Enter — использовать, Tab/Esc — закрыть"), (r.x + 20, r.bottom - 28), 14, GREY)
 
 
 # ============================================================ титул / пауза / конец
 CONTROLS = [
-    "ПЕШКОМ: WASD — идти, Shift — бежать, E — действие, F — сесть в машину,",
-    "        Tab — инвентарь, M — карта, Esc — пауза.",
-    "ЗА РУЛЁМ: W — газ, S — тормоз, A/D — руль, Пробел — сцепление (держать),",
-    "        Shift / Ctrl — передача вверх/вниз (или 1-4, R — задняя, N — нейтраль),",
-    "        I (держать) — стартер / заглушить, C — подсос, L — фары, H — гудок,",
-    "        F — выйти, E — действие (заправка, техосмотр, доставка).",
-    "У машины: E — открыть капот / работа с машиной (снять/поставить детали, жидкости, сварка).",
+    T("ПЕШКОМ: WASD — идти, Shift — бежать, E — действие, F — сесть в машину,"),
+    T("        Tab — инвентарь, M — карта, Esc — пауза."),
+    T("ЗА РУЛЁМ: W — газ, S — тормоз, A/D — руль, Пробел — сцепление (держать),"),
+    T("        Shift / Ctrl — передача вверх/вниз (или 1-4, R — задняя, N — нейтраль),"),
+    T("        I (держать) — стартер / заглушить, C — подсос, L — фары, H — гудок,"),
+    T("        F — выйти, E — действие (заправка, техосмотр, доставка)."),
+    T("У машины: E — открыть капот / работа с машиной (снять/поставить детали, жидкости, сварка)."),
     "",
-    "СОВЕТЫ: холодный двигатель заводится только с подсосом (C). Трогайтесь с 1-й передачи.",
-    "Если остановились на передаче — выжмите сцепление, иначе заглохнете.",
-    "Свечи, аккумулятор и масло — первое, что нужно машине. Зарядка АКБ — только в гараже.",
-    "Чтобы ездить легально: техосмотр → регистрация в ратуше (номера).",
-    "Магазины закрыты в воскресенье и по вечерам (так в Германии по закону). Заправка — круглосуточно.",
+    T("СОВЕТЫ: холодный двигатель заводится только с подсосом (C). Трогайтесь с 1-й передачи."),
+    T("Если остановились на передаче — выжмите сцепление, иначе заглохнете."),
+    T("Свечи, аккумулятор и масло — первое, что нужно машине. Зарядка АКБ — только в гараже."),
+    T("Чтобы ездить легально: техосмотр → регистрация в ратуше (номера)."),
+    T("Магазины закрыты в воскресенье и по вечерам (так в Германии по закону). Заправка — круглосуточно."),
 ]
 
 INTRO = [
-    "Октябрь 1998 года. Нижняя Саксония, городок Кляйнбрук.",
-    "Полгода назад вы переехали в Германию. У вас есть однокомнатная квартира на Линденштрассе, 7, "
-    "немного марок и наследство от дяди Вити — ВАЗ 2102 «Жигули» 1979 года.",
-    "Машина шесть лет простояла в гараже за домом. Пороги сгнили, арки в дырах, "
-    "аккумулятор мёртв, резина спущена, а масло похоже на гуталин.",
-    "Задача: оживить «двойку», пройти техосмотр, поставить на учёт — и не умереть с голоду, "
-    "пока копишь на детали. Работа есть на складе и в пиццерии (доставка).",
+    T("Октябрь 1998 года. Нижняя Саксония, городок Кляйнбрук."),
+    T("Полгода назад вы переехали в Германию. У вас есть однокомнатная квартира на Линденштрассе, 7, "
+    "немного рублей и наследство от дяди Вити — ВАЗ 2102 «Жигули» 1979 года."),
+    T("Машина шесть лет простояла в гараже за домом. Пороги сгнили, арки в дырах, "
+    "аккумулятор мёртв, резина спущена, а масло похоже на гуталин."),
+    T("Задача: оживить «двойку», пройти техосмотр, поставить на учёт — и не умереть с голоду, "
+    "пока копишь на детали. Работа есть на складе и в пиццерии (доставка)."),
     "",
-    "Квартира ваша собственная — платить за жильё не нужно. На старте у вас 3000 DM.",
+    T("Квартира ваша собственная — платить за жильё не нужно. На старте у вас 3000 ₽."),
 ]
 
 
@@ -279,10 +281,11 @@ class TitleScene(Scene):
     def refresh(self):
         has_save = os.path.exists(SAVE_FILE)
         self.menu.set_items([
-            ("Новая игра", "new", True),
-            ("Продолжить", "load", has_save),
-            ("Управление", "help", True),
-            ("Выход", "quit", True),
+            (T("Новая игра"), "new", True),
+            (T("Продолжить"), "load", has_save),
+            (T("Язык") if i18n.current() == "en" else T("Язык") + " · Language", "lang", True),
+            (T("Управление"), "help", True),
+            (T("Выход"), "quit", True),
         ])
 
     def handle(self, ev):
@@ -294,13 +297,15 @@ class TitleScene(Scene):
             from scene_street import StreetScene
             g.replace(StreetScene(g))
             g.push(ApartmentScene(g))
-            g.push(DialogScene(g, "Добро пожаловать в Кляйнбрук", INTRO, width=820))
+            g.push(DialogScene(g, T("Добро пожаловать в Кляйнбрук"), INTRO, width=820))
         elif sel == "load":
             if g.load():
                 from scene_street import StreetScene
                 g.replace(StreetScene(g))
+        elif sel == "lang":
+            g.push(LanguageScene(g, self))
         elif sel == "help":
-            g.push(DialogScene(g, "Управление", CONTROLS, width=1000))
+            g.push(DialogScene(g, T("Управление"), CONTROLS, width=1000))
         elif sel == "quit":
             g.running = False
 
@@ -310,9 +315,42 @@ class TitleScene(Scene):
         pygame.draw.rect(surf, (48, 48, 50), (0, 520, WIDTH, 200))
         self.game.car.draw_side(surf, 560, 560, 150)
         ui.text(surf, "MY RUSSIAN GARAGE", (60, 60), 54, (230, 200, 90), bold=True)
-        ui.text(surf, "ВАЗ 2102 · Германия · 1998", (64, 128), 26, WHITE)
-        ui.text(surf, "ржавая «двойка», квартира, работа и техосмотр — гаражная жизнь в 1998 году", (64, 164), 17, GREY)
+        ui.text(surf, T("ВАЗ 2102 · Германия · 1998"), (64, 128), 26, WHITE)
+        ui.text(surf, T("ржавая «двойка», квартира, работа и техосмотр — гаражная жизнь в 1998 году"), (64, 164), 17, GREY)
         self.menu.draw(surf, 70, 240, 360, size=24)
+
+
+class LanguageScene(Scene):
+    """Выбор языка (2D): применяется сразу и сохраняется в settings.json."""
+    overlay = True
+
+    def __init__(self, game, title_scene):
+        super().__init__(game)
+        self.title_scene = title_scene
+        self.menu = ui.ListMenu()
+        self.refresh()
+
+    def refresh(self):
+        cur = i18n.current()
+        self.menu.title = T("Язык") + ("" if cur == "en" else " · Language")
+        langs = i18n.languages()
+        self.menu.set_items([((name, "•" if code == cur else ""), code, True) for code, name in langs])
+        self.menu.index = next((i for i, (code, _) in enumerate(langs) if code == cur), 0)
+
+    def handle(self, ev):
+        if ev.type == pygame.KEYDOWN and ev.key in (pygame.K_ESCAPE, pygame.K_TAB, pygame.K_BACKSPACE):
+            self.game.pop()
+            return
+        code = self.menu.handle(ev)
+        if code:
+            if code != i18n.current():
+                i18n.set_language(code, roots=(self.game,))
+            self.title_scene.refresh()
+            self.game.pop()
+
+    def draw(self, surf):
+        ui.panel(surf, (460, 220, 420, 300), alpha=240)
+        self.menu.draw(surf, 484, 240, 380, rows=7, size=20)
 
 
 class PauseScene(Scene):
@@ -321,12 +359,12 @@ class PauseScene(Scene):
     def __init__(self, game):
         super().__init__(game)
         self.menu = ui.ListMenu([
-            ("Продолжить", "back", True),
-            ("Сохранить игру", "save", True),
-            ("Загрузить игру", "load", os.path.exists(SAVE_FILE)),
-            ("Управление", "help", True),
-            ("Выйти в главное меню", "title", True),
-        ], title="Пауза")
+            (T("Продолжить"), "back", True),
+            (T("Сохранить игру"), "save", True),
+            (T("Загрузить игру"), "load", os.path.exists(SAVE_FILE)),
+            (T("Управление"), "help", True),
+            (T("Выйти в главное меню"), "title", True),
+        ], title=T("Пауза"))
 
     def handle(self, ev):
         if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
@@ -344,7 +382,7 @@ class PauseScene(Scene):
                 from scene_street import StreetScene
                 g.replace(StreetScene(g))
         elif sel == "help":
-            g.push(DialogScene(g, "Управление", CONTROLS, width=1000))
+            g.push(DialogScene(g, T("Управление"), CONTROLS, width=1000))
         elif sel == "title":
             g.sound.silence()
             g.replace(TitleScene(g))
@@ -371,9 +409,9 @@ class GameOverScene(Scene):
 
     def draw(self, surf):
         surf.fill((12, 8, 8))
-        ui.text(surf, "ИГРА ОКОНЧЕНА", (WIDTH // 2, 200), 48, RED, bold=True, center=True)
+        ui.text(surf, T("ИГРА ОКОНЧЕНА"), (WIDTH // 2, 200), 48, RED, bold=True, center=True)
         y = 290
         for line in self.reason.split("\n"):
             ui.text(surf, line, (WIDTH // 2, y), 22, WHITE, center=True)
             y += 34
-        ui.text(surf, "Enter — в главное меню", (WIDTH // 2, 560), 18, GREY, center=True)
+        ui.text(surf, T("Enter — в главное меню"), (WIDTH // 2, 560), 18, GREY, center=True)

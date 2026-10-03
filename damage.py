@@ -14,6 +14,7 @@ import math
 import random
 
 import numpy as np
+from i18n import T
 
 # на сколько сминается зона при ударе (м) — примерно как у машин 70–80-х без зон деформации
 MAX_DEPTH = {"front": 1.05, "rear": 0.95, "left": 0.45, "right": 0.45}
@@ -57,8 +58,8 @@ def is_totaled(car):
 
 def damage_text(car):
     z = zones(car)
-    names = {"front": "перед", "rear": "зад", "left": "левый борт", "right": "правый борт"}
-    parts = [f"{names[k]} {v * 100:.0f} см" for k, v in z.items() if v > 0.02]
+    names = {"front": T("перед"), "rear": T("зад"), "left": T("левый борт"), "right": T("правый борт")}
+    parts = [T("{0} {1:.0f} см", names[k], v * 100) for k, v in z.items() if v > 0.02]
     return ", ".join(parts)
 
 

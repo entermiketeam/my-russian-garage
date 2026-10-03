@@ -8,6 +8,7 @@ from scenes_menu import Scene, DialogScene, InventoryScene, info
 from items import SLOTS, PANELS, ITEMS, item_name
 from world import GARAGE, point_in
 from car import TANK, OIL_CAP, COOLANT_CAP
+from i18n import T
 
 
 class CarWorkScene(Scene):
@@ -35,63 +36,63 @@ class CarWorkScene(Scene):
         items = []
         if mode == "root":
             items = [
-                ("Детали (снять / поставить)", "parts", True),
-                ("Жидкости (масло, антифриз, бензин...)", "fluids", True),
-                ("Кузов и ржавчина (сварка, покраска)", "body", True),
-                (("Зарядить аккумулятор", "3 ч, в гараже"), "charge", True),
-                ("Закрыть капот", "exit", True),
+                (T("Детали (снять / поставить)"), "parts", True),
+                (T("Жидкости (масло, антифриз, бензин...)"), "fluids", True),
+                (T("Кузов и ржавчина (сварка, покраска)"), "body", True),
+                ((T("Зарядить аккумулятор"), T("3 ч, в гараже")), "charge", True),
+                (T("Закрыть капот"), "exit", True),
             ]
-            self.menu.title = "ВАЗ 2102 — работа с машиной"
+            self.menu.title = T("ВАЗ 2102 — работа с машиной")
         elif mode == "parts":
             for s, (name, pid, mins) in SLOTS.items():
                 p = car.parts.get(s)
-                right = "НЕТ" if p is None else f"{p['cond']:.0f}%"
+                right = T("НЕТ") if p is None else f"{p['cond']:.0f}%"
                 items.append(((name, right), ("slot", s), True))
-            items.append(("← Назад", "back", True))
-            self.menu.title = "Детали"
+            items.append((T("← Назад"), "back", True))
+            self.menu.title = T("Детали")
         elif mode == "slot":
             s = self.slot
             name, pid, mins = SLOTS[s]
             p = car.parts.get(s)
             if p is not None:
-                items.append(((f"Снять: {item_name(p['id'])} ({p['cond']:.0f}%)", f"{mins} мин"), ("remove", s), True))
+                items.append(((T("Снять: {item_name} ({cond:.0f}%)", item_name=item_name(p['id']), cond=p['cond']), T("{mins} мин", mins=mins)), ("remove", s), True))
             else:
                 cands = sorted([e for e in g.p.inventory if e["id"] == pid], key=lambda e: -e["cond"])
                 for e in cands:
-                    items.append(((f"Поставить: {item_name(pid)} ({e['cond']:.0f}%)", f"{mins} мин"),
+                    items.append(((T("Поставить: {item_name} ({cond:.0f}%)", item_name=item_name(pid), cond=e['cond']), T("{mins} мин", mins=mins)),
                                   ("install", e), True))
                 if not cands:
-                    items.append((f"Нет детали «{item_name(pid)}» в инвентаре", None, False))
-            items.append(("← Назад", "back", True))
+                    items.append((T("Нет детали «{item_name}» в инвентаре", item_name=item_name(pid)), None, False))
+            items.append((T("← Назад"), "back", True))
             self.menu.title = name
         elif mode == "fluids":
             items = [
-                ((f"Долить масло 15W-40 (канистр: {g.count('oil')})", "10 мин"), "oil_add", True),
-                (("Слить старое масло", "20 мин"), "oil_drain", True),
-                ((f"Долить антифриз (канистр: {g.count('coolant')})", "10 мин"), "cool_add", True),
-                ((f"Долить тормозную жидкость ({g.count('brake_fl')})", "15 мин"), "brake_add", True),
-                ((f"Залить бензин из канистры ({g.count('fuel_can')})", "5 мин"), "fuel_add", True),
-                ("← Назад", "back", True),
+                ((T("Долить масло 15W-40 (канистр: {count})", count=g.count('oil')), T("10 мин")), "oil_add", True),
+                ((T("Слить старое масло"), T("20 мин")), "oil_drain", True),
+                ((T("Долить антифриз (канистр: {count})", count=g.count('coolant')), T("10 мин")), "cool_add", True),
+                ((T("Долить тормозную жидкость ({count})", count=g.count('brake_fl')), T("15 мин")), "brake_add", True),
+                ((T("Залить бензин из канистры ({count})", count=g.count('fuel_can')), T("5 мин")), "fuel_add", True),
+                (T("← Назад"), "back", True),
             ]
-            self.menu.title = "Жидкости"
+            self.menu.title = T("Жидкости")
         elif mode == "body":
             for p, name in PANELS.items():
                 v = car.rust[p]
-                tag = " (покрашено)" if car.painted[p] else ""
+                tag = T(" (покрашено)") if car.painted[p] else ""
                 items.append(((name + tag, f"{v:.0f}%"), ("panel", p), True))
-            items.append(("← Назад", "back", True))
-            self.menu.title = "Кузов — ржавчина"
+            items.append((T("← Назад"), "back", True))
+            self.menu.title = T("Кузов — ржавчина")
         elif mode == "panel":
             p = self.panel
             big = p in ("floor", "sill_l", "sill_r")
             need = 2 if big else 1
             items = [
-                ((f"Вырезать гниль и вварить металл ({need} лист.)", "2 ч"), "weld", True),
-                (("Обработать преобразователем ржавчины", "20 мин"), "conv", True),
-                (("Загрунтовать и покрасить", "40 мин"), "paint", True),
-                ("← Назад", "back", True),
+                ((T("Вырезать гниль и вварить металл ({need} лист.)", need=need), T("2 ч")), "weld", True),
+                ((T("Обработать преобразователем ржавчины"), T("20 мин")), "conv", True),
+                ((T("Загрунтовать и покрасить"), T("40 мин")), "paint", True),
+                (T("← Назад"), "back", True),
             ]
-            self.menu.title = f"{PANELS[p]}: {car.rust[p]:.0f}% ржавчины"
+            self.menu.title = T("{0}: {1:.0f}% ржавчины", PANELS[p], car.rust[p])
         self.menu.set_items(items)
 
     def go(self, mode):
@@ -110,7 +111,7 @@ class CarWorkScene(Scene):
     # --------------------------------------------------------------- действия
     def need_off(self):
         if self.car.running:
-            self.game.notify("Сначала заглушите двигатель.", RED)
+            self.game.notify(T("Сначала заглушите двигатель."), RED)
             return False
         return True
 
@@ -155,21 +156,21 @@ class CarWorkScene(Scene):
 
         if sel == "charge":
             if not self.in_garage():
-                g.notify("Зарядка — только в гараже (нужна розетка).", RED)
+                g.notify(T("Зарядка — только в гараже (нужна розетка)."), RED)
             elif not g.has("charger"):
-                g.notify("Нужно зарядное устройство (магазин «Восток»).", RED)
+                g.notify(T("Нужно зарядное устройство (магазин «Восток»)."), RED)
             elif not car.has("battery"):
-                g.notify("Аккумулятор не установлен.", RED)
+                g.notify(T("Аккумулятор не установлен."), RED)
             else:
                 g.advance(180)
                 car.battery_charge = 100.0 * (0.3 + 0.7 * car.c("battery"))
-                g.notify(f"Аккумулятор заряжен: {car.battery_charge:.0f}% (зависит от износа АКБ).", GREEN)
+                g.notify(T("Аккумулятор заряжен: {battery_charge:.0f}% (зависит от износа АКБ).", battery_charge=car.battery_charge), GREEN)
         elif isinstance(sel, tuple) and sel[0] == "remove":
             s = sel[1]
             if not self.need_off():
                 return
             if not g.has("toolbox"):
-                g.notify("Нужен набор ключей.", RED)
+                g.notify(T("Нужен набор ключей."), RED)
                 return
             part = car.parts[s]
             self.work(SLOTS[s][2])
@@ -179,7 +180,7 @@ class CarWorkScene(Scene):
                 car.oil = 0.0
                 entry["sub"] = _eng.remove_whole(car)      # внутренности двигателя едут вместе с ним
             g.p.inventory.append(entry)
-            g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
+            g.notify(T("Снято: {item_name} ({cond:.0f}%)", item_name=item_name(part['id']), cond=part['cond']), GREEN)
             self.back()
         elif isinstance(sel, tuple) and sel[0] == "install":
             e = sel[1]
@@ -187,7 +188,7 @@ class CarWorkScene(Scene):
             if not self.need_off():
                 return
             if not g.has("toolbox"):
-                g.notify("Нужен набор ключей.", RED)
+                g.notify(T("Нужен набор ключей."), RED)
                 return
             g.take_item(e["id"], e)
             self.work(SLOTS[s][2])
@@ -196,15 +197,15 @@ class CarWorkScene(Scene):
                 _eng.install_whole(car, e)
             if s == "battery":
                 car.battery_charge = 60.0 if e["cond"] > 95 else 20.0
-            g.notify(f"Установлено: {item_name(e['id'])}", GREEN)
+            g.notify(T("Установлено: {item_name}", item_name=item_name(e['id'])), GREEN)
             if s == "engine":
-                g.notify("Не забудьте залить масло в новый двигатель!", YELLOW)
+                g.notify(T("Не забудьте залить масло в новый двигатель!"), YELLOW)
             self.back()
         elif sel == "oil_add":
             if not g.has("oil"):
-                g.notify("Нет масла. Купите в магазине «Восток» или на заправке.", RED)
+                g.notify(T("Нет масла. Купите в магазине «Восток» или на заправке."), RED)
             elif car.oil >= OIL_CAP - 0.1:
-                g.notify("Масла и так по верхней метке.", YELLOW)
+                g.notify(T("Масла и так по верхней метке."), YELLOW)
             else:
                 g.take_item("oil")
                 fresh = min(4.0, OIL_CAP + 0.25 - car.oil)
@@ -212,44 +213,44 @@ class CarWorkScene(Scene):
                 car.oil_quality = (car.oil * car.oil_quality + fresh * 100) / total
                 car.oil = min(OIL_CAP + 0.25, total)
                 self.work(10)
-                g.notify(f"Масло: {car.oil:.2f} л, качество {car.oil_quality:.0f}%.", GREEN)
+                g.notify(T("Масло: {oil:.2f} л, качество {oil_quality:.0f}%.", oil=car.oil, oil_quality=car.oil_quality), GREEN)
         elif sel == "oil_drain":
             if not self.need_off():
                 return
             self.work(20)
             car.oil = 0.0
             car.oil_quality = 100.0
-            g.notify("Старое масло слито (чёрное, как нефть). Залейте новое!", YELLOW)
+            g.notify(T("Старое масло слито (чёрное, как нефть). Залейте новое!"), YELLOW)
         elif sel == "cool_add":
             if not g.has("coolant"):
-                g.notify("Нет антифриза.", RED)
+                g.notify(T("Нет антифриза."), RED)
             elif car.coolant >= COOLANT_CAP - 0.1:
-                g.notify("Антифриза достаточно.", YELLOW)
+                g.notify(T("Антифриза достаточно."), YELLOW)
             else:
                 g.take_item("coolant")
                 car.coolant = min(COOLANT_CAP, car.coolant + 5)
                 self.work(10)
-                g.notify(f"Антифриз: {car.coolant:.1f} л.", GREEN)
+                g.notify(T("Антифриз: {coolant:.1f} л.", coolant=car.coolant), GREEN)
                 if car.c("radiator") < 0.25:
-                    g.notify("Радиатор течёт — антифриз будет уходить.", ORANGE)
+                    g.notify(T("Радиатор течёт — антифриз будет уходить."), ORANGE)
         elif sel == "brake_add":
             if not g.has("brake_fl"):
-                g.notify("Нет тормозной жидкости.", RED)
+                g.notify(T("Нет тормозной жидкости."), RED)
             else:
                 g.take_item("brake_fl")
                 car.brake_fluid = 100.0
                 self.work(15)
-                g.notify("Тормозная жидкость заменена, тормоза прокачаны.", GREEN)
+                g.notify(T("Тормозная жидкость заменена, тормоза прокачаны."), GREEN)
         elif sel == "fuel_add":
             if not g.has("fuel_can"):
-                g.notify("Нет канистры с бензином.", RED)
+                g.notify(T("Нет канистры с бензином."), RED)
             elif car.fuel > TANK - 1:
-                g.notify("Бак полон.", YELLOW)
+                g.notify(T("Бак полон."), YELLOW)
             else:
                 g.take_item("fuel_can")
                 car.fuel = min(TANK, car.fuel + 10)
                 self.work(5)
-                g.notify(f"В баке {car.fuel:.1f} л.", GREEN)
+                g.notify(T("В баке {fuel:.1f} л.", fuel=car.fuel), GREEN)
         elif sel in ("weld", "conv", "paint"):
             self.body_work(sel)
         self.refresh()
@@ -260,13 +261,13 @@ class CarWorkScene(Scene):
         if what == "weld":
             need = 2 if p in ("floor", "sill_l", "sill_r") else 1
             if not self.in_garage():
-                g.notify("Сварка — только в гараже.", RED)
+                g.notify(T("Сварка — только в гараже."), RED)
             elif not g.has("welder"):
-                g.notify("Нужен сварочный аппарат (магазин «Восток», 320 DM).", RED)
+                g.notify(T("Нужен сварочный аппарат (магазин «Восток», 320 ₽)."), RED)
             elif g.count("metal") < need:
-                g.notify(f"Нужно листов металла: {need}.", RED)
+                g.notify(T("Нужно листов металла: {need}.", need=need), RED)
             elif car.rust[p] < 15:
-                g.notify("Здесь варить нечего — только поверхностная ржавчина.", YELLOW)
+                g.notify(T("Здесь варить нечего — только поверхностная ржавчина."), YELLOW)
             else:
                 for _ in range(need):
                     g.take_item("metal")
@@ -275,28 +276,28 @@ class CarWorkScene(Scene):
                 car.painted[p] = False
                 car._sprite_key = None
                 g.p.hygiene = max(0, g.p.hygiene - 15)
-                g.notify(f"{PANELS[p]}: гниль вырезана, вварена заплатка. Покрасьте, иначе снова заржавеет!", GREEN)
+                g.notify(T("{0}: гниль вырезана, вварена заплатка. Покрасьте, иначе снова заржавеет!", PANELS[p]), GREEN)
         elif what == "conv":
             if not g.has("rust_conv"):
-                g.notify("Нет преобразователя ржавчины.", RED)
+                g.notify(T("Нет преобразователя ржавчины."), RED)
             elif car.rust[p] > 55:
-                g.notify("Тут уже дыры — поможет только сварка.", ORANGE)
+                g.notify(T("Тут уже дыры — поможет только сварка."), ORANGE)
             else:
                 g.take_item("rust_conv")
                 self.work(20)
                 car.rust[p] = max(0.0, car.rust[p] - 12)
                 car._sprite_key = None
-                g.notify(f"{PANELS[p]}: ржавчина обработана.", GREEN)
+                g.notify(T("{0}: ржавчина обработана.", PANELS[p]), GREEN)
         elif what == "paint":
             if not g.has("paint"):
-                g.notify("Нет грунта и краски.", RED)
+                g.notify(T("Нет грунта и краски."), RED)
             elif car.rust[p] > 20:
-                g.notify("Красить по ржавчине бессмысленно — сначала сварка/преобразователь.", ORANGE)
+                g.notify(T("Красить по ржавчине бессмысленно — сначала сварка/преобразователь."), ORANGE)
             else:
                 g.take_item("paint")
                 self.work(40)
                 car.painted[p] = True
-                g.notify(f"{PANELS[p]}: покрашено. Теперь ржавеет в 4 раза медленнее.", GREEN)
+                g.notify(T("{0}: покрашено. Теперь ржавеет в 4 раза медленнее.", PANELS[p]), GREEN)
 
     # --------------------------------------------------------------- отрисовка
     def draw(self, surf):
@@ -318,7 +319,7 @@ class CarWorkScene(Scene):
             pygame.draw.rect(surf, (230, 230, 200), (200, 8, 300, 8))  # лампа дневного света
             if g.has("welder"):
                 pygame.draw.rect(surf, (40, 90, 150), (20, 380, 70, 70))
-                ui.text(surf, "Сварка", (24, 400), 12)
+                ui.text(surf, T("Сварка"), (24, 400), 12)
             if g.has("charger"):
                 pygame.draw.rect(surf, (200, 150, 30), (620, 400, 60, 40))
         else:
@@ -330,13 +331,13 @@ class CarWorkScene(Scene):
 
         # информация
         ui.panel(surf, (10, 490, 700, 222), 225)
-        tuv = "действует" if car.tuv_until >= g.day else "нет"
+        tuv = T("действует") if car.tuv_until >= g.day else T("нет")
         rows = [
-            ("Бензин", f"{car.fuel:.1f} / {TANK:.0f} л", car.fuel / TANK * 100),
-            ("Масло", f"{car.oil:.2f} / {OIL_CAP} л, кач. {car.oil_quality:.0f}%", car.oil / OIL_CAP * 100),
-            ("Антифриз", f"{car.coolant:.1f} / {COOLANT_CAP} л", car.coolant / COOLANT_CAP * 100),
-            ("Торм. жидкость", f"{car.brake_fluid:.0f}%", car.brake_fluid),
-            ("Заряд АКБ", f"{car.battery_charge:.0f}%", car.battery_charge),
+            (T("Бензин"), T("{fuel:.1f} / {TANK:.0f} л", fuel=car.fuel, TANK=TANK), car.fuel / TANK * 100),
+            (T("Масло"), T("{oil:.2f} / {OIL_CAP} л, кач. {oil_quality:.0f}%", oil=car.oil, OIL_CAP=OIL_CAP, oil_quality=car.oil_quality), car.oil / OIL_CAP * 100),
+            (T("Антифриз"), T("{coolant:.1f} / {COOLANT_CAP} л", coolant=car.coolant, COOLANT_CAP=COOLANT_CAP), car.coolant / COOLANT_CAP * 100),
+            (T("Торм. жидкость"), f"{car.brake_fluid:.0f}%", car.brake_fluid),
+            (T("Заряд АКБ"), f"{car.battery_charge:.0f}%", car.battery_charge),
         ]
         y = 500
         for name, val, pct in rows:
@@ -344,11 +345,11 @@ class CarWorkScene(Scene):
             ui.bar(surf, 150, y + 2, 150, 14, pct)
             ui.text(surf, val, (312, y), 15, GREY)
             y += 24
-        ui.text(surf, f"Пробег: {car.odometer:.0f} км   Темп.: {car.temp:.0f}°C", (24, y + 4), 15)
-        ui.text(surf, f"Техосмотр: {tuv}   Номера: {'есть' if car.registered else 'нет'}   "
-                      f"{'В гараже' if garage else 'На улице (сварка и зарядка недоступны)'}",
+        ui.text(surf, T("Пробег: {odometer:.0f} км   Темп.: {temp:.0f}°C", odometer=car.odometer, temp=car.temp), (24, y + 4), 15)
+        ui.text(surf, T("Техосмотр: {tuv}   Номера: {0}   "
+                      "{1}", T('есть') if car.registered else T('нет'), T('В гараже') if garage else T('На улице (сварка и зарядка недоступны)'), tuv=tuv),
                 (24, y + 28), 15, GREEN if garage else ORANGE)
-        ui.text(surf, f"Макс. ржавчина: {car.max_rust():.0f}%", (24, y + 52), 15,
+        ui.text(surf, T("Макс. ржавчина: {max_rust:.0f}%", max_rust=car.max_rust()), (24, y + 52), 15,
                 RED if car.max_rust() > 45 else WHITE)
 
         # правое меню
@@ -360,7 +361,7 @@ class CarWorkScene(Scene):
                 p = car.parts.get(cur[1])
                 if p is not None:
                     ui.bar(surf, 742, 668, 500, 10, p["cond"])
-        ui.text(surf, "Enter — выбрать, Esc — назад, Tab — инвентарь", (742, 686), 14, GREY)
+        ui.text(surf, T("Enter — выбрать, Esc — назад, Tab — инвентарь"), (742, 686), 14, GREY)
         # компактный HUD поверх
         ui.panel(surf, (8, 8, 300, 30), 200)
-        ui.text(surf, f"{g.time_str()}   {g.p.money:.2f} DM", (16, 12), 16, WHITE)
+        ui.text(surf, f"{g.time_str()}   {g.p.money:.2f} ₽", (16, 12), 16, WHITE)

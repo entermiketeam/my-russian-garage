@@ -16,36 +16,37 @@ import random
 from world import GARAGE, BUILDINGS, point_in
 from places import INTERIOR_X
 import keys as K
+from i18n import T
 
 # доски объявлений: id -> (подпись, x, y)
 BOARDS = {
-    "b_super": ("доска у супермаркета", 441.5, 297.8),
-    "b_rathaus": ("доска у ратуши", 521.5, 297.8),
-    "b_imbiss": ("доска у дёнер-закусочной", 281.0, 312.2),
-    "b_tanke": ("доска у заправки", 712.0, 277.0),
-    "b_polizei": ("доска у полиции", 1031.5, 297.8),
-    "b_bahnhof": ("доска на вокзале", 352.0, 98.5),
+    "b_super": (T("доска у супермаркета"), 441.5, 297.8),
+    "b_rathaus": (T("доска у ратуши"), 521.5, 297.8),
+    "b_imbiss": (T("доска у дёнер-закусочной"), 281.0, 312.2),
+    "b_tanke": (T("доска у заправки"), 712.0, 277.0),
+    "b_polizei": (T("доска у полиции"), 1031.5, 297.8),
+    "b_bahnhof": (T("доска на вокзале"), 352.0, 98.5),
 }
-FINDERS = ["господин Шульце", "госпожа Беккер", "господин Вагнер", "госпожа Хоффман", "господин Шрёдер", "госпожа Нойман",
-           "дедушка Краузе", "господин Йылмаз", "госпожа Циммерман", "господин Ланге", "разносчик газет Тимо"]
+FINDERS = [T("господин Шульце"), T("госпожа Беккер"), T("господин Вагнер"), T("госпожа Хоффман"), T("господин Шрёдер"), T("госпожа Нойман"),
+           T("дедушка Краузе"), T("господин Йылмаз"), T("госпожа Циммерман"), T("господин Ланге"), T("разносчик газет Тимо")]
 PAPER_PRICE = 25.0
 FLYER_PRICE = 5.0
 REWARDS = [0, 20, 50, 100, 150, 200, 300, 500, 800, 1000]
 
-ITEM_DEFS = {"flyer": dict(name="Объявления «Угнана машина!» (листовки)", kind="material", price=FLYER_PRICE),
-             "key": dict(name="Ключ зажигания", kind="key", price=0.0)}
+ITEM_DEFS = {"flyer": dict(name=T("Объявления «Угнана машина!» (листовки)"), kind="material", price=FLYER_PRICE),
+             "key": dict(name=T("Ключ зажигания"), kind="key", price=0.0)}
 
 
 # ------------------------------------------------------------------ где стоит машина
 def place_name(g, x, y):
     if point_in(GARAGE, x, y):
-        return "свой гараж"
+        return T("свой гараж")
     if x >= INTERIOR_X:
         L = g.world.level_at(x, y)
-        return f"{L['name']}, уровень {'−1' if L['no'] == -1 else '−2'}" if L else "подземный гараж"
+        return T("{name}, уровень {0}", '−1' if L['no'] == -1 else '−2', name=L['name']) if L else T("подземный гараж")
     ax, ay = BUILDINGS["apartment"][7]
     if math.hypot(x - ax, y - ay) < 45:
-        return "у дома, Линденштрассе, 7"
+        return T("у дома, Линденштрассе, 7")
     P = g.world.places.parking_at(x, y)
     if P:
         return P["name"]
@@ -55,8 +56,8 @@ def place_name(g, x, y):
     for bid, b in BUILDINGS.items():
         bx, by, bw, bh = b[:4]
         if bx - 15 <= x <= bx + bw + 15 and by - 15 <= y <= by + bh + 15:
-            return "у здания «" + b[4] + "»"
-    return "на окраине Кляйнбрука"
+            return T("у здания «") + b[4] + "»"
+    return T("на окраине Кляйнбрука")
 
 
 def spot_risk(g, car):
@@ -222,20 +223,20 @@ def update(g):
     for key, car in g.owned_cars():
         st = car.stolen
         if getattr(car, "pilfered", None) and math.hypot(p.x - car.x, p.y - car.y) < 20:
-            g.notify(f"{car.name}: ночью кто-то раскурочил машину — нет: " + ", ".join(car.pilfered).lower() + ".",
+            g.notify(T("{name}: ночью кто-то раскурочил машину — нет: ", name=car.name) + ", ".join(car.pilfered).lower() + ".",
                      (210, 60, 50), 10)
             car.pilfered = None
         if not st:
             continue
         if not st["discovered"] and math.hypot(p.x - st["from"][0], p.y - st["from"][1]) < 25:
             st["discovered"] = True
-            g.notify(f"ВАШ {car.name.upper()} ИСЧЕЗ! На месте ({st['place']}) — осколки стекла. Похоже, угнали. "
-                     "Полиция — участок на Хауптштрассе (восточнее магазина «Восток»).", (210, 60, 50), 12)
+            g.notify(T("ВАШ {name} ИСЧЕЗ! На месте ({place}) — осколки стекла. Похоже, угнали. "
+                     "Полиция — участок на Хауптштрассе (восточнее магазина «Восток»).", name=car.name.upper(), place=st['place']), (210, 60, 50), 12)
             g.play_sound("crash", 0.2)
         if not st["found"] and math.hypot(p.x - car.x, p.y - car.y) < 18:
             st["found"] = "self"
             st["discovered"] = True
-            g.notify(f"Это же ваш {car.name}! Угонщики бросили его здесь ({st['at']}).", (90, 190, 90), 10)
+            g.notify(T("Это же ваш {name}! Угонщики бросили его здесь ({at}).", name=car.name, at=st['at']), (90, 190, 90), 10)
         if st["found"] and math.hypot(p.x - car.x, p.y - car.y) < 9 and st.get("finder") and not st["paid"] \
                 and st["reward"] > 0 and not st.get("asked"):
             st["asked"] = True
@@ -250,15 +251,15 @@ def recovered(g, key):
     car.stolen = None
     notes = []
     if car.hotwired:
-        notes.append("замок зажигания раскурочен — заводится проводами (I), ключ не нужен")
+        notes.append(T("замок зажигания раскурочен — заводится проводами (I), ключ не нужен"))
     if car.lock_broken:
-        notes.append("дверной замок сломан — не запирается")
+        notes.append(T("дверной замок сломан — не запирается"))
     if st.get("stripped"):
-        notes.append("сняли: " + ", ".join(st["stripped"]).lower())
+        notes.append(T("сняли: ") + ", ".join(st["stripped"]).lower())
     if st.get("trunk_gone"):
-        notes.append("из багажника пропало: " + ", ".join(st["trunk_gone"]).lower())
-    g.notify(f"{car.name} снова ваш." + (" " + "; ".join(notes).capitalize() + "." if notes else "") +
-             (" Замки меняют в меню работы с машиной (личинки + замок зажигания, 45 DM)." if car.hotwired or car.lock_broken else ""),
+        notes.append(T("из багажника пропало: ") + ", ".join(st["trunk_gone"]).lower())
+    g.notify(T("{name} снова ваш.", name=car.name) + (" " + "; ".join(notes).capitalize() + "." if notes else "") +
+             (T(" Замки меняют в меню работы с машиной (личинки + замок зажигания, 45 ₽).") if car.hotwired or car.lock_broken else ""),
              (90, 190, 90), 12)
 
 
@@ -277,7 +278,7 @@ def hourly(g, m0, m1):
                 p *= max(0.35, 1.0 - 0.12 * days)        # по горячим следам — выше
                 if random.random() < p:
                     st["found"] = "police"
-                    g.notify(f"Полиция: ваш {car.name} найден — {st['at']}. Заберите машину (на карте, M).",
+                    g.notify(T("Полиция: ваш {name} найден — {at}. Заберите машину (на карте, M).", name=car.name, at=st['at']),
                              (90, 190, 90), 12)
                     continue
             if 7 <= hour < 21:
@@ -290,8 +291,8 @@ def hourly(g, m0, m1):
                         who = random.choice(FINDERS)
                         st["found"] = "finder"
                         st["finder"] = who
-                        g.notify(f"Звонок: «Добрый день, это {who}. Кажется, ваша машина нашлась!» — ваш {car.name}: "
-                                 f"{st['at']}." + (f" {who} ждёт обещанные {st['reward']:.0f} DM." if st["reward"] else ""),
+                        g.notify(T("Звонок: «Добрый день, это {who}. Кажется, ваша машина нашлась!» — ваш {name}: "
+                                 "{at}.", who=who, name=car.name, at=st['at']) + (T(" {who} ждёт обещанные {reward:.0f} ₽.", who=who, reward=st['reward']) if st["reward"] else ""),
                                  (240, 200, 60), 14)
 
 
@@ -301,21 +302,21 @@ def ask_reward(g, key):
     who, R = st["finder"], st["reward"]
 
     def pay():
-        g.charge(R, f"Вознаграждение: {who}", (240, 200, 60), 6)
+        g.charge(R, T("Вознаграждение: {who}", who=who), (240, 200, 60), 6)
         st["paid"] = True
         g.trust = min(1.3, getattr(g, "trust", 1.0) + 0.1)
-        g.notify(f"{who}: «Большое спасибо! Удачи с машиной.»", (90, 190, 90))
+        g.notify(T("{who}: «Большое спасибо! Удачи с машиной.»", who=who), (90, 190, 90))
 
     def refuse():
         st["paid"] = True
         g.trust = max(0.3, getattr(g, "trust", 1.0) - 0.4)
-        g.notify(f"{who} уходит, ругаясь. В городе заговорят — следующим объявлениям будут верить меньше.",
+        g.notify(T("{who} уходит, ругаясь. В городе заговорят — следующим объявлениям будут верить меньше.", who=who),
                  (210, 60, 50), 8)
 
-    g.dialog(f"{who} у вашей машины", [f"«Вот ваша машина — {car.name}! Ещё вчера здесь стояла.»",
-                                       f"По объявлению вы обещали {R:.0f} DM тому, кто найдёт машину.",
-                                       f"У вас: {g.p.money:.2f} DM."],
-             [(f"Заплатить {R:.0f} DM", pay, True), ("Не платить", refuse, True)])
+    g.dialog(T("{who} у вашей машины", who=who), [T("«Вот ваша машина — {name}! Ещё вчера здесь стояла.»", name=car.name),
+                                       T("По объявлению вы обещали {R:.0f} ₽ тому, кто найдёт машину.", R=R),
+                                       T("У вас: {money:.2f} ₽.", money=g.p.money)],
+             [(T("Заплатить {R:.0f} ₽", R=R), pay, True), (T("Не платить"), refuse, True)])
 
 
 # ------------------------------------------------------------------ полиция и объявления
@@ -323,34 +324,34 @@ def ad_lines(g, key, reward=None):
     car = g.cars[key]
     st = car.stolen or {}
     R = st.get("reward", 0) if reward is None else reward
-    return ["УГНАНА МАШИНА!",
+    return [T("УГНАНА МАШИНА!"),
             K.describe(car),
-            f"Последний раз видели: {st.get('place', '?')}, в ночь на {st.get('date', g.date_text())}.",
-            f"Вознаграждение нашедшему: {R:.0f} DM." if R else "Вознаграждение: не назначено (просто просьба о помощи).",
-            "Звонить: Линденштрассе, 7, тел. 0 51 23 / 4 71 02"]
+            T("Последний раз видели: {place}, в ночь на {date}.", place=st.get('place', '?'), date=st.get('date', g.date_text())),
+            T("Вознаграждение нашедшему: {R:.0f} ₽.", R=R) if R else T("Вознаграждение: не назначено (просто просьба о помощи)."),
+            T("Звонить: Линденштрассе, 7, тел. 0 51 23 / 4 71 02")]
 
 
 def police_station(g):
     """Полиция: заявить об угоне, узнать о поиске, составить объявление."""
     stolen = [(k, c) for k, c in g.owned_cars() if c.stolen and not c.stolen["found"]]
     found = [(k, c) for k, c in g.owned_cars() if c.stolen and c.stolen["found"]]
-    lines = ["Старший полицейский Брандт за стойкой, кофе в кружке с гербом Нижней Саксонии."]
+    lines = [T("Старший полицейский Брандт за стойкой, кофе в кружке с гербом Нижней Саксонии.")]
     opts = []
     for k, c in found:
-        lines.append(f"«Ваша машина {c.name} найдена» — {c.stolen['at']}. Заберите его.")
+        lines.append(T("«Ваша машина {name} найдена» — {at}. Заберите его.", name=c.name, at=c.stolen['at']))
     for k, c in stolen:
         st = c.stolen
         if st["reported"] is None:
-            opts.append((f"Заявить об угоне: {c.name}", lambda k=k: report(g, k), True))
+            opts.append((T("Заявить об угоне: {name}", name=c.name), lambda k=k: report(g, k), True))
         else:
             d = g.day - st["reported"]
-            lines.append(f"{c.name}: заявление от {d} дн. назад — «Ещё ищем.»"
-                         + (" Шансы тают: лучше развесить объявления." if d >= 2 else ""))
-        opts.append((f"Составить объявление о пропаже: {c.name}", lambda k=k: g.open_menu(_ad_menu(g, k)), True))
+            lines.append(T("{name}: заявление от {d} дн. назад — «Ещё ищем.»", name=c.name, d=d)
+                         + (T(" Шансы тают: лучше развесить объявления.") if d >= 2 else ""))
+        opts.append((T("Составить объявление о пропаже: {name}", name=c.name), lambda k=k: g.open_menu(_ad_menu(g, k)), True))
     if not stolen and not found:
-        lines.append("«Добрый день. Если угонят машину — приходите к нам.» Пока заявлять не о чем.")
-        lines.append("Совет: запирайте машину (K с ключом в руке) и не оставляйте ключ в замке.")
-    g.dialog("Полицейский участок Кляйнбрука", lines, opts)
+        lines.append(T("«Добрый день. Если угонят машину — приходите к нам.» Пока заявлять не о чем."))
+        lines.append(T("Совет: запирайте машину (K с ключом в руке) и не оставляйте ключ в замке."))
+    g.dialog(T("Полицейский участок Кляйнбрука"), lines, opts)
 
 
 def report(g, key):
@@ -359,16 +360,16 @@ def report(g, key):
     g.advance(40)
     st["reported"] = g.day
     st["discovered"] = True
-    g.info("Заявление об угоне автомобиля", [
-        "Брандт печатает на машинке, одним пальцем:",
-        "Марка и модель: " + car.name,
-        "Цвет: " + K.color_name(car.color) + (f" · номер {car.plate}" if car.registered else " · без номеров"),
-        "Приметы: " + ", ".join(K.features(car)),
-        f"Где стояла: {st['place']} · пропала в ночь на {st.get('date', g.date_text())}",
-        f"Заперта ли была: {'нет' if not st.get('was_locked') else 'да'} · ключ: у владельца",
+    g.info(T("Заявление об угоне автомобиля"), [
+        T("Брандт печатает на машинке, одним пальцем:"),
+        T("Марка и модель: ") + car.name,
+        T("Цвет: ") + K.color_name(car.color) + (T(" · номер {plate}", plate=car.plate) if car.registered else T(" · без номеров")),
+        T("Приметы: ") + ", ".join(K.features(car)),
+        T("Где стояла: {place} · пропала в ночь на {date}", place=st['place'], date=st.get('date', g.date_text())),
+        T("Заперта ли была: {0} · ключ: у владельца", T('нет') if not st.get('was_locked') else T('да')),
         "",
-        "«Передадим всем патрулям. Обещать ничего не могу — иногда это занимает недели.»",
-        "Если долго не найдут — можно развесить объявления с вознаграждением (бланк здесь же)."])
+        T("«Передадим всем патрулям. Обещать ничего не могу — иногда это занимает недели.»"),
+        T("Если долго не найдут — можно развесить объявления с вознаграждением (бланк здесь же).")])
 
 
 def _ad_menu(g, key):
@@ -377,24 +378,24 @@ def _ad_menu(g, key):
     class AdMenu(Menu):
         time_flows = True
         wide = True
-        title = "Объявление о пропаже машины"
+        title = T("Объявление о пропаже машины")
 
         def __init__(self):
             st = g.cars[key].stolen
             self.i = REWARDS.index(st["reward"]) if st["reward"] in REWARDS else 0
 
         def lines(self):
-            return ad_lines(g, key, REWARDS[self.i]) + ["", f"Деньги: {g.p.money:.2f} DM. Вознаграждение платите "
-                                                             "только если машину найдут."]
+            return ad_lines(g, key, REWARDS[self.i]) + ["", T("Деньги: {money:.2f} ₽. Вознаграждение платите "
+                                                             "только если машину найдут.", money=g.p.money)]
 
         def items(self):
             st = g.cars[key].stolen
             R = REWARDS[self.i]
-            return [((f"Вознаграждение: {R} DM", "− / +"), "rew", True),
-                    ((f"Напечатать 10 листовок и развесить самому", f"{FLYER_PRICE:.0f} DM"), "flyers", True),
-                    ((f"Дать объявление в «Кляйнбрукский вестник» (3 дня)", f"{PAPER_PRICE:.0f} DM"), "paper",
+            return [((T("Вознаграждение: {R} ₽", R=R), "− / +"), "rew", True),
+                    ((T("Напечатать 10 листовок и развесить самому"), f"{FLYER_PRICE:.0f} ₽"), "flyers", True),
+                    ((T("Дать объявление в «Кляйнбрукский вестник» (3 дня)"), f"{PAPER_PRICE:.0f} ₽"), "paper",
                      st["paper"] < g.day),
-                    ("Готово", CLOSE, True)]
+                    (T("Готово"), CLOSE, True)]
 
         def select(self, sel):
             st = g.cars[key].stolen
@@ -405,17 +406,17 @@ def _ad_menu(g, key):
                 st["reward"] = REWARDS[self.i]
             elif sel == "flyers":
                 if not g.can_receive() and g.free_hand() is None:
-                    g.notify("Руки заняты — освободите одну (Z / X).", (210, 60, 50))
+                    g.notify(T("Руки заняты — освободите одну (Z / X)."), (210, 60, 50))
                 elif g.pay(FLYER_PRICE):
                     st["reward"] = REWARDS[self.i]
                     g.give({"id": "flyer", "cond": 100.0, "car": key})
-                    g.notify("10 листовок. Развесьте на досках объявлений (E у доски): супермаркет, ратуша, закусочная, "
-                             "заправка, вокзал, у полиции.", (90, 190, 90), 10)
+                    g.notify(T("10 листовок. Развесьте на досках объявлений (E у доски): супермаркет, ратуша, закусочная, "
+                             "заправка, вокзал, у полиции."), (90, 190, 90), 10)
             elif sel == "paper":
                 if g.pay(PAPER_PRICE):
                     st["reward"] = REWARDS[self.i]
                     st["paper"] = g.day + 3
-                    g.notify("Объявление выйдет в «Кляйнбрукский вестник» — 3 дня его будут читать.", (90, 190, 90))
+                    g.notify(T("Объявление выйдет в «Кляйнбрукский вестник» — 3 дня его будут читать."), (90, 190, 90))
             return None
 
         def back(self):
@@ -435,12 +436,12 @@ def board_actions(g):
         for e in fl:
             car = g.cars.get(e.get("car"))
             if car and car.stolen and not car.stolen["found"] and bid not in car.stolen["boards"]:
-                out.append((f"Повесить объявление о {car.name} ({lab}, листовок: {int(round(e['cond'] / 10))})",
+                out.append((T("Повесить объявление о {name} ({lab}, листовок: {0})", int(round(e['cond'] / 10)), name=car.name, lab=lab),
                             lambda e=e, bid=bid: post(g, e, bid)))
         posted = [c for k, c in g.owned_cars() if c.stolen and bid in c.stolen["boards"]]
         if posted and not fl:
-            out.append((f"Прочитать объявления ({lab})", lambda cs=posted: g.info(
-                "Доска объявлений", sum((ad_lines(g, next(k for k, c2 in g.cars.items() if c2 is c)) + [""] for c in cs), []))))
+            out.append((T("Прочитать объявления ({lab})", lab=lab), lambda cs=posted: g.info(
+                T("Доска объявлений"), sum((ad_lines(g, next(k for k, c2 in g.cars.items() if c2 is c)) + [""] for c in cs), []))))
     return out
 
 
@@ -452,4 +453,4 @@ def post(g, e, bid):
         g.release(e)
     g.advance(3)
     g.play_sound("tool", 0.3)
-    g.notify(f"Объявление висит ({BOARDS[bid][0]}). Досок с объявлением: {len(car.stolen['boards'])}.", (90, 190, 90))
+    g.notify(T("Объявление висит ({0}). Досок с объявлением: {1}.", BOARDS[bid][0], len(car.stolen['boards'])), (90, 190, 90))

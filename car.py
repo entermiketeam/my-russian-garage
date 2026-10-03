@@ -18,10 +18,11 @@ import fasteners as _fast
 import electrics as _elec
 import tires as _tires
 from tuning import default_tune, fix_tune, BOOST_BY_KEY, TORQUE_PER_BAR, TUNE_NAMES, apply_spec
+from i18n import T
 
 SPECS = {
     "vaz2102": dict(
-        name="ВАЗ 2102", length=4.03, width=1.61, wheelbase=2.424, mass=1100.0, wheel_r=0.287,
+        name=T("ВАЗ 2102"), length=4.03, width=1.61, wheelbase=2.424, mass=1100.0, wheel_r=0.287,
         final=4.44, gears={-1: -3.867, 0: 0.0, 1: 3.753, 2: 2.303, 3: 1.493, 4: 1.0},
         idle=850, tank=39.0, oil=3.75, coolant=9.85, tq_peak=88.0, tq_rpm=3400.0, tq_width=3200.0,
         cut=6000, overrev=6300, limiter=False, cda=0.45 * 1.85, carb=True,
@@ -470,23 +471,23 @@ class Car:
         if self.running:
             return
         if not (self.hotwired or (self.ign_key and self.ign_key.get("code") == self.key_code and self.key_code)):
-            self.say("Нет ключа в замке зажигания." if not self.ign_key else "Ключ не подходит к этому замку.")
+            self.say(T("Нет ключа в замке зажигания.") if not self.ign_key else T("Ключ не подходит к этому замку."))
             return
         if not self.has("battery") or self.battery_charge < 8:
-            self.say("Щёлк... Аккумулятор сел.")
+            self.say(T("Щёлк... Аккумулятор сел."))
             self.sounds.append("click")
             return
         if not self.has("starter") or self.c("starter") < 0.05:
-            self.say("Стартер не крутит (неисправен).")
+            self.say(T("Стартер не крутит (неисправен)."))
             self.sounds.append("click")
             return
         if not self.has("wiring") or self.c("wiring") < 0.04:
-            self.say("Тишина: проводка сгнила — ток не доходит до стартера.")
+            self.say(T("Тишина: проводка сгнила — ток не доходит до стартера."))
             self.sounds.append("click")
             return
         if not _elec.energize(self, "starter"):
-            self.say("Ключ повёрнут — тишина, даже реле не щёлкает. Цепь стартера без питания "
-                     f"(предохранитель F{_elec.fuse_no('starter')}?).")
+            self.say(T("Ключ повёрнут — тишина, даже реле не щёлкает. Цепь стартера без питания "
+                     "(предохранитель F{fuse_no}?).", fuse_no=_elec.fuse_no('starter')))
             return
         self.cranking = True
         self.crank_time = 0.0
@@ -515,23 +516,23 @@ class Car:
         if why:
             return 0.0, why
         if self.c("engine") < 0.04:
-            return 0.0, "Двигатель заклинило — нужен ремонт/замена."
+            return 0.0, T("Двигатель заклинило — нужен ремонт/замена.")
         diesel = self.sp("diesel")
         if not _elec.works(self, "ign"):
-            return 0.0, ("Стартер крутит, но свечи накаливания не греют — нет питания цепи (F1)." if diesel else
-                         "Стартер крутит, но искры нет — нет питания зажигания (предохранитель F1?).")
+            return 0.0, (T("Стартер крутит, но свечи накаливания не греют — нет питания цепи (F1).") if diesel else
+                         T("Стартер крутит, но искры нет — нет питания зажигания (предохранитель F1?)."))
         if not _elec.works(self, "fuel"):
-            return 0.0, (f"Топливо не подаётся: {_elec.circuit_name(self, 'fuel').lower()} без питания "
-                         f"(предохранитель F{_elec.fuse_no('fuel')}?).")
+            return 0.0, (T("Топливо не подаётся: {circuit_name} без питания "
+                         "(предохранитель F{fuse_no}?).", circuit_name=_elec.circuit_name(self, 'fuel').lower(), fuse_no=_elec.fuse_no('fuel')))
         if self.fuel <= 0.05:
-            return 0.0, "Нет дизтоплива." if diesel else "Нет бензина."
+            return 0.0, T("Нет дизтоплива.") if diesel else T("Нет бензина.")
         if not self.has("fuel_pump") or self.c("fuel_pump") < 0.03:
-            return 0.0, "Топливо не поступает (" + self.slots["fuel_pump"][0].lower() + ")."
+            return 0.0, T("Топливо не поступает (") + self.slots["fuel_pump"][0].lower() + ")."
         if not self.has("carb"):
-            return 0.0, "Нет: " + self.slots["carb"][0].lower() + "."
+            return 0.0, T("Нет: ") + self.slots["carb"][0].lower() + "."
         if diesel:
             if not self.has("distributor") or self.c("distributor") < 0.03:
-                return 0.0, "ТНВД не качает — дизель не заведётся."
+                return 0.0, T("ТНВД не качает — дизель не заведётся.")
             p = 1.8 * (0.4 + 0.6 * self.c("distributor")) * (0.4 + 0.6 * self.c("carb"))
             p *= 0.5 + 0.5 * self.c("engine")
             p *= 0.3 + 0.7 * min(1.0, self.c("fuel_filter") * 3)
@@ -539,13 +540,13 @@ class Car:
                 glow = self.c("plugs") if self.has("plugs") else 0.0
                 p *= 0.08 + 0.92 * glow
                 if glow < 0.2 and self.crank_time > 1.5:
-                    return p, "Свечи накаливания не греют — холодный дизель не схватывает."
+                    return p, T("Свечи накаливания не греют — холодный дизель не схватывает.")
             p *= min(1.0, self.battery_charge / 100 * 1.6 * (0.7 if self._ambient < 0 else 1.0))
             return p, None
         if not self.has("plugs") or self.c("plugs") < 0.02:
-            return 0.0, "Нет искры (свечи)."
+            return 0.0, T("Нет искры (свечи).")
         if not self.has("distributor") or self.c("distributor") < 0.03:
-            return 0.0, "Нет искры (трамблёр)."
+            return 0.0, T("Нет искры (трамблёр).")
         p = 2.4
         p *= self.c("plugs") ** 0.8
         p *= 0.4 + 0.6 * self.c("distributor")
@@ -585,7 +586,7 @@ class Car:
             self.rpm = 220 + random.random() * 60
             if self.battery_charge < 6:
                 self.cranking = False
-                self.say("Аккумулятор разрядился...")
+                self.say(T("Аккумулятор разрядился..."))
             else:
                 p, reason = self._start_chance()
                 if reason and self.crank_time > 1.5:
@@ -595,7 +596,7 @@ class Car:
                     self.running = True
                     self.rpm = 1300 if self.ch else 1000
                     self.sounds.append("start")
-                    self.say("Завелась!")
+                    self.say(T("Завелась!"))
 
         # --- электрика: включённые цепи (КЗ жжёт предохранители, критичные цепи глушат мотор)
         self._braked_t = 0.0 if brake > 0.1 else self._braked_t + dt
@@ -617,11 +618,11 @@ class Car:
         cap = 100.0 * (0.3 + 0.7 * self.c("battery")) if self.has("battery") else 0.0
         self.battery_charge = max(0.0, min(cap, self.battery_charge))
         if self.running and self.battery_charge <= 0.5 and not self.has("alternator") and not self.sp("diesel"):
-            self.engine_off("Всё электричество село — двигатель заглох.")
+            self.engine_off(T("Всё электричество село — двигатель заглох."))
         # гнилая проводка: пропадает искра (дизелю искра не нужна)
         elec = self.c("wiring")
         if self.running and not self.sp("diesel") and elec < 0.3 and random.random() < (0.3 - elec) * 0.06 * dt:
-            self.engine_off("Мотор заглох: пропала искра — гниёт проводка.")
+            self.engine_off(T("Мотор заглох: пропала искра — гниёт проводка."))
 
         # --- двигатель работает
         drive_force = 0.0
@@ -658,7 +659,7 @@ class Car:
             if self.c("fuel_filter") < 0.15 and self.rpm > 3200:
                 pf *= 0.5
             if self.fuel <= 0 or self.c("fuel_pump") < 0.02:
-                self.engine_off("Двигатель заглох: нет подачи топлива.")
+                self.engine_off(T("Двигатель заглох: нет подачи топлива."))
 
             # турбина: давление растёт с оборотами и газом, с задержкой (турбояма)
             if self.has_tune("turbo") and self.tc("turbo") > 0.02:
@@ -674,7 +675,7 @@ class Car:
                     self._bov = False
             else:
                 if self.has_tune("turbo") and self.tc("turbo") <= 0.02:
-                    self.say("Турбина рассыпалась — наддува нет. Замените турбокит.")
+                    self.say(T("Турбина рассыпалась — наддува нет. Замените турбокит."))
                 self.boost_now = max(0.0, self.boost_now - dt * 3)
             boost_mult = 1.0 + TORQUE_PER_BAR * self.boost_now
 
@@ -687,7 +688,7 @@ class Car:
             # изношенная КПП: выбивает передачу под нагрузкой
             if engaged and box < 0.35 and throttle > 0.5 and random.random() < (0.35 - box) * 0.35 * dt:
                 self.gear = 0
-                self.say("Выбило передачу! Коробка изношена.")
+                self.say(T("Выбило передачу! Коробка изношена."))
                 self.sounds.append("grind")
                 engaged = False
             if engaged:
@@ -701,13 +702,13 @@ class Car:
                     sf = 1.0 if abs(self.gear) <= 2 else 0.35
                     self.wear("clutch", 0.03 * dt * throttle)
                     if abs(self.gear) >= 3 and rpm_wheels < 350 and random.random() < 0.8 * dt:
-                        self.engine_off("Заглохла! Трогайтесь с первой передачи.")
+                        self.engine_off(T("Заглохла! Трогайтесь с первой передачи."))
                         self.sounds.append("stall")
                 else:
                     sf = 1.0
                     self.rpm = max(rpm_wheels, 0)
                 if self.running and not slip and rpm_wheels < 520:
-                    self.engine_off("Заглохла! (выжмите сцепление — Пробел)")
+                    self.engine_off(T("Заглохла! (выжмите сцепление — Пробел)"))
                     self.sounds.append("stall")
                 if self.running:
                     tq = torque_curve(self.rpm, self.spec) * throttle * pf * sf * boost_mult
@@ -731,13 +732,13 @@ class Car:
                 self.rpm += (target - self.rpm) * min(1, dt * (6 if target > self.rpm else 2.5))
                 # холодный без подсоса — глохнет на холостых
                 if self.temp < 30 and not self.ch and throttle < 0.05 and random.random() < 0.08 * dt:
-                    self.engine_off("Холодный двигатель заглох — включите подсос (C).")
+                    self.engine_off(T("Холодный двигатель заглох — включите подсос (C)."))
                     self.sounds.append("stall")
 
             self.rpm = max(0.0, self.rpm)
             if self.rpm > self.spec["overrev"]:
                 self.wear("engine", 0.25 * dt)
-                self.say("Перекрут двигателя!")
+                self.say(T("Перекрут двигателя!"))
             # оборвался ремень/цепь ГРМ: мотор встаёт, у «клапанобойных» (4A-GE, Civic, дизель...) гнёт клапаны
             L_ = _eng.layout(self.model)
             tbroken = (L_.get("belt_slot") and self.c("belt") < 0.03) or \
@@ -745,9 +746,9 @@ class Car:
             if tbroken and self.running:
                 if L_.get("inter") and self.eng.get("valves"):
                     self.eng["valves"]["cond"] = min(self.eng["valves"]["cond"], 2.0)
-                    self.engine_off("Оборвался ремень ГРМ! Клапаны встретились с поршнями...")
+                    self.engine_off(T("Оборвался ремень ГРМ! Клапаны встретились с поршнями..."))
                 else:
-                    self.engine_off("Оборвался привод ГРМ — мотор заглох.")
+                    self.engine_off(T("Оборвался привод ГРМ — мотор заглох."))
                 self.sounds.append("crash")
 
             # расход топлива (л/с)
@@ -788,21 +789,21 @@ class Car:
             if not two:   # у двухтакта масло в бензине — картера нет
                 if self.oil < min(1.3, self.oil_cap * 0.35):
                     w *= 40
-                    self.say("Лампа давления масла! Долейте масло.")
+                    self.say(T("Лампа давления масла! Долейте масло."))
                 if self.oil_quality < 20:
                     w *= 3
             if self.temp > 110:
                 w += 0.08
-                self.say("ПЕРЕГРЕВ! Остановитесь.")
+                self.say(T("ПЕРЕГРЕВ! Остановитесь."))
             if self.temp > 122:
                 w += 0.5
-                self.say("Пар из-под капота! Пробило прокладку?")
+                self.say(T("Пар из-под капота! Пробило прокладку?"))
             self.wear("engine", w * dt)
             no_oil = (not two) and self.oil <= 0.05
             if self.c("engine") < 0.03 or no_oil:
                 if no_oil:
                     self.wear("engine", 100)
-                self.engine_off("Двигатель ЗАКЛИНИЛО!")
+                self.engine_off(T("Двигатель ЗАКЛИНИЛО!"))
                 self.sounds.append("crash")
             self.wear("plugs", 0.0015 * dt * max(0.4, self.rpm / 3000))
             self.wear("belt", 0.0008 * dt)
@@ -827,7 +828,7 @@ class Car:
                         self.wear("engine", 0.4)
                         self.misfire = 0.15
                         self.sounds.append("misfire")
-                        self.say("Детонация! Нужен интеркулер или меньше наддува.")
+                        self.say(T("Детонация! Нужен интеркулер или меньше наддува."))
                 # износ самой турбины: наддув, старое масло, перегрев
                 tw = 0.0015 * (0.2 + 2.0 * self.boost_now)
                 if self.oil_quality < 25:
@@ -884,7 +885,7 @@ class Car:
             self.wear("brakes_f", 0.012 * brake * abs(self.speed) * dt)
             self.wear("brakes_r", 0.007 * brake * abs(self.speed) * dt)
             if self.c("brakes_f") < 0.05:
-                self.say("Скрежет тормозов: колодки стёрты до металла!")
+                self.say(T("Скрежет тормозов: колодки стёрты до металла!"))
                 self.sounds.append("grind")
 
         # тяга колёс считается вместе с заносом (_chassis): сцепление у шины одно на всё
@@ -1123,7 +1124,7 @@ class Car:
         if s > 12:
             self.wear("engine", dmg * 0.5)
             self.wear("shocks", dmg * 0.5)
-            self.say("Сильный удар! Радиатор и фары пострадали.")
+            self.say(T("Сильный удар! Радиатор и фары пострадали."))
         for p in ("fender", "arch_f", "doors"):
             self.rust[p] = min(100.0, self.rust[p] + dmg * 0.15)
         self._sprite_key = None
@@ -1156,66 +1157,66 @@ class Car:
     # ------------------------------------------------------------ TÜV
     def tuv_defects(self):
         d = []
-        names = {"sill_l": "порог левый", "sill_r": "порог правый", "floor": "днище"}
+        names = {"sill_l": T("порог левый"), "sill_r": T("порог правый"), "floor": T("днище")}
         for p, v in self.rust.items():
             lim = 30 if p in names else 45
             if v > lim:
-                d.append(f"Коррозия: {PANELS[p]} ({v:.0f}%)")
+                d.append(T("Коррозия: {0} ({v:.0f}%)", PANELS[p], v=v))
         if self.c("brakes_f") < 0.35:
-            d.append("Тормоза передние: колодки изношены")
+            d.append(T("Тормоза передние: колодки изношены"))
         if self.c("brakes_r") < 0.3:
-            d.append("Тормоза задние: колодки изношены")
+            d.append(T("Тормоза задние: колодки изношены"))
         if self.brake_fluid < 60:
-            d.append("Уровень тормозной жидкости")
+            d.append(T("Уровень тормозной жидкости"))
         for t in self.tire_list():
             if self.has(t) and (_tires.tread_mm(self, t) < _tires.LEGAL_MM or self.c(t) < 0.05):
-                d.append(f"Шина: {self.slots[t][0]} — протектор {_tires.tread_mm(self, t):.1f} мм (минимум 1,6)")
+                d.append(T("Шина: {0} — протектор {tread_mm:.1f} мм (минимум 1,6)", self.slots[t][0], tread_mm=_tires.tread_mm(self, t)))
         if self.c("lights") < 0.4:
-            d.append("Фары: неисправны / разбиты")
+            d.append(T("Фары: неисправны / разбиты"))
         if self.c("exhaust") < 0.4:
-            d.append("Выхлоп негерметичен (громко, CO)")
+            d.append(T("Выхлоп негерметичен (громко, CO)"))
         if self.c("shocks") < 0.3:
-            d.append("Амортизаторы: не держат")
+            d.append(T("Амортизаторы: не держат"))
         if self.c("engine") < 0.3:
-            d.append("Двигатель: сильная течь масла")
+            d.append(T("Двигатель: сильная течь масла"))
         if self.c("steering") < 0.35:
-            d.append("Люфт рулевого управления")
+            d.append(T("Люфт рулевого управления"))
         if self.c("wiring") < 0.3:
-            d.append("Электрика: проводка неисправна (свет, сигналы)")
+            d.append(T("Электрика: проводка неисправна (свет, сигналы)"))
         if getattr(self, "hotwired", False):
-            d.append("Замок зажигания: разобран, машина заводится проводами напрямую")
+            d.append(T("Замок зажигания: разобран, машина заводится проводами напрямую"))
         if self.c("glass") < 0.4:
-            d.append("Лобовое стекло: трещины в зоне обзора")
-        for sl, txt in (("door_l", "Нет левых дверей"), ("door_r", "Нет правых дверей"), ("hood", "Нет капота"),
-                        ("trunk", "Нет крышки багажника"), ("seats", "Нет сидений")):
+            d.append(T("Лобовое стекло: трещины в зоне обзора"))
+        for sl, txt in (("door_l", T("Нет левых дверей")), ("door_r", T("Нет правых дверей")), ("hood", T("Нет капота")),
+                        ("trunk", T("Нет крышки багажника")), ("seats", T("Нет сидений"))):
             if not self.has(sl):
                 d.append(txt)
             elif self.c(sl) < 0.2:
-                d.append(self.slots[sl][0] + ": сгнили петли / не закрывается")
+                d.append(self.slots[sl][0] + T(": сгнили петли / не закрывается"))
         if self.deforms:
             import damage
             zn = damage.zones(self)
-            names = {"front": "перед", "rear": "зад", "left": "левый борт", "right": "правый борт"}
+            names = {"front": T("перед"), "rear": T("зад"), "left": T("левый борт"), "right": T("правый борт")}
             for zk, v in zn.items():
                 if v > 0.06:
-                    d.append(f"Повреждение после аварии: деформация кузова — {names[zk]} ({v * 100:.0f} см)")
+                    d.append(T("Повреждение после аварии: деформация кузова — {0} ({1:.0f} см)", names[zk], v * 100))
             if damage.is_totaled(self):
-                d.append("Кузов повело: геометрия нарушена («тотал»)")
+                d.append(T("Кузов повело: геометрия нарушена («тотал»)"))
         if self.eng and self.parts.get("engine"):
             if self.eng.get("head_gasket") and self.eng["head_gasket"]["cond"] < 30:
-                d.append("Течь по прокладке ГБЦ (антифриз/масло)")
-            for k_, txt in (("oil_pan", "поддон"), ("valve_cover", "клапанная крышка"), ("oil_filter", "фильтр")):
+                d.append(T("Течь по прокладке ГБЦ (антифриз/масло)"))
+            for k_, txt in (("oil_pan", T("поддон")), ("valve_cover", T("клапанная крышка")), ("oil_filter", T("фильтр"))):
                 if k_ in self.eng and (self.eng[k_] is None or self.eng[k_]["cond"] < 20):
-                    d.append(f"Течь масла: {txt}")
+                    d.append(T("Течь масла: {txt}", txt=txt))
             if "exhaust_mf" in self.eng and (self.eng["exhaust_mf"] is None or self.eng["exhaust_mf"]["cond"] < 25):
-                d.append("Выпускной коллектор негерметичен (CO в салон)")
+                d.append(T("Выпускной коллектор негерметичен (CO в салон)"))
         if abs(getattr(self, "align", 0.0)) > 0.008:
-            d.append("Развал-схождение: машину уводит в сторону (погнута подвеска)")
+            d.append(T("Развал-схождение: машину уводит в сторону (погнута подвеска)"))
         if self.has_tune("turbo"):
             if self.boost_setting[0] == "race":
-                d.append("Незарегистрированный тюнинг мотора: наддув «Гонка» — верните «Мягкий» или «Спорт»")
+                d.append(T("Незарегистрированный тюнинг мотора: наддув «Гонка» — верните «Мягкий» или «Спорт»"))
             if self.tc("turbo") < 0.3:
-                d.append("Турбина: течь масла, сизый дым из выхлопа")
+                d.append(T("Турбина: течь масла, сизый дым из выхлопа"))
         return d
 
     # ------------------------------------------------------------ отрисовка сверху

@@ -6,6 +6,7 @@
 списка в другой, ничего не создаётся и не теряется. Сохраняются вместе с машиной / квартирой.
 """
 from items import ITEMS, item_name
+from i18n import T
 
 GAME = None          # ссылка на игру (для имён ключей: «Ключ ВАЗ 2102 (KB-VZ 102)»)
 
@@ -14,7 +15,7 @@ def key_label(e):
     if GAME is not None:
         import keys
         return keys.name(GAME, e)
-    return "Ключ зажигания"
+    return T("Ключ зажигания")
 
 
 CAPACITY = {"trunk": 24, "fridge": 30, "shelf": 60, "hook": 12}
@@ -25,7 +26,7 @@ def label(e):
     if e.get("id") == "key":
         return key_label(e)
     if e.get("id") == "flyer":
-        return f"Листовки «Угнана машина!» ({int(round(e.get('cond', 100) / 10))} шт.)"
+        return T("Листовки «Угнана машина!» ({0} шт.)", int(round(e.get('cond', 100) / 10)))
     it = ITEMS.get(e["id"], {})
     return it.get("name", e["id"]) + (f" [{e['cond']:.0f}%]" if it.get("kind") == "part" else "")
 
@@ -33,7 +34,7 @@ def label(e):
 def put(g, container, entry, kind="trunk"):
     """Переложить запись из инвентаря в хранилище. Возвращает True, если получилось."""
     if len(container) >= CAPACITY.get(kind, 99):
-        g.notify("Больше не помещается.", (210, 60, 50))
+        g.notify(T("Больше не помещается."), (210, 60, 50))
         return False
     if not g.release(entry):                 # класть можно только то, что в руках
         return False
@@ -47,7 +48,7 @@ def take(g, container, entry):
         return False
     fh = g.free_hand()
     if fh is None:
-        g.notify("Обе руки заняты — сначала положите что-нибудь (X / Z).", (210, 60, 50))
+        g.notify(T("Обе руки заняты — сначала положите что-нибудь (X / Z)."), (210, 60, 50))
         return False
     container.remove(entry)
     g.p.hands[fh] = entry

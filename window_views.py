@@ -21,6 +21,7 @@ from panda3d.core import (Camera, NodePath, PlaneNode, Plane, Vec3, Point3, Clip
 from ursina import Entity, color, camera
 
 from world import BUILDINGS
+from i18n import T
 
 FLOOR_H = 3.0            # пол второго этажа (1. OG)
 RES = 0.8                # разрешение вида из окна относительно экрана
@@ -75,7 +76,7 @@ class WindowViews:
             self._build()
             self.ok = True
         except Exception as ex:                      # нет поддержки off-screen буферов — остаются цветные стёкла
-            print("Вид из окон недоступен:", ex)
+            print(T("Вид из окон недоступен:"), ex)
 
     # ------------------------------------------------------------------ сборка
     def _build(self):
@@ -98,7 +99,7 @@ class WindowViews:
         for name, d, plane, ents in spec:
             buf = self.app.win.makeTextureBuffer("aptview_" + name, sx, sy)
             if buf is None:
-                raise RuntimeError("makeTextureBuffer вернул None")
+                raise RuntimeError(T("makeTextureBuffer вернул None"))
             buf.setSort(-30)
             buf.setClearColorActive(True)
             buf.setClearColor((0.55, 0.65, 0.8, 1))

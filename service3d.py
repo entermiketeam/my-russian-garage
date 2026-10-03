@@ -6,6 +6,8 @@ from ursina import Entity, Text, color, Vec3
 from mesh3d import MeshBuilder
 from world import SERVICE_LOT, SERVICE_HALL, SERVICE_BAYS, SERVICE_DOORS, SERVICE_PARK, SERVICE_DOOR_PT
 from streaming import mesh_group
+import i18n
+from i18n import T
 
 H = 4.2                      # высота цеха
 
@@ -72,10 +74,12 @@ class Service3D:
         sx, sy = lx + lw - 0.9, ly + 1.1
         self.sign = Entity(model="cube", position=(sx, 5.4, -sy), scale=(0.2, 1.3, 4.2), color=color.rgb(30, 60, 130))
         for side in (-1, 1):
-            Text("Автосервис\nШмидта", parent=self.sign, position=(side * 0.6, 0.1, 0), rotation_y=-90 * side,
-                 scale=(1 / 0.2 * 0.9, 1 / 1.3 * 0.9), origin=(0, 0), color=color.rgb(250, 250, 240))
-        Text("ОБСЛУЖИВАНИЕ · РЕМОНТ · ПОДГОТОВКА К ТЕХОСМОТРУ", position=(east + 0.35, 3.75, -(hy + hh / 2)), rotation_y=-90,
-             scale=6, origin=(0, 0), color=color.rgb(30, 60, 130))
+            i18n.live(Text(T("Автосервис\nШмидта"), parent=self.sign, position=(side * 0.6, 0.1, 0), rotation_y=-90 * side,
+                 scale=(1 / 0.2 * 0.9, 1 / 1.3 * 0.9), origin=(0, 0), color=color.rgb(250, 250, 240)),
+                      T("Автосервис\nШмидта"))
+        txt = T("ОБСЛУЖИВАНИЕ · РЕМОНТ · ПОДГОТОВКА К ТЕХОСМОТРУ")
+        i18n.live(Text(txt, position=(east + 0.35, 3.75, -(hy + hh / 2)), rotation_y=-90,
+                       scale=6, origin=(0, 0), color=color.rgb(30, 60, 130)), txt)
         # механики
         from traffic3d import Ped3D
         self.mech = []

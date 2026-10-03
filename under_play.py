@@ -9,6 +9,7 @@ from ursina import camera, held_keys, scene, Vec3
 
 import underside as U
 from state import RED, GREEN, YELLOW
+from i18n import T
 
 EYE_LYING = 0.17           # глаза лежащего на подкатном лежаке
 CRAWL = 0.6                # м/с
@@ -33,13 +34,13 @@ class UnderMixin:
         for ax in sp["axles"]:
             az = ax - car.length / 2
             if abs(lx) > tr - 0.3 and abs(lz - az) < wr + 0.15:
-                return False, "колесо"
+                return False, T("колесо")
         c = U.clearance(car, U.t_of(car, lz))
         inside = abs(lx) < W2 - 0.35 and abs(lz) < car.length / 2 - 0.3
         if inside and c < U.FREE:
-            return False, f"тесно ({c * 100:.0f} см) — дальше не пролезть, поднимите машину"
+            return False, T("тесно ({0:.0f} см) — дальше не пролезть, поднимите машину", c * 100)
         if abs(lx) < W2 + 0.1 and c < U.MIN_CRAWL:
-            return False, f"не пролезть ({c * 100:.0f} см)"
+            return False, T("не пролезть ({0:.0f} см)", c * 100)
         return True, ""
 
     # ------------------------------------------------------------ лечь / вылезти
@@ -49,7 +50,7 @@ class UnderMixin:
         if c3 is None:
             return
         if car.running:
-            self.notify("Под работающую машину не лезут — заглушите двигатель.", RED)
+            self.notify(T("Под работающую машину не лезут — заглушите двигатель."), RED)
             return
         if abs(car.speed) > 0.1:
             return
@@ -67,8 +68,8 @@ class UnderMixin:
                     break
         if not ok:
             c = U.clearance(car, U.t_of(car, lz))
-            self.notify(f"Под машину не пролезть: просвет {c * 100:.0f} см. Поднимите её домкратом "
-                        "(E на переднем или заднем бампере внизу) и поставьте на подставки.", RED, 8)
+            self.notify(T("Под машину не пролезть: просвет {0:.0f} см. Поднимите её домкратом "
+                        "(E на переднем или заднем бампере внизу) и поставьте на подставки.", c * 100), RED, 8)
             return
         self.cur = key
         self.p.under_car = key
@@ -78,12 +79,12 @@ class UnderMixin:
         self._uc_lamp(True)
         c = U.clearance(car, U.t_of(car, lz))
         self.play_sound("step", 0.5)
-        msg = (f"Вы под машиной (просвет {c * 100:.0f} см). WASD — ползти, мышь — смотреть, E/G — болты и детали, "
-               "Tab — руки, F — вылезти.")
+        msg = (T("Вы под машиной (просвет {0:.0f} см). WASD — ползти, мышь — смотреть, E/G — болты и детали, "
+               "Tab — руки, F — вылезти.", c * 100))
         if c < U.FREE:
-            msg += " Тесно: пролезли только голова и плечи — крупное не снять."
+            msg += T(" Тесно: пролезли только голова и плечи — крупное не снять.")
         if "jack" in (U.held_by(car, "f"), U.held_by(car, "r")):
-            msg += " ⚠ Машина на одном домкрате — может соскочить!"
+            msg += T(" ⚠ Машина на одном домкрате — может соскочить!")
         self.notify(msg, YELLOW if c >= U.FREE else RED, 9)
 
     def crawl_out(self, side=None):
@@ -176,7 +177,7 @@ class UnderMixin:
                     if ok:
                         lx, lz = nx, nz
                     elif getattr(self, "_uc_why_t", 0) <= 0:
-                        self.notify("Дальше нельзя: " + why + ".", YELLOW, 2.5)
+                        self.notify(T("Дальше нельзя: ") + why + ".", YELLOW, 2.5)
                         self._uc_why_t = 2.5
                 p.uc_pos = [lx, lz]
                 self.bob += dt * 5
@@ -197,8 +198,8 @@ class UnderMixin:
     def _under_prompt(self, car, lx, lz):
         c = U.clearance(car, U.t_of(car, lz))
         st = U.status(car)
-        return [f"Под машиной: просвет {c * 100:.0f} см" + (f" · поднято: {st}" if st else " · на колёсах")
-                + ("  ⚠ ОДИН ДОМКРАТ" if "jack" in (U.held_by(car, "f"), U.held_by(car, "r")) else "")]
+        return [T("Под машиной: просвет {0:.0f} см", c * 100) + (T(" · поднято: {st}", st=st) if st else T(" · на колёсах"))
+                + (T("  ⚠ ОДИН ДОМКРАТ") if "jack" in (U.held_by(car, "f"), U.held_by(car, "r")) else "")]
 
     # ------------------------------------------------------------ прицел
     def _uc_filter(self, key, tl):
@@ -241,21 +242,21 @@ class UnderMixin:
             fx, fy = math.cos(car.angle), math.sin(car.angle)
             lz = (self.p.x - car.x) * fx + (self.p.y - car.y) * fy
             c = U.clearance(car, U.t_of(car, max(-car.length / 2, min(car.length / 2, lz))))
-            tag = "" if c >= U.FREE else (" — тесно, только голова и плечи" if c >= U.MIN_CRAWL else " — не пролезть")
-            return (f"Лечь под машину ({'справа' if sg > 0 else 'слева'}, просвет {c * 100:.0f} см{tag})",
+            tag = "" if c >= U.FREE else (T(" — тесно, только голова и плечи") if c >= U.MIN_CRAWL else T(" — не пролезть"))
+            return (T("Лечь под машину ({0}, просвет {1:.0f} см{tag})", T('справа') if sg > 0 else T('слева'), c * 100, tag=tag),
                     lambda: self.crawl_under(key, sg), None)
         if kind == "jackpt":
             end = tid[1]
             nm = U.END_RU[end]
             by = U.held_by(car, end)
             if by is None:
-                return (f"Поднять {nm} домкратом" + ("" if self.has("jack") else " (нужен домкрат)"),
+                return (T("Поднять {nm} домкратом", nm=nm) + ("" if self.has("jack") else T(" (нужен домкрат)")),
                         lambda: U.jack_up(self, key, end), None)
             if by == "jack":
-                return (f"Поставить {nm} на подставки" + ("" if self.has("stands") else " (нужны подставки)"),
+                return (T("Поставить {nm} на подставки", nm=nm) + ("" if self.has("stands") else T(" (нужны подставки)")),
                         lambda: U.put_stands(self, key, end),
-                        (f"Опустить {nm} (убрать домкрат)", lambda: U.lower(self, key, end)))
-            return (f"Снять {nm} с подставок и опустить" + ("" if self.has("jack") else " (нужен домкрат)"),
+                        (T("Опустить {nm} (убрать домкрат)", nm=nm), lambda: U.lower(self, key, end)))
+            return (T("Снять {nm} с подставок и опустить", nm=nm) + ("" if self.has("jack") else T(" (нужен домкрат)")),
                     lambda: U.lower(self, key, end), None)
         return None
 

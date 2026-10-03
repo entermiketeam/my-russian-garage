@@ -1,4 +1,6 @@
 """Общие настройки игры «My Russian Garage»."""
+import os
+
 import pygame
 
 WIDTH, HEIGHT = 1280, 720
@@ -32,20 +34,55 @@ ROAD = (58, 58, 62)
 ROAD_LINE = (220, 220, 210)
 SIDEWALK = (150, 148, 140)
 
+CURRENCY = "₽"           # валюта игры — рубли; все суммы в коде и сохранениях — просто числа в рублях
+
+# Шрифты интерфейса по порядку: берётся первый, в котором есть и кириллица, и знак рубля
+# (в старых Arial знака ₽ нет — вместо него рисовался бы пустой квадрат).
+UI_FONTS = (
+    "/System/Library/Fonts/Supplemental/PTSans.ttc",        # macOS: PT Sans (ParaType)
+    "/System/Library/Fonts/HelveticaNeue.ttc",              # macOS
+    "C:/Windows/Fonts/arial.ttf",                           # Windows (Arial с ₽ — с обновлений 2014 г.)
+    "C:/Windows/Fonts/segoeui.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",      # Linux
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",         # запасные: без ₽, но с кириллицей
+    "/Library/Fonts/Arial.ttf",
+)
+
+
+def has_glyphs(path, chars=CURRENCY + "Жж"):
+    """Есть ли в шрифте настоящие глифы (а не «пустой квадрат» .notdef)."""
+    try:
+        if not pygame.font.get_init():
+            pygame.font.init()
+        f = pygame.font.Font(path, 24)
+        missing = pygame.image.tostring(f.render("\uffff", True, (255, 255, 255)), "RGB")
+        return all(pygame.image.tostring(f.render(ch, True, (255, 255, 255)), "RGB") != missing for ch in chars)
+    except Exception:
+        return False
+
+
+_ui_font = []
+
+
+def ui_font_path():
+    """Путь к шрифту интерфейса (для 3D — Text.default_font, для 2D — pygame)."""
+    if not _ui_font:
+        existing = [p for p in UI_FONTS if os.path.exists(p)]
+        _ui_font.append(next((p for p in existing if has_glyphs(p)), existing[0] if existing else None))
+    return _ui_font[0]
+
+
 _font_cache = {}
 
 
 def font(size, bold=False):
     key = (size, bold)
     if key not in _font_cache:
-        f = None
-        for name in ("arial", "helvetica", "dejavusans", "liberationsans"):
-            path = pygame.font.match_font(name, bold=bold)
-            if path:
-                f = pygame.font.Font(path, size)
-                break
-        if f is None:
-            f = pygame.font.Font(None, size + 6)
+        path = ui_font_path()
+        f = pygame.font.Font(path, size) if path else pygame.font.Font(None, size + 6)
+        if bold:
+            f.set_bold(True)
         _font_cache[key] = f
     return _font_cache[key]
 

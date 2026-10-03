@@ -9,6 +9,7 @@
   * замена замков (личинки + замок зажигания) даёт новый код: старые ключи больше не подходят.
 """
 import random
+from i18n import T
 
 CENTRAL = {"civic", "w123", "bmw_e21", "volvo240", "audi80", "golf", "mustang", "ae86"}   # центральный замок + мигание
 LOCKSET_PRICE = 45.0
@@ -45,11 +46,11 @@ def fits(e, car):
 def name(g, e):
     car = g.cars.get(e.get("car")) if hasattr(g, "cars") else None
     if car is None:
-        return "Ключ от чужой машины"
+        return T("Ключ от чужой машины")
     tail = f" ({car.plate})" if car.registered else ""
     if car.key_code != e.get("code"):
-        return f"Старый ключ {car.name} — замки поменяны"
-    return ("Запасной ключ " if e.get("spare") else "Ключ ") + car.name + tail
+        return T("Старый ключ {name} — замки поменяны", name=car.name)
+    return (T("Запасной ключ ") if e.get("spare") else T("Ключ ")) + car.name + tail
 
 
 def key_in_hands(g, car):
@@ -71,48 +72,48 @@ def can_start(car):
 def color_name(rgb):
     """Цвет кузова словами (для заявления в полицию и объявлений)."""
     if rgb is None:
-        return "непонятного цвета (грунт и ржавчина)"
+        return T("непонятного цвета (грунт и ржавчина)")
     r, g, b = rgb
     mx, mn = max(rgb), min(rgb)
     if mx < 60:
-        return "чёрный"
+        return T("чёрный")
     if mx - mn < 25:
-        return "белый" if mx > 200 else ("серебристый" if mx > 150 else "серый")
+        return T("белый") if mx > 200 else (T("серебристый") if mx > 150 else T("серый"))
     if r >= g and r >= b:
         if g > 150 and b < 120:
-            return "бежевый" if g > 170 else "жёлтый"
+            return T("бежевый") if g > 170 else T("жёлтый")
         if g > 100:
-            return "оранжевый" if b < 80 else "бежевый"
-        return "красный" if r > 140 else "бордовый"
+            return T("оранжевый") if b < 80 else T("бежевый")
+        return T("красный") if r > 140 else T("бордовый")
     if g >= r and g >= b:
-        return "зелёный" if g > 90 else "тёмно-зелёный"
-    return "синий" if b > 120 else "тёмно-синий"
+        return T("зелёный") if g > 90 else T("тёмно-зелёный")
+    return T("синий") if b > 120 else T("тёмно-синий")
 
 
 def features(car):
     """Особые приметы машины — то, по чему её узнают."""
     out = []
     if car.max_rust() > 55:
-        out.append("сильно ржавая, дыры в порогах")
+        out.append(T("сильно ржавая, дыры в порогах"))
     elif car.max_rust() > 30:
-        out.append("заметная ржавчина")
+        out.append(T("заметная ржавчина"))
     if getattr(car, "odd_door", False) and car.model == "vaz2102":
-        out.append("левая дверь другого цвета")
+        out.append(T("левая дверь другого цвета"))
     if car.deforms:
-        out.append("битая: вмятины кузова")
+        out.append(T("битая: вмятины кузова"))
     if car.dirt > 0.6:
-        out.append("очень грязная")
+        out.append(T("очень грязная"))
     if any(isinstance(p, dict) for p in (car.tune or {}).values()):
-        out.append("тюнинг")
+        out.append(T("тюнинг"))
     miss = [car.slots[s][0].lower() for s in ("hood", "trunk", "door_l", "door_r") if s in car.slots and not car.has(s)]
     if miss:
-        out.append("нет: " + ", ".join(miss))
+        out.append(T("нет: ") + ", ".join(miss))
     if not out:
-        out.append("без особых примет")
+        out.append(T("без особых примет"))
     return out
 
 
 def describe(car):
     """Строка для заявления/объявления: марка, модель, цвет, номер, приметы."""
-    plate = f"номер {car.plate}" if car.registered else "без номеров"
-    return f"{car.name}, {color_name(car.color)}, {plate}; приметы: " + ", ".join(features(car))
+    plate = T("номер {plate}", plate=car.plate) if car.registered else T("без номеров")
+    return T("{name}, {color_name}, {plate}; приметы: ", name=car.name, color_name=color_name(car.color), plate=plate) + ", ".join(features(car))

@@ -7,6 +7,8 @@ import json
 import math
 import os
 import random
+import i18n
+from i18n import T
 
 
 SAVE_FILE = "savegame.json"
@@ -28,23 +30,23 @@ import theft as _theft
 import tires as _tires
 
 START_DATE = datetime.datetime(1998, 12, 1, 0, 0)  # вторник, начало зимы
-WEEKDAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+WEEKDAYS = [T("Понедельник"), T("Вторник"), T("Среда"), T("Четверг"), T("Пятница"), T("Суббота"), T("Воскресенье")]
+WEEKDAYS_RU = [T("Пн"), T("Вт"), T("Ср"), T("Чт"), T("Пт"), T("Сб"), T("Вс")]
 RENT = 0.0                # квартира своя — квартплаты нет (оставлено для совместимости)
 START_MONEY = 3000.0      # стартовый баланс новой игры
 INSURANCE = 24.0
-# стоимость машины в хорошем состоянии (DM, рынок подержанных машин 1998)
+# стоимость машины в хорошем состоянии (₽, рынок подержанных машин 1998)
 BASE_VALUE = {"vaz2102": 900, "ae86": 4500, "trabant": 500, "wartburg": 800, "moskvich": 700, "kadett": 1200,
               "golf": 1700, "taunus": 1300, "w123": 3200, "volvo240": 2600, "bmw_e21": 2200, "audi80": 1600, "civic": 1900,
               "mustang": 7500}
-WEATHER_RU = {"clear": "ясно", "cloudy": "облачно", "snow": "снегопад", "sleet": "мокрый снег", "rain": "дождь"}
+WEATHER_RU = {"clear": T("ясно"), "cloudy": T("облачно"), "snow": T("снегопад"), "sleet": T("мокрый снег"), "rain": T("дождь")}
 import calendar_de as cal
 PART_KINDS = ["door_l", "door_r", "hood", "trunk", "seats", "lights", "tire_fl", "tire_fr", "tire_rl", "tire_rr",
               "engine", "gearbox", "battery", "alternator", "starter", "carb", "radiator", "exhaust", "glass"]
 AE86_PRICE = 0.0          # Ковальский отдаёт AE86 бесплатно — лишь бы забрали со свалки
 ROPE_LEN = 4.0
 ROPE_SNAP_KMH = 55
-CAR_NAMES = {"vaz": "ВАЗ 2102", "ae86": "Toyota AE86"}
+CAR_NAMES = {"vaz": T("ВАЗ 2102"), "ae86": "Toyota AE86"}
 MAIN_CARS = ("vaz", "ae86")      # стартовые машины: их нельзя сдать на лом
 MAX_FINDS = 7                    # сколько бесхозных находок может стоять на карте одновременно
 
@@ -420,7 +422,7 @@ class GameState:
     def pickup(self, idx):
         """Подобрать с земли — только в свободную руку."""
         if self.free_hand() is None:
-            self.notify("Обе руки заняты — сначала положите что-нибудь (X / Z) или уберите в багажник.", RED)
+            self.notify(T("Обе руки заняты — сначала положите что-нибудь (X / Z) или уберите в багажник."), RED)
             return None
         it = self.loose.pop(idx)
         entry = {k: v for k, v in it.items() if k not in ("x", "y", "place", "slot", "rot")}
@@ -534,13 +536,13 @@ class GameState:
             return False
         del self.dealer["stock"][key]
         self.owned[key] = True
-        self.hand_over_keys(key, "Вебер отдаёт ключи — один уже в замке зажигания")
+        self.hand_over_keys(key, T("Вебер отдаёт ключи — один уже в замке зажигания"))
         return True
 
     def sell_to_dealer(self, key):
         offer = self.dealer_offer(key)
         car = self.cars[key]
-        self.earn(offer, f"— Вебер купил {car.name}")
+        self.earn(offer, T("— Вебер купил {name}", name=car.name))
         self.owned[key] = False
         if self.cur == key:
             self.cur = "vaz"
@@ -651,7 +653,7 @@ class GameState:
     def claim_car(self, key):
         """Забрать находку себе — бесплатно. Ключ — в замке зажигания, запасной — на ключницу дома."""
         self.owned[key] = True
-        self.hand_over_keys(key, "Ключ нашёлся в бардачке — вставлен в замок зажигания")
+        self.hand_over_keys(key, T("Ключ нашёлся в бардачке — вставлен в замок зажигания"))
 
     def hand_over_keys(self, key, how):
         car = self.cars[key]
@@ -661,7 +663,7 @@ class GameState:
             car.ign_key = _keys.make(self, key)
         if not any(_keys.fits(e, car) for e in self.keyhook):
             self.keyhook.append(_keys.make(self, key, spare=True))
-        self.notify(f"{car.name}: {how}. Запасной ключ — на ключнице у двери квартиры.", GREEN, 8)
+        self.notify(T("{name}: {how}. Запасной ключ — на ключнице у двери квартиры.", name=car.name, how=how), GREEN, 8)
 
     def nearest_wreck(self, x, y, maxd=3.2):
         """Ключ ближайшей бесхозной находки (или None)."""
@@ -739,20 +741,20 @@ class GameState:
             stuck = math.hypot(ox - hx, oy - hy) > L + 1.5
             t["stuck"] = t.get("stuck", 0.0) + dt if stuck and abs(car.speed) > 1.5 else 0.0
             if t["stuck"] > 1.5:
-                self.snap_rope("Трос соскочил — машина на тросе упёрлась в препятствие. "
-                               "Отъедьте назад и привяжите снова (T).", lost=False)
+                self.snap_rope(T("Трос соскочил — машина на тросе упёрлась в препятствие. "
+                               "Отъедьте назад и привяжите снова (T)."), lost=False)
                 return
         car.tow_mass = obj.spec["mass"] * (0.85 if taut else 0.0)
         kmh = car.kmh()
         if kmh > ROPE_SNAP_KMH - 10 and not t.get("warned"):
             t["warned"] = True
-            self.notify("Трос натянут как струна! На тросе — не быстрее 50 км/ч.", YELLOW, 5)
+            self.notify(T("Трос натянут как струна! На тросе — не быстрее 50 км/ч."), YELLOW, 5)
         if kmh < ROPE_SNAP_KMH - 15:
             t["warned"] = False
         t["over"] = t.get("over", 0.0) + dt if (kmh > ROPE_SNAP_KMH + 5 and taut) else 0.0
         if t["over"] > 1.0:
-            self.snap_rope(f"Трос лопнул на {kmh:.0f} км/ч! Вы связали его узлом — привяжите снова (T) "
-                           "и не гоните быстрее 50.", lost=False)
+            self.snap_rope(T("Трос лопнул на {kmh:.0f} км/ч! Вы связали его узлом — привяжите снова (T) "
+                           "и не гоните быстрее 50.", kmh=kmh), lost=False)
 
     def snap_rope(self, msg, lost=False):
         if self.tow and self.tow["by"] in self.cars:
@@ -792,12 +794,12 @@ class GameState:
     def goal_text(self):
         ae = self.cars["ae86"]
         if self.goal_done:
-            return "Цель выполнена: AE86 на ходу и на учёте!"
+            return T("Цель выполнена: AE86 на ходу и на учёте!")
         if not self.owned["ae86"]:
-            return "Цель: забрать ржавую AE86 у Ковальского за гаражом (бесплатно)"
+            return T("Цель: забрать ржавую AE86 у Ковальского за гаражом (бесплатно)")
         if ae.tuv_until < self.day:
-            return "Цель: починить AE86 и пройти техосмотр"
-        return "Цель: поставить AE86 на учёт в ратуше"
+            return T("Цель: починить AE86 и пройти техосмотр")
+        return T("Цель: поставить AE86 на учёт в ратуше")
 
     def check_goal(self):
         ae = self.cars["ae86"]
@@ -820,15 +822,15 @@ class GameState:
             "schrott_stock": self.schrott_stock, "schrott_day": self.schrott_day,
         }
         with open(SAVE_FILE, "w", encoding="utf-8") as f:
-            json.dump(d, f, ensure_ascii=False, indent=1)
-        self.notify("Игра сохранена.", GREEN)
+            json.dump(i18n.to_json(d), f, ensure_ascii=False, indent=1)     # тексты — как msgid, не на языке сейчас
+        self.notify(T("Игра сохранена."), GREEN)
 
     def load(self):
         if not os.path.exists(SAVE_FILE):
-            self.notify("Нет сохранения.", RED)
+            self.notify(T("Нет сохранения."), RED)
             return False
         with open(SAVE_FILE, encoding="utf-8") as f:
-            d = json.load(f)
+            d = i18n.from_json(json.load(f))
         self.new_state()
         self.p.from_dict(d["player"])
         if "cars" in d:
@@ -851,8 +853,8 @@ class GameState:
                 setattr(self, k, d[k])
         if self.p.legacy_items:
             self.shelf += self.p.legacy_items
-            self.notify(f"Теперь с собой — только две руки. Остальные вещи ({len(self.p.legacy_items)} шт.) лежат на "
-                        "стеллаже в вашем гараже.", YELLOW, 10)
+            self.notify(T("Теперь с собой — только две руки. Остальные вещи ({0} шт.) лежат на "
+                        "стеллаже в вашем гараже.", len(self.p.legacy_items)), YELLOW, 10)
             self.p.legacy_items = []
         if "last_month" not in d:                # старое сохранение: месяц — по дате, без поздравления
             self.last_month = self.month
@@ -926,7 +928,7 @@ class GameState:
         # AE86 теперь продаётся на свалке Ковальского за гаражом
         if not self.owned.get("ae86"):
             self.cars["ae86"] = Car("ae86", AE86_SPOT[0], AE86_SPOT[1], angle=math.pi)
-        self.notify("Игра загружена.", GREEN)
+        self.notify(T("Игра загружена."), GREEN)
         return True
 
     # ---------------------------------------------------------------- время
@@ -964,17 +966,17 @@ class GameState:
 
     def date_text(self):
         d = self.date()
-        return f"{d.day} {cal.MONTHS_GEN[d.month - 1]} {d.year}"
+        return T("{day} {month} {year}", day=d.day, month=cal.MONTHS_GEN[d.month - 1], year=d.year)
 
     def on_new_month(self, month, year):
         """Наступил новый месяц: сообщение и сезонные перемены (погода подстраивается под климат)."""
-        self.notify(f"Наступил {cal.month_name(month)} {year} года ({cal.SEASON_RU[cal.season(month)]}).", YELLOW, 8)
+        self.notify(T("Наступил {month_name} {year} года ({0}).", cal.SEASON_RU[cal.season(month)], month_name=cal.month_name(month), year=year), YELLOW, 8)
         self.weather = cal.valid_weather(month, self.weather)
         c = cal.climate(month)
         if c["snow"] > self.snow_level + 0.3:
-            self.notify("Похолодало: земля снова под снегом.", WHITE, 6)
+            self.notify(T("Похолодало: земля снова под снегом."), WHITE, 6)
         elif c["snow"] < self.snow_level - 0.3:
-            self.notify("Снег сходит — дороги становятся чище и суше.", WHITE, 6)
+            self.notify(T("Снег сходит — дороги становятся чище и суше."), WHITE, 6)
 
     def _step_season(self, minutes):
         """Снег на земле плавно идёт к норме месяца; снегопад добавляет, дождь и тепло съедают."""
@@ -991,8 +993,8 @@ class GameState:
 
     def time_str(self):
         d = self.date()
-        return (f"{WEEKDAYS_RU[d.weekday()]} {d.day} {cal.MONTHS_GEN[d.month - 1]} {d.year}  "
-                f"{d.hour:02d}:{d.minute:02d}")
+        return T("{weekday} {day} {month} {year}  {hour:02d}:{minute:02d}", weekday=WEEKDAYS_RU[d.weekday()], day=d.day,
+                 month=cal.MONTHS_GEN[d.month - 1], year=d.year, hour=d.hour, minute=d.minute)
 
     def darkness(self):
         # рассвет и закат — по месяцу (декабрь: ~8:25 и ~16:05, июнь: ~5:00 и ~21:50)
@@ -1011,9 +1013,9 @@ class GameState:
         oh = OPEN_HOURS.get(bid, {})
         wk = oh.get(0)
         sat = oh.get(5)
-        s = f"Пн–Пт {wk[0]:02d}–{wk[1]:02d}" if wk else ""
-        s += f", Сб {sat[0]:02d}–{sat[1]:02d}" if sat else ", Сб закрыто"
-        s += ", Вс закрыто" if not oh.get(6) else ""
+        s = T("Пн–Пт {0:02d}–{1:02d}", wk[0], wk[1]) if wk else ""
+        s += T(", Сб {0:02d}–{1:02d}", sat[0], sat[1]) if sat else T(", Сб закрыто")
+        s += T(", Вс закрыто") if not oh.get(6) else ""
         return s
 
     def advance(self, minutes, sleeping=False, working=False):
@@ -1036,7 +1038,7 @@ class GameState:
         if p.hunger <= 0 or p.thirst <= 0:
             p.health -= 0.25 * minutes
             if int(self.minutes) % 30 == 0:
-                self.notify("Вам плохо: " + ("голод" if p.hunger <= 0 else "жажда") + "!", RED)
+                self.notify(T("Вам плохо: ") + (T("голод") if p.hunger <= 0 else T("жажда")) + "!", RED)
         else:
             p.health = min(100.0, p.health + 0.05 * minutes)
         for a in ("hunger", "thirst", "energy", "hygiene"):
@@ -1089,7 +1091,7 @@ class GameState:
             self.on_new_month(self.last_month, yr)
 
         if p.health <= 0:
-            self.hospital("Вы потеряли сознание от истощения.")
+            self.hospital(T("Вы потеряли сознание от истощения."))
         elif p.energy <= 0 and not sleeping:
             self.pending_faint = True
 
@@ -1098,31 +1100,31 @@ class GameState:
             before = len(self.dealer["stock"])
             self.spawn_dealer_stock(random.Random(day * 17 + 3))
             if len(self.dealer["stock"]) > before:
-                self.notify("Автоплощадка Вебера: пригнали новые машины.", YELLOW, 6)
+                self.notify(T("Автоплощадка Вебера: пригнали новые машины."), YELLOW, 6)
         if len([k for k in self.wreck_keys() if k.startswith("w")]) < MAX_FINDS and random.random() < 0.8:
             key = self.spawn_wreck()
             if key:
-                self.notify(f"Слух: у дороги бросили {self.cars[key].name}. Можно забрать себе (карта — M).", YELLOW, 8)
+                self.notify(T("Слух: у дороги бросили {name}. Можно забрать себе (карта — M).", name=self.cars[key].name), YELLOW, 8)
         if day % 7 == 0:
             # квартира своя: квартплаты и выселения нет; остаётся только страховка машин на учёте
             for k, c in self.owned_cars():
                 if c.registered:
-                    self.charge(INSURANCE, f"Страховка и налог: {c.name}", YELLOW, 8)
+                    self.charge(INSURANCE, T("Страховка и налог: {name}", name=c.name), YELLOW, 8)
         for k, c in self.owned_cars():
             mg = c.mangel
             if mg and c.registered and day > mg.get("until", 1e9):
                 c.registered = False
-                self.notify(f"{c.name}: срок предписания истёк, устранение дефектов не подтверждено на техосмотре — "
-                            "регистрация аннулирована. Устраните дефекты, пройдите техосмотр и снова в ратушу.", RED, 10)
+                self.notify(T("{name}: срок предписания истёк, устранение дефектов не подтверждено на техосмотре — "
+                            "регистрация аннулирована. Устраните дефекты, пройдите техосмотр и снова в ратушу.", name=c.name), RED, 10)
             elif mg and c.registered and day == mg.get("until"):
-                self.notify(f"{c.name}: сегодня последний день по предписанию — предъявите машину на техосмотр.", YELLOW, 8)
+                self.notify(T("{name}: сегодня последний день по предписанию — предъявите машину на техосмотр.", name=c.name), YELLOW, 8)
         for k, c in self.owned_cars():
             if c.registered and 0 <= c.tuv_until < day:
-                self.notify(f"{c.name}: срок техосмотра истёк! Нужно пройти его заново.", RED, 8)
+                self.notify(T("{name}: срок техосмотра истёк! Нужно пройти его заново.", name=c.name), RED, 8)
 
     def hospital(self, reason):
         self.notify(reason, RED, 8)
-        self.notify("Вы очнулись дома. Лечение бесплатное — деньги не списаны.", GREEN, 8)
+        self.notify(T("Вы очнулись дома. Лечение бесплатное — деньги не списаны."), GREEN, 8)
         self.p.health = 60
         self.p.hunger = max(self.p.hunger, 50)
         self.p.thirst = max(self.p.thirst, 50)
@@ -1165,8 +1167,8 @@ class GameState:
                 c.ign_key = _keys.make(self, k)                      # старое сохранение: ключ в замке
                 self.keyhook.append(_keys.make(self, k, spare=True))
         if old_save and self.owned_cars():
-            self.notify("Теперь у каждой машины свой ключ: он в замке зажигания, запасные — на ключнице у двери "
-                        "квартиры. Запирайте машину на ночь (K с ключом в руке).", YELLOW, 12)
+            self.notify(T("Теперь у каждой машины свой ключ: он в замке зажигания, запасные — на ключнице у двери "
+                        "квартиры. Запирайте машину на ночь (K с ключом в руке)."), YELLOW, 12)
 
     # ---------------------------------------------------------------- инвентарь: две руки + то, что лежит рядом
     def free_hand(self):
@@ -1201,14 +1203,14 @@ class GameState:
             return out
         gx, gy, gw, gh = GARAGE
         if gx - 1 <= p.x <= gx + gw + 1 and gy - 1 <= p.y <= gy + gh + 1:
-            out.append((self.shelf, "shelf", "стеллаж в гараже"))
+            out.append((self.shelf, "shelf", T("стеллаж в гараже")))
         if not p.in_car:
             for c in self.cars.values():
                 if abs(c.x - p.x) + abs(c.y - p.y) > 9:
                     continue
                 if (c.trunk_open or not c.has("trunk")) and \
                         min(math.hypot(p.x - cx, p.y - cy) for cx, cy, _ in c.body_circles()) < 3.0:
-                    out.append((c.trunk_items, "trunk", "багажник " + c.name))
+                    out.append((c.trunk_items, "trunk", T("багажник ") + c.name))
         return out
 
     def available(self):
@@ -1227,12 +1229,12 @@ class GameState:
     def where_is(self, item_id):
         """Подсказка, где лежит вещь, которой нет под рукой."""
         if any(e["id"] == item_id for e in self.shelf):
-            return "на стеллаже в гараже"
+            return T("на стеллаже в гараже")
         for k, c in self.owned_cars():
             if any(e["id"] == item_id for e in c.trunk_items):
-                return f"в багажнике {c.name} (откройте его или возьмите в руку)"
+                return T("в багажнике {name} (откройте его или возьмите в руку)", name=c.name)
         if any(e["id"] == item_id for e in getattr(self, "fridge", [])):
-            return "в холодильнике"
+            return T("в холодильнике")
         return None
 
     def need(self, item_id, what=None):
@@ -1241,7 +1243,7 @@ class GameState:
             return True
         nm = what or ITEMS.get(item_id, {}).get("name", item_id)
         w = self.where_is(item_id)
-        self.notify(f"Нужен(а): {nm}" + (f" — лежит {w}." if w else " — купите в магазине."), RED, 6)
+        self.notify(T("Нужен(а): {nm}", nm=nm) + (T(" — лежит {w}.", w=w) if w else T(" — купите в магазине.")), RED, 6)
         return False
 
     def give(self, entry, shop=False):
@@ -1256,12 +1258,12 @@ class GameState:
         for cont, kind, lab in self.nearby_stores():
             if len(cont) < storage.CAPACITY.get(kind, 99):
                 cont.append(entry)
-                self.notify(f"Руки заняты — положили: {lab}.", YELLOW, 5)
+                self.notify(T("Руки заняты — положили: {lab}.", lab=lab), YELLOW, 5)
                 return kind
         if getattr(self, "location", "street") == "apartment":
             if ITEMS.get(entry["id"], {}).get("kind") in ("food", "drink"):
                 self.fridge.append(entry)
-                self.notify("Руки заняты — убрали в холодильник.", YELLOW, 5)
+                self.notify(T("Руки заняты — убрали в холодильник."), YELLOW, 5)
                 return "fridge"
             return None
         p = self.p
@@ -1273,20 +1275,20 @@ class GameState:
                     best = (d, c)
             if best:
                 best[1].trunk_items.append(entry)
-                self.notify(f"Руки заняты — продавец отнёс покупку в багажник {best[1].name}.", YELLOW, 6)
+                self.notify(T("Руки заняты — продавец отнёс покупку в багажник {name}.", name=best[1].name), YELLOW, 6)
                 return "trunk"
             return None
         if p.in_car:
             c = self.car
             if len(c.trunk_items) < storage.CAPACITY["trunk"]:
                 c.trunk_items.append(entry)
-                self.notify(f"Руки заняты — положили в багажник {c.name}.", YELLOW, 5)
+                self.notify(T("Руки заняты — положили в багажник {name}.", name=c.name), YELLOW, 5)
                 return "trunk"
         e = dict(entry)
         e.update(x=round(p.x + random.uniform(-0.4, 0.4), 2), y=round(p.y + random.uniform(-0.4, 0.4), 2),
                  place="drop", rot=round(random.uniform(0, 6.28), 2))
         self.loose.append(e)
-        self.notify(f"Руки заняты — {ITEMS.get(entry['id'], {}).get('name', entry['id'])} лежит на земле (E — подобрать).",
+        self.notify(T("Руки заняты — {name} лежит на земле (E — подобрать).", name=ITEMS.get(entry['id'], {}).get('name', entry['id'])),
                     YELLOW, 6)
         return "ground"
 
@@ -1338,7 +1340,7 @@ class GameState:
         if getattr(self, "location", "street") == "apartment":
             if ITEMS.get(e["id"], {}).get("kind") in ("food", "drink"):
                 self.fridge.append(e)
-                return "холодильник"
+                return T("холодильник")
             self.p.hands[i] = e
             return None
         p = self.p
@@ -1347,7 +1349,7 @@ class GameState:
         e2.update(x=round(p.x + math.sin(yr) * 0.7, 2), y=round(p.y - math.cos(yr) * 0.7, 2), place="drop",
                   rot=round(random.uniform(0, 6.28), 2))
         self.loose.append(e2)
-        return "земля"
+        return T("земля")
 
     PORTION = {"food": 34.0, "drink": 25.0}      # сколько % предмета за один укус / глоток
 
@@ -1371,14 +1373,14 @@ class GameState:
         self.advance(1)
         if e["cond"] <= 0.5:
             self.p.hands[i] = None
-            self.notify(("Выпили до дна: " if it["kind"] == "drink" else "Доели: ") + it["name"], GREEN)
+            self.notify((T("Выпили до дна: ") if it["kind"] == "drink" else T("Доели: ")) + it["name"], GREEN)
         return True
 
     def start_eat(self, i):
         """Крючок: в 3D — анимация, в конце вызывается eat_hand. Без графики — сразу."""
         return self.eat_hand(i)
 
-    # ---- деньги: всё в DM, округление до пфеннига
+    # ---- деньги: всё в ₽, округление до копейки
     def _add_money(self, delta):
         self.p.money = round(self.p.money + round(delta, 2), 2)
 
@@ -1386,7 +1388,7 @@ class GameState:
         """Добровольная покупка: только если хватает денег."""
         amount = round(amount, 2)
         if self.p.money + 1e-9 < amount:
-            self.notify(f"Не хватает денег: нужно {amount:.2f} DM, есть {max(0.0, self.p.money):.2f} DM.", RED)
+            self.notify(T("Не хватает денег: нужно {amount:.2f} ₽, есть {0:.2f} ₽.", max(0.0, self.p.money), amount=amount), RED)
             return False
         self._add_money(-amount)
         self.play_sound("cash", 0.5)
@@ -1399,7 +1401,7 @@ class GameState:
             return 0.0
         self._add_money(-amount)
         if what:
-            self.notify(f"{what}: -{amount:.2f} DM", color, t)
+            self.notify(f"{what}: -{amount:.2f} ₽", color, t)
         return amount
 
     def earn(self, amount, what=""):
@@ -1408,7 +1410,7 @@ class GameState:
             return
         self._add_money(amount)
         self.play_sound("cash", 0.6)
-        self.notify(f"+{amount:.2f} DM {what}", GREEN)
+        self.notify(f"+{amount:.2f} ₽ {what}", GREEN)
 
     def consume(self, item_id):
         it = ITEMS[item_id]
@@ -1418,7 +1420,7 @@ class GameState:
         p.energy = min(100, p.energy + it.get("energy", 0))
         p.drunk = min(100, p.drunk + it.get("drunk", 0))
         self.advance(3)
-        self.notify(f"Вы употребили: {item_name(item_id)}")
+        self.notify(T("Вы употребили: {item_name}", item_name=item_name(item_id)))
 
     # ---------------------------------------------------------------- машина
     def step_car(self, dt):
@@ -1505,7 +1507,7 @@ class GameState:
                                 a.impact(rel)
                                 b.impact(rel)
                                 if self.p.in_car and self.cur in (ka, kb):
-                                    self.notify("Бум! Вы врезались в стоящую машину.", RED)
+                                    self.notify(T("Бум! Вы врезались в стоящую машину."), RED)
                             a.speed *= 0.3
                             b.speed *= 0.3
                             a.vlat *= 0.3
@@ -1522,11 +1524,11 @@ class GameState:
             return
         kmh = v * 3.6
         if kmh < 15:
-            self.notify("Вы задели пешехода — он падает, ругаясь. Хорошо, что на малой скорости.", RED, 6)
-            self.charge(120, "Штраф: неосторожное вождение")
+            self.notify(T("Вы задели пешехода — он падает, ругаясь. Хорошо, что на малой скорости."), RED, 6)
+            self.charge(120, T("Штраф: неосторожное вождение"))
         else:
-            self.notify(f"Вы сбили пешехода на {kmh:.0f} км/ч! Скорая, полиция, протокол.", RED, 10)
-            self.charge(min(4000, 300 + kmh * 25), "Штраф и компенсация пострадавшему")
+            self.notify(T("Вы сбили пешехода на {kmh:.0f} км/ч! Скорая, полиция, протокол.", kmh=kmh), RED, 10)
+            self.charge(min(4000, 300 + kmh * 25), T("Штраф и компенсация пострадавшему"))
             self.police_cd = 0.0
         self.play_sound("crash", 0.4)
 
@@ -1549,15 +1551,15 @@ class GameState:
                         kind, width = getattr(self.world, "last_hit", ("wall", 3.0))
                         crush = _damage.record_impact(car, px, py, nx, ny, vn, vt, kind, width, now=self.minutes * 60)
                         if car.impact(vn) and driven:
-                            self.hospital("Тяжёлая авария!")
+                            self.hospital(T("Тяжёлая авария!"))
                             return True
                         if vn > 4 and driven:
-                            what = f" Кузов смят на {crush * 100:.0f} см." if crush > 0.03 else ""
-                            self.notify(f"Удар! ({vn * 3.6:.0f} км/ч){what}", RED)
+                            what = T(" Кузов смят на {0:.0f} см.", crush * 100) if crush > 0.03 else ""
+                            self.notify(T("Удар! ({0:.0f} км/ч){what}", vn * 3.6, what=what), RED)
                             if _damage.is_totaled(car) and not getattr(car, "_total_said", False):
                                 car._total_said = True
-                                self.notify(f"{car.name}: геометрия кузова уведена — похоже на «тотал». "
-                                            "Ремонт дороже машины, проще сдать на лом.", RED, 10)
+                                self.notify(T("{name}: геометрия кузова уведена — похоже на «тотал». "
+                                            "Ремонт дороже машины, проще сдать на лом.", name=car.name), RED, 10)
                     _damage.bounce(car, nx, ny, px, py, 0.15 if vn > 3 else 0.05)
                     break
         return False

@@ -15,6 +15,7 @@
 """
 import math
 import random
+from i18n import T
 
 NEW_MM = 8.0
 LEGAL_MM = 1.6
@@ -23,7 +24,7 @@ NOMINAL = {"vaz2102": (1.6, 2.0), "ae86": (1.9, 1.9), "trabant": (1.6, 1.8), "wa
            "moskvich": (1.7, 1.9), "kadett": (1.8, 1.9), "golf": (1.8, 1.8), "taunus": (1.8, 2.0),
            "w123": (1.8, 2.1), "volvo240": (1.9, 2.1), "bmw_e21": (1.9, 2.1), "audi80": (1.8, 1.8),
            "civic": (1.9, 1.9), "mustang": (1.9, 1.9)}
-SLOT_RU = {"tire_fl": "переднее левое", "tire_fr": "переднее правое", "tire_rl": "заднее левое", "tire_rr": "заднее правое"}
+SLOT_RU = {"tire_fl": T("переднее левое"), "tire_fr": T("переднее правое"), "tire_rl": T("заднее левое"), "tire_rr": T("заднее правое")}
 FLAT_BAR = 0.4
 
 
@@ -184,7 +185,7 @@ def blowout(car, slot):
     p = car.parts.get(slot)
     if p:
         p["cond"] = min(p["cond"], 3.0)
-    car.say(f"БАХ! Лопнула шина: {SLOT_RU[slot]}. Машину тянет — тормозите плавно.")
+    car.say(T("БАХ! Лопнула шина: {0}. Машину тянет — тормозите плавно.", SLOT_RU[slot]))
     car.sounds.append("crash")
 
 
@@ -211,27 +212,27 @@ def on_crash(car, zone, depth):
             car.wear(s, depth * 60)
             tp[s] = max(0.0, tp[s] - random.uniform(0.3, 2.0))
             if tp[s] < FLAT_BAR:
-                car.say(f"После удара спустило колесо: {SLOT_RU[s]}.")
+                car.say(T("После удара спустило колесо: {0}.", SLOT_RU[s]))
 
 
 # ------------------------------------------------------------------ осмотр
 def state_text(car, slot, ambient=20.0):
     if not car.has(slot):
-        return "шины нет (машина на тормозном барабане)"
+        return T("шины нет (машина на тормозном барабане)")
     mm = tread_mm(car, slot)
     p = pressure(car, slot, ambient)
     n = nominal(car, slot)
     bits = []
     if car.c(slot) < 0.05:
-        bits.append("РАЗОРВАНА")
+        bits.append(T("РАЗОРВАНА"))
     elif mm < LEGAL_MM:
-        bits.append("ЛЫСАЯ (меньше 1,6 мм — запрещено)")
+        bits.append(T("ЛЫСАЯ (меньше 1,6 мм — запрещено)"))
     elif mm < 3:
-        bits.append("изношена — на мокром и снегу опасна")
+        bits.append(T("изношена — на мокром и снегу опасна"))
     if p < FLAT_BAR:
-        bits.append("СПУЩЕНА")
+        bits.append(T("СПУЩЕНА"))
     elif p < n * 0.85:
-        bits.append("недокачана")
+        bits.append(T("недокачана"))
     elif p > n * 1.15:
-        bits.append("перекачана")
-    return ", ".join(bits) if bits else "в порядке"
+        bits.append(T("перекачана"))
+    return ", ".join(bits) if bits else T("в порядке")

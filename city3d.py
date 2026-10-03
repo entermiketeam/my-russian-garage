@@ -11,6 +11,8 @@ from world import (ROADS, BUILDINGS, GARAGE, GARAGE_WALLS, PUMP_ZONE, PUMPS, TUV
                    MAP_W, MAP_H, AUTOHAUS_LOT, PARKING2, JUNKYARD, JUNK_LANE, JUNK_FENCES, JUNK_PILES,
                    SCRAP_DROP)
 import textures3d
+import i18n
+from i18n import T
 
 GRASS = (78, 112, 58)
 ASPHALT = (78, 78, 82)
@@ -462,12 +464,12 @@ class City:
             self.signs.append(point_group(self._board(name, pos, rot, 34, (250, 245, 225), (25, 30, 40)),
                                           pos[0], -pos[2], 6.0, "sign"))
         # вывеска над воротами свалки (видна с Hauptstraße)
-        self.signs.append(point_group(self._board("Авторазборка Ковальского — скупка старых машин", (390.3, 4.2, -343.6),
+        self.signs.append(point_group(self._board(T("Авторазборка Ковальского — скупка старых машин"), (390.3, 4.2, -343.6),
                                                   180, 17, (20, 20, 20), (240, 200, 40)), 390.3, 343.6, 8.0, "sign"))
         # табличка населённого пункта (жёлтая, как в Германии)
         for (sx, sy, rot) in ((1318, 297, -90), (297, 918, 0), (297, 96, 180)):
             Entity(model="cube", position=(sx, 1.1, -sy), scale=(0.08, 2.2, 0.08), color=color.gray)
-            self.signs.append(point_group(self._board("Кляйнбрук", (sx, 2.5, -sy), rot, 16, (10, 10, 10), (245, 205, 40),
+            self.signs.append(point_group(self._board(T("Кляйнбрук"), (sx, 2.5, -sy), rot, 16, (10, 10, 10), (245, 205, 40),
                                                       h=0.8), sx, sy, 3.0, "sign"))
 
     def _board(self, name, pos, rot, size, fg, bg, h=None):
@@ -475,8 +477,9 @@ class City:
         board = Entity(position=pos, rotation_y=rot)
         ch = size * 0.025
         bw = len(name) * ch * 0.5 + ch * 1.2
-        Entity(parent=board, model="quad", scale=(bw, h or ch * 1.7), color=color.rgb(*bg), z=0.01)
-        Text(name, parent=board, scale=size, origin=(0, 0), color=color.rgb(*fg), z=-0.02)
+        plate = Entity(parent=board, model="quad", scale=(bw, h or ch * 1.7), color=color.rgb(*bg), z=0.01)
+        t = Text(name, parent=board, scale=size, origin=(0, 0), color=color.rgb(*fg), z=-0.02)
+        i18n.live(t, name, after=lambda t: setattr(plate, "scale_x", len(t.text) * ch * 0.5 + ch * 1.2))
         board.setLightOff()
         return board
 
