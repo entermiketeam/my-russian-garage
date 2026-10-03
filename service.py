@@ -13,7 +13,7 @@ import math
 from world import SERVICE_BAYS, SERVICE_PARK, SERVICE_DOOR_PT, point_in
 from items import ITEMS
 
-NAME = "Kfz-Werkstatt Schmidt"
+NAME = "Автосервис Шмидта"
 HOURS = {d: (7, 18) for d in range(5)}
 HOURS[5] = (8, 13)
 LABOR = 65.0              # DM в час (для сметы)
@@ -238,7 +238,7 @@ def reception(g, key):
     """Мастер-приёмщик у машины в ячейке."""
     car = g.cars[key]
     if not is_open(g):
-        g.info(NAME, ["Geschlossen. Мастерская закрыта.", f"Часы работы: {hours_text()}.",
+        g.info(NAME, ["Закрыто. Мастерская не работает.", f"Часы работы: {hours_text()}.",
                       "Машину можно оставить на парковке и приехать в рабочее время."])
         return
     if car.running:
@@ -249,10 +249,10 @@ def reception(g, key):
     found = inspect(car)
     parts, minutes, total = estimate(found)
     hours = max(1.0, minutes / 60 / MECHANICS)
-    lines = [f"Мастер Uwe Schmidt обходит {car.name} с фонарём, заглядывает под капот и под днище (подъёмник).",
+    lines = [f"Мастер Уве Шмидт обходит {car.name} с фонарём, заглядывает под капот и под днище (подъёмник).",
              "Гарантия: " + ("БЕССРОЧНАЯ — действует (проверено по сервисной книжке)" if has_warranty(car) else "нет"), ""]
     if not found:
-        g.info(NAME, lines + ["«Alles in Ordnung!» — неисправностей не найдено. Можно ехать."])
+        g.info(NAME, lines + ["«Всё в порядке!» — неисправностей не найдено. Можно ехать."])
         return
     by = {}
     for sys_, what, pid, m in found:

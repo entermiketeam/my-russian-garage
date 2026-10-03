@@ -34,14 +34,14 @@ WASH_PRICE = 8.0
 CLOSE = "__close__"
 
 NEWS = [
-    "Tagesschau: Герхард Шрёдер (SPD) выиграл выборы в Бундестаг. Конец эпохи Коля.",
-    "Tagesschau: С 1 января 1999 года евро введут в безналичных расчётах. Марка пока остаётся.",
-    "Sportschau: «Бавария» лидирует в Бундеслиге, «Кайзерслаутерн» — действующий чемпион.",
-    "Wetter: в Нижней Саксонии дожди, ночью до +4 °C. Берегите машины от сырости.",
-    "Werbung: «Opel Astra — ab 26.990 DM!» Вы смотрите на свои ржавые пороги и вздыхаете.",
-    "Tagesschau: Цены на бензин выросли до 1,65 DM за литр. Автоклубы возмущены.",
-    "Регион: В Kleinbruck полиция усилила контроль техосмотра старых автомобилей.",
-    "Wer wird Millionär? Вы отвечаете на три вопроса и чувствуете себя умным.",
+    "Новости: Герхард Шрёдер (SPD) выиграл выборы в Бундестаг. Конец эпохи Коля.",
+    "Новости: С 1 января 1999 года евро введут в безналичных расчётах. Марка пока остаётся.",
+    "Спорт: «Бавария» лидирует в Бундеслиге, «Кайзерслаутерн» — действующий чемпион.",
+    "Погода: в Нижней Саксонии дожди, ночью до +4 °C. Берегите машины от сырости.",
+    "Реклама: «Opel Astra — всего от 26 990 DM!» Вы смотрите на свои ржавые пороги и вздыхаете.",
+    "Новости: Цены на бензин выросли до 1,65 DM за литр. Автоклубы возмущены.",
+    "Регион: В Кляйнбруке полиция усилила контроль техосмотра старых автомобилей.",
+    "«Кто хочет стать миллионером?» Вы отвечаете на три вопроса и чувствуете себя умным.",
 ]
 
 CONTROLS = [
@@ -62,18 +62,18 @@ CONTROLS = [
     "КЛЮЧИ: у каждой машины свой ключ. K — запереть/отпереть (снаружи — с ключом в руке, изнутри — кнопкой). "
     "I — вставить ключ из руки и, держа I, завести; E на замке зажигания — вынуть ключ (или завести напрямую). "
     "Запасные ключи — на ключнице у двери квартиры. Незапертую машину на улице ночью могут угнать — "
-    "тогда в Polizeirevier (Hauptstraße, восточнее Autoteile): заявление и объявления с вознаграждением.",
-    "ШИНЫ: протектор и давление каждой — «Шины и давление» в меню машины; подкачать — компрессор или колонка «Luft» "
+    "тогда в полицию (Хауптштрассе, восточнее магазина «Восток»): заявление и объявления с вознаграждением.",
+    "ШИНЫ: протектор и давление каждой — «Шины и давление» в меню машины; подкачать — компрессор или колонка «Воздух» "
     "на заправке. Лысые шины на мокром и снегу — длинный тормозной путь и занос; без ABS колёса блокируются.",
     "ДРИФТ: на скорости держите W + A или D и дёрните ручник (стрелка вниз), затем отпустите его и держите занос "
     "газом и контррулём. Лучше всего — заднеприводные (ВАЗ, BMW E21, Civic, AE86); передний привод сам выравнивается.",
     "Shift / Ctrl — передача вверх/вниз (или 1-4, R — задняя, N — нейтраль).",
     "I (держать) — стартер / заглушить, C — подсос, L — фары, H — гудок, V — вид (салон / сзади).",
-    "F — выйти, E — действие (заправка, TÜV, доставка, сдать машину на лом).",
+    "F — выйти, E — действие (заправка, техосмотр, доставка, сдать машину на лом).",
     "T — буксировочный трос: привязать брошенную машину (или свою) к машине рядом / отвязать.",
     "G — второе действие рядом (например, если рядом и своя машина, и брошенная).",
     "R у брошенной или своей машины — РАЗОБРАТЬ на запчасти (на свалке можно снять и мотор с коробкой).",
-    "ПОДЗЕМНЫЕ ГАРАЖИ: въезды «P» у Hauptstraße и Am Wald — въезжайте машиной или заходите пешком; пандусы "
+    "ПОДЗЕМНЫЕ ГАРАЖИ: въезды «P» у Хауптштрассе и Ам-Вальд — въезжайте машиной или заходите пешком; пандусы "
     "ведут на уровень −2.",
     "ЗАБРОШЕННЫЕ ГАРАЖИ (коричневые квадраты на карте): E у ворот — открыть (некоторые заперты — нужна монтировка),",
     "внутри — забытая машина (забрать бесплатно) и полки с деталями и инструментами (E — обыскать).",
@@ -84,29 +84,29 @@ CONTROLS = [
     "СОВЕТЫ: холодный мотор заводится только с подсосом (C). Трогайтесь с 1-й передачи.",
     "Остановились на передаче — выжмите сцепление, иначе заглохнете.",
     "Первое, что нужно машине: свечи, заряд АКБ (в гараже) и масло.",
-    "Чтобы ездить легально: TÜV (техосмотр), потом номера в Rathaus.",
-    "Магазины закрыты в воскресенье и по вечерам (Ladenschlussgesetz). Tankstelle работает круглосуточно.",
+    "Чтобы ездить легально: техосмотр (TÜV), потом номера в ратуше.",
+    "Магазины закрыты в воскресенье и по вечерам (так в Германии по закону). Заправка работает круглосуточно.",
 ]
 
 INTRO = [
-    "Декабрь 1998 года. Нижняя Саксония, городок Kleinbruck. Снег, мороз, на дорогах — каша из снега и соли.",
-    "У вас однокомнатная квартира на Lindenstraße 7 и ВАЗ 2102 «Жигули» 1979 года от дяди Вити: "
-    "ржавая насквозь, но на ходу, с номерами KB-VZ 102 и TÜV до весны.",
-    "Прямо за вашим гаражом — Autoverwertung Kowalski (въезд с Hauptstraße, справа от гаража). "
+    "Декабрь 1998 года. Нижняя Саксония, городок Кляйнбрук. Снег, мороз, на дорогах — каша из снега и соли.",
+    "У вас однокомнатная квартира на Линденштрассе, 7 и ВАЗ 2102 «Жигули» 1979 года от дяди Вити: "
+    "ржавая насквозь, но на ходу, с номерами KB-VZ 102 и техосмотром до весны.",
+    "Прямо за вашим гаражом — авторазборка Ковальского (въезд с Хауптштрассе, справа от гаража). "
     "Там, под брезентом среди «Трабантов», гниёт Toyota Corolla AE86 Sprinter Trueno 1985 года. "
     "Ковальский отдаст её даром — лишь бы освободить место. Это ваша ГЛАВНАЯ ЦЕЛЬ: забрать AE86, починить, "
-    "пройти TÜV и поставить на учёт.",
+    "пройти техосмотр и поставить на учёт.",
     "НАХОДКИ: у загородных дорог стоят брошенные машины — Trabant, Wartburg, Opel Kadett, VW Golf, Ford Taunus, "
     "изредка Mercedes W123 (серые точки на карте M). Любую можно ЗАБРАТЬ СЕБЕ бесплатно: подойдите и нажмите E. "
     "У каждой своё состояние — от почти живой до гнилой насквозь. Дотащите её тросом (T) к гаражу и восстанавливайте.",
     "Не нужна — тащите на площадку у пресса Ковальского и сдавайте на лом (35–120 DM).",
     "ЗАБРОШЕННЫЕ ГАРАЖИ: по округе стоят старые гаражи и сараи (коричневые квадраты на карте). Внутри — забытые "
     "машины, которые сохранились лучше придорожных, и полки с деталями. Часть ворот заперта: нужна монтировка (12 DM).",
-    "Ещё работа: смены на складе (Lager, по будням 6–9 утра) и доставка пиццы (Pizzeria Da Luigi).",
+    "Ещё работа: смены на складе (по будням 6–9 утра) и доставка пиццы (пиццерия «У Луиджи»).",
     "",
     "ЧТО ИССЛЕДОВАТЬ: два подземных гаража (много машин, мало деталей), три заброшенные парковки "
     "(ржавые и полуразобранные машины, детали на земле), свалка Ковальского (доноры — разбирайте на запчасти, R), "
-    "площадка «Gebrauchtwagen Weber» на L 342 — купить или продать машину.",
+    "автоплощадка Вебера на L 342 — купить или продать машину.",
     "Зимой: холодный мотор заводится хуже, аккумулятор слабее, на снегу и в слякоти машину несёт.",
     "Квартира ваша собственная — квартплаты нет. Страховка каждой машины на учёте (24 DM) списывается каждые 7 дней. "
     "На старте у вас 3000 DM. Утром мотор холодный: вытяните подсос (C), держите I для стартера.",
@@ -366,7 +366,7 @@ class StorageTake(Menu):
         import storage
         out = [((f"Взять: {storage.label(e)}", f"внутри {n}"), ("take", e), True) for e, n in storage.grouped(self.container)]
         if not out:
-            out.append(("Пусто. Продукты — в Supermarkt Kaufgut." if self.kind == "fridge" else "Пусто.", None, False))
+            out.append(("Пусто. Продукты — в супермаркете «Кауфгут»." if self.kind == "fridge" else "Пусто.", None, False))
         out.append(("Положить своё сюда…", "put", True))
         out.append(("Закрыть", CLOSE, True))
         return out
@@ -398,7 +398,7 @@ class TireMenu(Menu):
 
     @property
     def title(self):
-        return f"Шины — {self.car.name}" + (" · колонка «Luft» на заправке" if self.station else "")
+        return f"Шины — {self.car.name}" + (" · колонка «Воздух» на заправке" if self.station else "")
 
     def gauge(self):
         return self.station or self.g.has("compressor") or self.g.has("tire_gauge")
@@ -434,11 +434,11 @@ class TireMenu(Menu):
                         ("tire", s), True))
             if self.sel == s:
                 ok = self.pump()
-                out.append(((f"   ↳ подкачать +0,1 бар", "компрессор" if not self.station else "Luft"), ("add", s, 0.1), ok))
+                out.append(((f"   ↳ подкачать +0,1 бар", "компрессор" if not self.station else "колонка"), ("add", s, 0.1), ok))
                 out.append(((f"   ↳ довести до нормы {n:.1f} бар", "1–3 мин"), ("norm", s), ok))
                 out.append(((f"   ↳ стравить −0,1 бар", "ниппель"), ("add", s, -0.1), True))
         if not self.pump():
-            out.append(("Подкачать нечем: компрессор — Tankstelle / Autoteile (35 DM), или бесплатно у колонки «Luft» "
+            out.append(("Подкачать нечем: компрессор — заправка или магазин «Восток» (35 DM), или бесплатно у колонки «Воздух» "
                         "на заправке", None, False))
         else:
             out.append((("Все шины — до нормы", "5 мин"), "all", True))
@@ -549,11 +549,11 @@ class FuseBox(Menu):
         if st != "ok":
             out.append(((f"Поставить новый предохранитель {elec.BY_KEY[k]['amp']}А", f"запасных: {n}"), "replace", n > 0))
             if n <= 0:
-                out.append(("Нет запасных: набор предохранителей — заправка, Ost-Autoteile (4 DM)", None, False))
+                out.append(("Нет запасных: набор предохранителей — заправка или магазин «Восток» (4 DM)", None, False))
         out.append((("Включить цепь и проверить", "1 мин"), "test", True))
         out.append((("Прозвонить цепь мультиметром", "15 мин"), "probe", g.has("multimeter")))
         if not g.has("multimeter"):
-            out.append(("Мультиметра нет — Ost-Autoteile / Autohaus Krüger, 39 DM", None, False))
+            out.append(("Мультиметра нет — магазин «Восток» или автосалон Крюгера, 39 DM", None, False))
         if f and f["found"] and f["kind"] == "corrosion":
             out.append((("Зачистить окисленные контакты гнезда", "10 мин"), "clean", True))
         elif f and f["found"]:
@@ -608,7 +608,7 @@ class FuseBox(Menu):
             g.advance(2)
             d["fuses"][k] = "bug"
             self.out = ["«Жучок» стоит. Цепь больше не защищена: если неисправность осталась — будет плавиться проводка. "
-                        "TÜV с жучком не пропустит."]
+                        "С жучком техосмотр не пройти."]
         return None
 
 
@@ -669,12 +669,12 @@ class CarWork(Menu):
                 f"Комплект Shelby GT500: {len(done)} из {len(nodes)} · осталось купить на {cost_left:,.0f} DM".replace(",", " ")
             return [head, f"Сейчас ≈{hp:.0f} л.с., момент {car.spec['tq_peak']:.0f} Н·м · масса {car.spec['mass']:.0f} кг · "
                     f"сцепление шин ×{car.spec['grip']:.2f} · тормоза ×{car.spec['brake']:.2f}",
-                    "Каждая деталь сразу меняет машину; все десять — и это уже «Eleanor». Детали — в Autohaus Krüger."]
+                    "Каждая деталь сразу меняет машину; все десять — и это уже «Eleanor». Детали — в автосалоне Крюгера."]
         base_hp = {"civic": 85}.get(car.model, 0)
         if not car.has_tune("turbo"):
             return [f"Сейчас: атмосферный мотор, {base_hp} л.с. Турбина необязательна — Civic ездит и без неё.",
                     "Сначала ставится турбокит (5 ч, только в гараже). Интеркулер снимает перегрев и детонацию, "
-                    "буст-контроллер открывает режимы «Спорт» и «Гонка». Всё продаётся в Autohaus Krüger."]
+                    "буст-контроллер открывает режимы «Спорт» и «Гонка». Всё продаётся в автосалоне Крюгера."]
         key, bar = car.boost_setting
         eff = bar * (0.35 + 0.65 * car.tc("turbo"))
         hp = base_hp * (1 + TORQUE_PER_BAR * eff)
@@ -739,20 +739,20 @@ class CarWork(Menu):
                    + (f" · поднято: {st}" if st else "")]
         if self.stack[-1] == "lift":
             return pos + ["Домкрат поднимает одну сторону на 30 см. Лежать под машиной на одном домкрате опасно — "
-                          "подставьте подставки (Unterstellböcke), домкрат освободится.",
-                          "Поднятая машина не поедет. Домкрат и подставки — Ost-Autoteile и Autohaus Krüger (расходники)."]
+                          "подставьте подставки, домкрат освободится.",
+                          "Поднятая машина не поедет. Домкрат и подставки — магазин «Восток» и автосалон Крюгера (расходники)."]
         return pos + [
             f"{'Дизель' if car.sp('diesel') else 'Бензин'} {car.fuel:.1f}/{car.tank:.0f} л · "
             + (f"Масло {car.oil:.2f}/{car.oil_cap} л ({car.oil_quality:.0f}%) · " if car.oil_cap > 0 else "Масло — в бензине · ")
             + (f"Антифриз {car.coolant:.1f}/{car.coolant_cap} л" if car.coolant_cap > 0 else "Охлаждение воздушное"),
             f"Торм. жидк. {car.brake_fluid:.0f}% · АКБ {car.battery_charge:.0f}% · Темп. {car.temp:.0f}°C · "
             f"Пробег {car.odometer:.0f} км",
-            (f"ПОСЛЕ АВАРИИ: {damage.damage_text(car)}" + (" — TOTALSCHADEN, ремонт нецелесообразен" if damage.is_totaled(car) else "")
+            (f"ПОСЛЕ АВАРИИ: {damage.damage_text(car)}" + (" — «ТОТАЛ», ремонт нецелесообразен" if damage.is_totaled(car) else "")
              if car.deforms else "Кузов без аварийных повреждений") + " · "
-            f"TÜV: {tuv} · Номера: {car.plate if car.registered else 'нет'} · "
+            f"Техосмотр: {tuv} · Номера: {car.plate if car.registered else 'нет'} · "
             + ("в гараже" if self.in_garage() else "на улице (сварка и зарядка недоступны)"),
-        ] + ([("⚠ Mängelbericht полиции: " + "; ".join(car.mangel["items"]) +
-               " — устранить и пройти TÜV" + (", затем Rathaus" if not car.registered else "") +
+        ] + ([("⚠ Предписание полиции: " + "; ".join(car.mangel["items"]) +
+               " — устранить и пройти техосмотр" + (", затем ратуша" if not car.registered else "") +
                f" (срок: ещё {max(0, car.mangel['until'] - g.day)} дн.)")] if car.mangel else [])
 
     def items(self):
@@ -820,7 +820,7 @@ class CarWork(Menu):
                     out.append(((f"{nm}: поставить ({e['cond']:.0f}%)" + ("" if ok else " — сначала турбина"),
                                  f"{mins} мин" + (", гараж" if garage else "")), ("tune_in", node, e), ok))
                 if not cands:
-                    out.append((f"{nm}: нет под рукой (в руках / открытом багажнике / на стеллаже) — Autohaus Krüger, {ITEMS[pid]['price']:.0f} DM", None, False))
+                    out.append((f"{nm}: нет под рукой (в руках / открытом багажнике / на стеллаже) — автосалон Крюгера, {ITEMS[pid]['price']:.0f} DM", None, False))
             if "turbo" in tune_slots(car.model):
                 key = car.tune.get("boost", "soft")
                 out.append(((f"Режим наддува: {BOOST_BY_KEY[key][0].split(' (')[0]}", "10 мин"), "boost",
@@ -930,7 +930,7 @@ class CarWork(Menu):
                     out.append(((f"Выправить после аварии: {names[zk]} — смято {depth * 100:.0f} см",
                                  f"~{hrs} ч, {tools}"), ("straighten", zk), True))
             if total:
-                out.append(((f"Стапель у Krüger: восстановить геометрию кузова", f"{damage.FRAME_SHOP_PRICE:.0f} DM"),
+                out.append(((f"Стапель у Крюгера: восстановить геометрию кузова", f"{damage.FRAME_SHOP_PRICE:.0f} DM"),
                             "frame_shop", True))
             for p, name in PANELS.items():
                 tag = " (покрашено)" if car.painted[p] else ""
@@ -1011,7 +1011,7 @@ class CarWork(Menu):
             return None
         if sel == "lockset":
             import keys
-            if not g.need("toolbox") or not g.need("lockset", "комплект замков (Ost-Autoteile / Autohaus Krüger, 45 DM)"):
+            if not g.need("toolbox") or not g.need("lockset", "комплект замков (магазин «Восток» или автосалон Крюгера, 45 DM)"):
                 return None
             g.take_item("lockset")
             self.work(60)
@@ -1100,7 +1100,7 @@ class CarWork(Menu):
             g.notify("Антифриз вытечет — система охлаждения разобрана (помпа/термостат/ГБЦ).", RED)
         elif sel == "oil_add":
             if not g.has("oil"):
-                g.notify("Нет масла. Купите в Ost-Autoteile или на заправке.", RED)
+                g.notify("Нет масла. Купите в магазине «Восток» или на заправке.", RED)
             elif car.oil >= car.oil_cap - 0.1:
                 g.notify("Масла и так по верхней метке.", YELLOW)
             else:
@@ -1158,7 +1158,7 @@ class CarWork(Menu):
                 car.deforms = []
                 car.align = 0.0
                 car._total_said = False
-                g.notify("Krüger забрал машину на стапель и через два дня вернул с ровной геометрией.", GREEN, 8)
+                g.notify("Крюгер забрал машину на стапель и через два дня вернул с ровной геометрией.", GREEN, 8)
         elif sel in ("weld", "conv", "paint"):
             self.body_work(sel)
         return None
@@ -1422,7 +1422,7 @@ class CarWork(Menu):
             if sel[1] == "race" and not car.has_tune("intercooler"):
                 g.notify("Без интеркулера на 0.85 бар мотор будет детонировать и перегреваться!", ORANGE, 8)
             if sel[1] == "race":
-                g.notify("В режиме «Гонка» TÜV машину не пропустит.", YELLOW, 8)
+                g.notify("В режиме «Гонка» машина не пройдёт техосмотр.", YELLOW, 8)
             self.stack.pop()
             return
         node = sel[1]
@@ -1555,7 +1555,7 @@ class CarWork(Menu):
 
 
 class Dealer(Menu):
-    """Gebrauchtwagen Weber: купить машину с площадки или продать свою."""
+    """Автоплощадка Вебера: купить машину с площадки или продать свою."""
     wide = True
 
     def __init__(self, g, start=None):
@@ -1574,26 +1574,26 @@ class Dealer(Menu):
     def title(self):
         m = self.stack[-1]
         if m == "car":
-            return f"Weber: {self.g.cars[self.key].name}"
+            return f"Вебер: {self.g.cars[self.key].name}"
         if m == "sell":
-            return "Weber: продать машину"
+            return "Вебер: продать машину"
         if m == "confirm":
             return "Продать машину?"
-        return "Gebrauchtwagen Weber — An- & Verkauf"
+        return "Автоплощадка Вебера — покупка и продажа"
 
     def lines(self):
         g = self.g
         m = self.stack[-1]
         if m == "root":
-            return ["Herr Weber, в дублёнке и с термосом: «Alles mit Garantie... bis zum Hoftor.»",
+            return ["Господин Вебер, в дублёнке и с термосом: «Всё с гарантией... до ворот площадки.»",
                     f"На площадке {len(g.dealer['stock'])} машин. Хотите продать свою — поставьте её на "
-                    "площадку приёма (правая часть стоянки, у таблички «Ankauf»).",
+                    "площадку приёма (правая часть стоянки, у таблички «Скупка»).",
                     f"У вас: {g.p.money:.2f} DM."]
         if m == "car":
             car = g.cars[self.key]
             info = model_info(car.model) or {}
             price = g.dealer["stock"].get(self.key)
-            tuv = "свежий TÜV (2 года)" if car.tuv_until >= g.day else "без TÜV"
+            tuv = "свежий техосмотр (2 года)" if car.tuv_until >= g.day else "без техосмотра"
             worst = sorted(((pt["cond"], car.slots[sl][0]) for sl, pt in car.parts.items() if pt), key=lambda x: x[0])[:3]
             return [f"{car.name}, пробег {car.odometer:,.0f} км, {tuv}, без номеров.".replace(",", " "),
                     info.get("desc", "Проверенная «двойка» — ездит, и ладно.") if car.model != "vaz2102" else
@@ -1604,11 +1604,11 @@ class Dealer(Menu):
                     f"Цена: {price:.0f} DM. У вас: {g.p.money:.2f} DM." if price else "Эта машина уже продана."]
         if m == "sell":
             ks = g.cars_in_sell_zone()
-            return ["Weber осматривает машины на площадке приёма и называет цену (обычно ~60% от рыночной).",
-                    "" if ks else "На площадке приёма нет ваших машин. Подгоните машину к табличке «Ankauf»."]
+            return ["Вебер осматривает машины на площадке приёма и называет цену (обычно ~60% от рыночной).",
+                    "" if ks else "На площадке приёма нет ваших машин. Подгоните машину к табличке «Скупка»."]
         if m == "confirm":
             car = g.cars[self.key]
-            return [f"Weber даст за {car.name} {g.dealer_offer(self.key):.0f} DM наличными.",
+            return [f"Вебер даст за {car.name} {g.dealer_offer(self.key):.0f} DM наличными.",
                     "После продажи машина станет товаром на площадке — выкупить обратно можно, но дороже."]
         return []
 
@@ -1623,7 +1623,7 @@ class Dealer(Menu):
                 car = g.cars.get(k)
                 if car is None:
                     continue
-                tuv = " · TÜV" if car.tuv_until >= g.day else ""
+                tuv = " · техосмотр" if car.tuv_until >= g.day else ""
                 out.append(((f"{car.name} · {car.odometer / 1000:.0f} тыс. км · {self.score(car)}%{tuv}",
                              f"{price:.0f} DM"), ("car", k), True))
             if not out:
@@ -1660,7 +1660,7 @@ class Dealer(Menu):
             return None
         if sel in ("buy", "sell"):
             if not g.is_open("dealer"):
-                g.notify(f"Weber закрыт. {g.hours_str('dealer')}.", RED)
+                g.notify(f"Вебер закрыт. {g.hours_str('dealer')}.", RED)
                 return None
             self.stack.append(sel)
             return None
@@ -1671,7 +1671,7 @@ class Dealer(Menu):
         if sel == "buy_it":
             car = g.cars[self.key]
             if g.buy_from_dealer(self.key):
-                g.notify(f"Вы купили {car.name}! Ключи у вас, машина на площадке Weber. Номера — в Rathaus.", GREEN, 8)
+                g.notify(f"Вы купили {car.name}! Ключи у вас, машина на площадке Вебера. Номера — в ратуше.", GREEN, 8)
                 return "close"
             return None
         if isinstance(sel, tuple) and sel[0] == "sell":
@@ -1827,17 +1827,17 @@ class ActionsMixin:
             self.enter_apartment()
             return
         if not self.is_open(bid):
-            self.info(name, ["Geschlossen. Закрыто.", f"Часы работы: {self.hours_str(bid)}"])
+            self.info(name, ["Закрыто.", f"Часы работы: {self.hours_str(bid)}"])
             return
         if bid == "supermarkt":
-            self.open_menu(Shop(self, "Supermarkt Kaufgut", SHOP_SUPERMARKT, subtitle="Продукты и напитки"))
+            self.open_menu(Shop(self, "Супермаркет «Кауфгут»", SHOP_SUPERMARKT, subtitle="Продукты и напитки"))
         elif bid == "autoteile":
-            self.parts_shop("ost", "Ost-Autoteile",
+            self.parts_shop("ost", "Запчасти «Восток»",
                             "«Запчасти для Lada, Trabant, Wartburg — всё, что ездило в ГДР и СССР. Привезём из Польши.»")
         elif bid == "tanke":
-            self.open_menu(Shop(self, "Tankstelle", SHOP_TANKE, subtitle="Открыто круглосуточно"))
+            self.open_menu(Shop(self, "Заправка", SHOP_TANKE, subtitle="Открыто круглосуточно"))
         elif bid == "imbiss":
-            self.open_menu(Shop(self, "Döner Imbiss", SHOP_IMBISS, subtitle="«Mit alles und scharf?»"))
+            self.open_menu(Shop(self, "Дёнер-закусочная", SHOP_IMBISS, subtitle="«Со всем и поострее?»"))
         elif bid == "pizzeria":
             self.pizzeria()
         elif bid == "rathaus":
@@ -1871,39 +1871,39 @@ class ActionsMixin:
         self.dialog(title, [subtitle, "Для какой машины ищете детали?"], opts, wide=True)
 
     def autohaus(self):
-        self.dialog("Autohaus Krüger — Toyota & West", [
-            "Herr Krüger — бывший механик Toyota. Возит детали из Японии и Голландии, а заодно держит склад "
+        self.dialog("Автосалон Крюгера — Toyota и западные марки", [
+            "Господин Крюгер — бывший механик Toyota. Возит детали из Японии и Голландии, а заодно держит склад "
             "б/у и новых деталей для западных машин: Opel, VW, Ford, Mercedes, Volvo, BMW, Audi и Honda.",
             "Для Honda Civic есть тюнинг: турбокит IHI, интеркулер и буст-контроллер (в списке запчастей Civic).",
-            "«AE86 у Ковальского? Ja, kenne ich. Ремень ГРМ — первым делом, sonst ist der Motor kaputt!»"],
+            "«AE86 у Ковальского? Да, знаю такую. Ремень ГРМ — первым делом, иначе мотору конец!»"],
             [("Выбрать марку и запчасти", lambda: self.parts_shop(
-                "west", "Autohaus Krüger", "Toyota, Opel, VW, Ford, Mercedes — оригинал и контрактные"), True)], wide=True)
+                "west", "Автосалон Крюгера", "Toyota, Opel, VW, Ford, Mercedes — оригинал и контрактные"), True)], wide=True)
 
     # ----------------------------------------------------------------- свалка / приём лома
     def buy_ae86(self):
         if self.owned["ae86"]:
             return
         if not self.is_open("schrott"):
-            self.info("Autoverwertung Kowalski", ["Контора закрыта — Ковальского нет.",
+            self.info("Авторазборка Ковальского", ["Контора закрыта — Ковальского нет.",
                                                   f"Часы работы: {self.hours_str('schrott')}"])
             return
         if AE86_PRICE <= 0 or self.pay(AE86_PRICE):
             self.owned["ae86"] = True
-            self.info("Autoverwertung Kowalski", [
-                "Ковальский стягивает брезент и отдаёт ключи на проволоке: «Nimm sie umsonst. "
+            self.info("Авторазборка Ковальского", [
+                "Ковальский стягивает брезент и отдаёт ключи на проволоке: «Забирай даром. "
                 "Мне она только место занимает».",
-                "«Zieh sie raus, wann du willst. Только ремень ГРМ сначала поменяй, а то будет металлолом.»",
+                "«Вытаскивай, когда хочешь. Только ремень ГРМ сначала поменяй, а то будет металлолом.»",
                 "Отбуксируйте AE86 в гараж: подгоните «двойку», у AE86 нажмите T (трос), "
                 "уберите «двойку» из гаража на место рядом и затащите «панду» внутрь. "
-                "Или позвоните в Abschleppdienst (телефон дома). Сварка и зарядка АКБ — только в гараже."], wide=True)
-            self.notify("Toyota AE86 теперь ваша! Следующий шаг — починить и пройти TÜV.", GREEN, 8)
+                "Или вызовите эвакуатор (телефон дома). Сварка и зарядка АКБ — только в гараже."], wide=True)
+            self.notify("Toyota AE86 теперь ваша! Следующий шаг — починить и пройти техосмотр.", GREEN, 8)
 
     def ae86_offer(self):
         ae = self.cars["ae86"]
         miss = [n for n, k in (("АКБ", "battery"), ("глушителя", "exhaust"), ("заднего колеса", "tire_rr"))
                 if not ae.has(k)]
         lines = [
-            "Под рваным брезентом — белая с чёрным Corolla GT Coupé (Sprinter Trueno) 1985 года, "
+            "Под рваным брезентом — белая с чёрным Corolla GT купе (Sprinter Trueno) 1985 года, "
             "с поднимающимися фарами. Пороги в дырах, задние арки сгнили, одно колесо на кирпичах.",
             f"Мотор 4A-GE: {ae.c('engine') * 100:.0f}%, ремень ГРМ: {ae.c('belt') * 100:.0f}%, "
             f"ржавчина до {ae.max_rust():.0f}%. Нет: " + ", ".join(miss) + ".",
@@ -1917,7 +1917,7 @@ class ActionsMixin:
         car = self.cars[key]
         info = dict(model_info(car.model) or {})
         info.setdefault("origin", "СССР" if car.model == "vaz2102" else "?")
-        info.setdefault("desc", "«Жигули»-универсал: простой, ремонтопригодный, запчасти есть в Ost-Autoteile.")
+        info.setdefault("desc", "«Жигули»-универсал: простой, ремонтопригодный, запчасти есть в магазине «Восток».")
         if key in self.dealer["stock"]:
             self.open_menu(Dealer(self, key))
             return
@@ -1957,7 +1957,7 @@ class ActionsMixin:
             self.info(ag["name"], [
                 "Ржавые ворота заперты на амбарный замок. Сквозь щель видно силуэт машины под слоем пыли.",
                 "Хозяин давно уехал, соседи говорят — «забирай, всё равно сгниёт». Но замок так не открыть.",
-                "Нужна монтировка (Brecheisen): Ost-Autoteile или заправка, 12 DM."], wide=True)
+                "Нужна монтировка: магазин «Восток» или заправка, 12 DM."], wide=True)
             return
         self.advance(15)
         self.play_sound("grind", 0.8)
@@ -1997,15 +1997,15 @@ class ActionsMixin:
         self.info(car.name, [
             "Вы находите в бардачке старые бумаги: хозяин выписан, машину бросили. По закону её можно оформить на себя.",
             "Что дальше: трос (T) к своей машине и тянуть к гаражу (сварка и зарядка АКБ — только там). "
-            "Запчасти: восточные — в Ost-Autoteile, западные — в Autohaus Krüger, б/у — у Ковальского.",
-            "Когда машина будет готова: TÜV, потом номера в Rathaus — и она ваша полноценная машина."], wide=True)
+            "Запчасти: восточные — в магазине «Восток», западные — в автосалоне Крюгера, б/у — у Ковальского.",
+            "Когда машина будет готова: техосмотр, потом номера в ратуше — и она ваша полноценная машина."], wide=True)
 
     def scrap_car(self, key, confirmed=False):
         car = self.cars.get(key)
         if car is None or key in MAIN_CARS:
             return
         if not self.is_open("schrott"):
-            self.info("Autoverwertung Kowalski", ["Приём закрыт. Оставьте машину на площадке — примем в рабочее время.",
+            self.info("Авторазборка Ковальского", ["Приём закрыт. Оставьте машину на площадке — примем в рабочее время.",
                                                   f"Часы работы: {self.hours_str('schrott')}"])
             return
         if self.owned.get(key) and not confirmed:
@@ -2027,7 +2027,7 @@ class ActionsMixin:
         if not self.has("rope"):
             w = self.where_is("rope")
             self.notify("Трос не под рукой: лежит " + w + "." if w else
-                        "Нет троса. Купите Abschleppseil на заправке или в Ost-Autoteile (15 DM).", RED, 6)
+                        "Нет троса. Купите буксировочный трос на заправке или в магазине «Восток» (15 DM).", RED, 6)
             return
         tgt = self.cars[target]
         best, bd = None, 14.0
@@ -2059,17 +2059,17 @@ class ActionsMixin:
     def refuel(self):
         key = self.car_in_zone(PUMP_ZONE)
         if key is None:
-            self.info("Tankstelle", ["Подъезжайте на машине к колонке."])
+            self.info("Заправка", ["Подъезжайте на машине к колонке."])
             return
         self.cur = key
         car = self.car
         if car.running:
-            self.info("Tankstelle", ["«Motor aus!» — кричит заправщик. Заглушите двигатель."])
+            self.info("Заправка", ["«Мотор заглушите!» — кричит заправщик. Заглушите двигатель."])
             return
         space = car.tank - car.fuel
         diesel, two = car.sp("diesel"), car.sp("two_stroke")
         price = DIESEL_PRICE if diesel else FUEL_PRICE + (MIX_EXTRA if two else 0)
-        fuel_name = "Diesel" if diesel else ("Gemisch 1:50" if two else "Normalbenzin")
+        fuel_name = "Дизель" if diesel else ("Смесь 1:50" if two else "Бензин 91")
 
         def fill(l):
             l = min(l, car.tank - car.fuel)
@@ -2092,13 +2092,13 @@ class ActionsMixin:
         if diesel:
             note = "Колонка с дизтопливом. Бензин в этот мотор — нельзя!"
         elif two:
-            note = "Двухтактник: заправщик из «Gemisch»-колонки — бензин с 2T-маслом 1:50, как в ГДР."
+            note = "Двухтактник: заправщик из колонки со смесью — бензин с 2T-маслом 1:50, как в ГДР."
         elif car.model == "vaz2102":
-            note = "Старый мотор 2101 рассчитан на А-76, но и немецкий Normal (91) переварит."
+            note = "Старый мотор 2101 рассчитан на А-76, но и немецкий 91-й переварит."
         elif car.model == "ae86":
-            note = "4A-GE любит Super (95) — но и Normal переживёт."
+            note = "4A-GE любит 95-й — но и 91-й переживёт."
         else:
-            note = "Normalbenzin 91 — старому карбюраторному мотору в самый раз."
+            note = "Бензин 91 — старому карбюраторному мотору в самый раз."
 
         def wash():
             if self.pay(WASH_PRICE):
@@ -2106,24 +2106,24 @@ class ActionsMixin:
                 car.dirt = 0.05
                 self.notify(f"{car.name} помыта. Теперь видно, где ржавчина, а где краска.", GREEN)
 
-        self.dialog(f"Tankstelle — {car.name}", [
+        self.dialog(f"Заправка — {car.name}", [
             f"{fuel_name}. В баке: {car.fuel:.1f} / {car.tank:.0f} л. Цена: {price:.2f} DM/л. "
             f"У вас: {self.p.money:.2f} DM.", note], [
             (f"10 литров ({10 * price:.2f} DM)", lambda: fill(10), True),
             (f"20 литров ({20 * price:.2f} DM)", lambda: fill(20), True),
             (f"Полный бак ({space:.1f} л = {space * price:.2f} DM)", lambda: fill(space), True),
-            (f"Waschanlage — помыть машину ({WASH_PRICE:.0f} DM)", wash, car.dirt > 0.1)])
+            (f"Автомойка — помыть машину ({WASH_PRICE:.0f} DM)", wash, car.dirt > 0.1)])
 
     def tuv(self):
         if not self.is_open("tuv"):
-            self.info("TÜV", ["Geschlossen.", f"Часы работы: {self.hours_str('tuv')}"])
+            self.info("Техосмотр TÜV", ["Закрыто.", f"Часы работы: {self.hours_str('tuv')}"])
             return
         key = self.car_in_zone(TUV_YARD)
         if key is not None:
             self.cur = key
         car = self.car
         if key is None:
-            self.info("TÜV-Prüfstelle", ["«Guten Tag. Для Hauptuntersuchung пригоните машину во двор перед зданием.»",
+            self.info("Техосмотр TÜV", ["«Добрый день. Для техосмотра пригоните машину во двор перед зданием.»",
                                          "Стоимость проверки: 95 DM."])
             return
 
@@ -2136,45 +2136,45 @@ class ActionsMixin:
             self.advance(20 if nach else 45)
             defects = car.tuv_defects() + elec.tuv_defects(car)
             if nach:          # перепроверка — только то, что в предписании: свет, сигналы, электрика
-                defects = [x for x in defects if x.startswith(("Beleuchtung", "Sicherung", "Фары", "Электрика"))]
+                defects = [x for x in defects if x.startswith(("Освещение", "Предохранитель", "Фары", "Электрика"))]
             p, why = car._start_chance()
             if p <= 0 or car.battery_charge < 10:
                 defects.insert(0, "Автомобиль не заводится своим ходом")
             if not defects and nach:
                 car.mangel = None
-                self.info("TÜV — Nachprüfung bestanden", [
-                    "«Mängel beseitigt.» Инспектор ставит штамп в Mängelbericht.",
-                    "Предписание закрыто." + ("" if car.registered else " Теперь — в Rathaus: заново поставить на учёт.")])
+                self.info("Техосмотр — повторная проверка пройдена", [
+                    "«Дефекты устранены.» Инспектор ставит штамп в предписание.",
+                    "Предписание закрыто." + ("" if car.registered else " Теперь — в ратушу: заново поставить на учёт.")])
                 return
             if not defects:
                 car.mangel = None
                 car.tuv_until = self.day + 730
                 first = ("Инспектор долго смотрит на «Жигули», потом на вас, потом снова на «Жигули»."
                          if car.model == "vaz2102" else
-                         "Инспектор обходит AE86 и улыбается: «Ein Hachi-Roku! Mein Sohn liebt diese Autos.»")
-                self.info("TÜV — BESTANDEN!", [
-                    first, "«Na gut... Ohne erhebliche Mängel.» Он клеит свежую Plakette.",
-                    "TÜV действует 2 года." + ("" if car.registered else " Теперь — в Rathaus за номерами.")])
+                         "Инспектор обходит AE86 и улыбается: «Хати-року! Мой сын обожает эти машины.»")
+                self.info("Техосмотр ПРОЙДЕН!", [
+                    first, "«Ну что ж... Существенных дефектов нет.» Он клеит свежую наклейку техосмотра.",
+                    "Техосмотр действует 2 года." + ("" if car.registered else " Теперь — в ратушу за номерами.")])
             else:
-                self.info("TÜV — NICHT BESTANDEN", ["Erhebliche Mängel (существенные дефекты):", ""] +
+                self.info("Техосмотр НЕ ПРОЙДЕН", ["Существенные дефекты:", ""] +
                           [f"• {d}" for d in defects[:14]] + ["", "Устраните и приезжайте снова."])
 
-        mg = ["", "Mängelbericht от полиции: " + "; ".join(car.mangel["items"])] if car.mangel else []
-        self.dialog("TÜV-Prüfstelle", [
-            f"Hauptuntersuchung (техосмотр) для {car.name}.",
+        mg = ["", "Предписание полиции: " + "; ".join(car.mangel["items"])] if car.mangel else []
+        self.dialog("Техосмотр TÜV", [
+            f"Техосмотр для {car.name}.",
             "Проверяют: коррозию, тормоза, шины, свет и сигналы, предохранители, выхлоп, амортизаторы, течи."] + mg,
-            [("Nachprüfung — перепроверка дефектов (25 DM, 20 мин)" if nach else "Пройти проверку (95 DM, 45 мин)",
+            [("Повторная проверка дефектов (25 DM, 20 мин)" if nach else "Пройти проверку (95 DM, 45 мин)",
               check, True)])
 
     def rathaus(self):
         def register(key):
             car = self.cars[key]
             if car.tuv_until < self.day:
-                self.info("Zulassungsstelle", ["«Ohne gültigen TÜV-Bericht — keine Zulassung.» Сначала TÜV."])
+                self.info("Регистрация машин", ["«Без действующего техосмотра регистрации не будет.» Сначала техосмотр."])
                 return
             if car.mangel:
-                self.info("Zulassungsstelle", ["«Hier liegt ein offener Mängelbericht vor.» Сначала устраните дефекты "
-                                               "и пройдите Nachprüfung в TÜV: " + "; ".join(car.mangel["items"])])
+                self.info("Регистрация машин", ["«На машину выписано предписание.» Сначала устраните дефекты "
+                                               "и пройдите повторную проверку на техосмотре: " + "; ".join(car.mangel["items"])])
                 return
             if self.pay(145):
                 self.advance(120)
@@ -2183,35 +2183,35 @@ class ActionsMixin:
                     letters = "ABCDEFGHKLMNPRSTUVWXYZ"
                     car.plate_text = f"KB-{rr.choice(letters)}{rr.choice(letters)} {rr.randint(10, 999)}"
                 car.registered = True
-                self.info("Zulassungsstelle", [
+                self.info("Регистрация машин", [
                     f"Два часа в очереди, три формуляра — и номера ваши: {car.plate}.",
                     "Страховка и налог (24 DM) будут списываться еженедельно.",
                     f"{car.name} можно ездить легально!"])
                 if self.check_goal():
                     self.victory()
 
-        lines = ["Nummer 47 bitte... Служащая Frau Becker смотрит поверх очков."]
+        lines = ["«Номер сорок семь, пожалуйста...» Служащая госпожа Беккер смотрит поверх очков."]
         opts = []
         for key, car in self.owned_cars():
             if car.registered:
                 lines.append(f"{car.name}: зарегистрирована, номера {car.plate}.")
             else:
                 ok = car.tuv_until >= self.day
-                lines.append(f"{car.name}: не на учёте" + ("" if ok else " (нужен действующий TÜV)") + ".")
+                lines.append(f"{car.name}: не на учёте" + ("" if ok else " (нужен действующий техосмотр)") + ".")
                 opts.append((f"Поставить на учёт {car.name} (145 DM: номера + страховка)",
                              lambda key=key: register(key), ok))
-        self.dialog("Rathaus — Zulassungsstelle", lines, opts)
+        self.dialog("Ратуша — регистрация машин", lines, opts)
 
     def victory(self):
         ae = self.cars["ae86"]
         days = self.day + 1
         self.play_sound("horn", 0.8)
-        self.info("ЦЕЛЬ ВЫПОЛНЕНА — Hachi-Roku!", [
-            f"Toyota AE86 Sprinter Trueno на ходу, с TÜV и номерами {ae.plate}.",
+        self.info("ЦЕЛЬ ВЫПОЛНЕНА — Хати-року!", [
+            f"Toyota AE86 Sprinter Trueno на ходу, с техосмотром и номерами {ae.plate}.",
             "Вы садитесь в ковшеобразное кресло, поворачиваете ключ — 4A-GE заводится с полоборота "
             "и крутится до 7600 так, как «двойке» и не снилось.",
             f"На это ушло {days} дн. Доставок пиццы: {self.stats['deliveries']}, смен на складе: {self.stats['shifts']}.",
-            f"Сдано машин на лом: {self.stats.get('scrapped', 0)}. Ковальский машет вслед: «Hachi-Roku lebt!»",
+            f"Сдано машин на лом: {self.stats.get('scrapped', 0)}. Ковальский машет вслед: «Хати-року жива!»",
             "Старую «двойку» можно оставить — ржавая, но своя. Игра продолжается: A7 без ограничения скорости ждёт!",
         ], wide=True)
 
@@ -2220,10 +2220,10 @@ class ActionsMixin:
 
         def shift():
             if p.drunk > 15:
-                self.info("Lager", ["Бригадир Herr Wolff: «Du bist besoffen! Nach Hause!» — сегодня без работы."])
+                self.info("Склад", ["Бригадир Вольф: «Да ты пьян! Марш домой!» — сегодня без работы."])
                 return
             if p.energy < 30:
-                self.info("Lager", ["Вы слишком устали для смены (бодрость < 30)."])
+                self.info("Склад", ["Вы слишком устали для смены (бодрость < 30)."])
                 return
             for _ in range(48):
                 self.advance(10, working=True)
@@ -2236,10 +2236,10 @@ class ActionsMixin:
                 note = " Бригадир ворчал, что от вас воняет (−30%)."
             self.stats["shifts"] += 1
             self.earn(pay, "за смену на складе")
-            self.info("Lager", [f"8 часов таскали коробки и водили погрузчик. Заработано {pay:.0f} DM.{note}"])
+            self.info("Склад", [f"8 часов таскали коробки и водили погрузчик. Заработано {pay:.0f} DM.{note}"])
 
         can = self.weekday() < 5 and 6 <= self.hour < 9
-        self.dialog("Spedition Müller — Lager", [
+        self.dialog("Склад транспортной фирмы Мюллера", [
             "Склад логистической компании. Платят 13 DM в час (8 часов = 104 DM).",
             "Смену можно начать по будням с 06:00 до 09:00."],
             [("Отработать смену (8 часов)", shift, can)])
@@ -2252,8 +2252,8 @@ class ActionsMixin:
             limit = dist / 8.0 + 60
             self.delivery = {"x": x, "y": y, "deadline": self.minutes + limit, "start": self.minutes,
                              "pay": round(10 + dist / 70, 2)}
-            self.info("Pizzeria Da Luigi", [
-                "Luigi: «Ecco! Eine Pizza Salami. Schnell, schnell!»",
+            self.info("Пиццерия «У Луиджи»", [
+                "Луиджи: «Вот! Пицца с салями. Быстро, быстро!»",
                 f"Адрес отмечен на карте (M) и жёлтым столбом света. Расстояние ~{dist:.0f} м, время ~{limit:.0f} мин.",
                 f"Оплата: {self.delivery['pay']:.2f} DM + чаевые за скорость. Пешком не успеть!"])
 
@@ -2266,7 +2266,7 @@ class ActionsMixin:
             opts.insert(0, ("Заказ уже на руках — отвезите его", None, False))
         else:
             opts.insert(0, ("Взять заказ на доставку", take, True))
-        self.dialog("Pizzeria Da Luigi", ["Luigi ищет курьера со своей машиной. Платит за каждый заказ."], opts)
+        self.dialog("Пиццерия «У Луиджи»", ["Луиджи ищет курьера со своей машиной. Платит за каждый заказ."], opts)
 
     def deliver(self):
         d = self.delivery
@@ -2302,11 +2302,11 @@ class ActionsMixin:
                  f"Сдано машин: {self.stats['scrapped']}. Брошенных машин в округе: {len(self.wrecks)}."]
         if not in_drop:
             lines.append("На площадке приёма сейчас пусто.")
-        self.dialog("Autoverwertung Kowalski", lines, opts + [
-            ("Купить б/у запчасти", lambda: self.open_menu(Shop(self, "Schrottplatz — б/у", [], mode="used",
+        self.dialog("Авторазборка Ковальского", lines, opts + [
+            ("Купить б/у запчасти", lambda: self.open_menu(Shop(self, "Свалка — б/у запчасти", [], mode="used",
                                                                   stock=self.schrott_stock,
                                                                   subtitle="Всё как есть, без гарантии")), True),
-            ("Продать старые детали", lambda: self.open_menu(Shop(self, "Schrottplatz — скупка", [], mode="sell",
+            ("Продать старые детали", lambda: self.open_menu(Shop(self, "Свалка — скупка", [], mode="sell",
                                                                     subtitle="Цена зависит от состояния")), True)])
 
     # ----------------------------------------------------------------- штрафы
@@ -2331,11 +2331,11 @@ class ActionsMixin:
         reasons = []
         lim = self.world.speed_limit(car.x, car.y)
         if not car.registered:
-            reasons.append(("Fahren ohne Zulassung und Versicherung (без номеров/страховки)", 250))
+            reasons.append(("Езда без регистрации и страховки", 250))
         elif car.tuv_until < self.day:
-            reasons.append(("Просроченный TÜV", 60))
+            reasons.append(("Просроченный техосмотр", 60))
         if self.p.drunk > 25:
-            reasons.append(("Alkohol am Steuer (вождение в нетрезвом виде)", 500))
+            reasons.append(("Вождение в нетрезвом виде", 500))
         if lim and car.kmh() > lim + 20:
             reasons.append((f"Превышение скорости ({car.kmh():.0f} при {lim})", 100))
         night = self.darkness() > 0.4
@@ -2362,18 +2362,18 @@ class ActionsMixin:
             if serious and car.registered:
                 car.registered = False
                 car.mangel = {"items": items, "until": self.day + 14, "serious": True}
-                extra = ["«Weiterfahrt untersagt!» Машина не соответствует требованиям — полицейский снимает печать "
+                extra = ["«Дальше ехать запрещено!» Машина не соответствует требованиям — полицейский снимает печать "
                          "с номеров: регистрация аннулирована.",
-                         "Что делать: устранить неисправность света → пройти TÜV (Nachprüfung) → заново поставить на учёт "
-                         "в Rathaus. До тех пор езда — уже без регистрации."]
+                         "Что делать: устранить неисправность света → пройти повторную проверку на техосмотре → заново поставить на учёт "
+                         "в ратуше. До тех пор езда — уже без регистрации."]
             elif serious:
                 car.mangel = {"items": items, "until": self.day + 14, "serious": True}
-                extra = ["«Weiterfahrt untersagt!» Без исправного света ехать нельзя. Почините, пройдите TÜV."]
+                extra = ["«Дальше ехать запрещено!» Без исправного света ехать нельзя. Почините, пройдите техосмотр."]
             elif not car.mangel:
                 car.mangel = {"items": items, "until": self.day + 7, "serious": False}
-                extra = ["Выписан Mängelbericht: устранить дефекты и в течение 7 дней предъявить машину в TÜV "
-                         "(Nachprüfung, 25 DM). Иначе регистрацию аннулируют."]
-        self.info("Polizei", ["«Allgemeine Verkehrskontrolle! Führerschein und Fahrzeugschein, bitte.»", ""] +
+                extra = ["Выписано предписание: устранить дефекты и в течение 7 дней предъявить машину на техосмотр "
+                         "(повторная проверка, 25 DM). Иначе регистрацию аннулируют."]
+        self.info("Полиция", ["«Плановая проверка! Права и документы на машину, пожалуйста.»", ""] +
                   [f"• {r[0]}: {r[1]} DM" for r in reasons] +
                   ["", f"Итого штраф: {total} DM."] + (extra or
                   ["Полицейский качает головой, глядя на ваши гнилые пороги."]))
@@ -2418,7 +2418,7 @@ class ActionsMixin:
                     self.notify("Пицца готова — горячая пицца в руке (или в холодильнике, если руки заняты).", GREEN)
                 self.dialog("Плита", ["Разогреть замороженную пиццу? (15 мин)"], [("Разогреть", cook, True)])
             else:
-                self.info("Плита", ["Нечего готовить. Купите Tiefkühlpizza в Supermarkt."])
+                self.info("Плита", ["Нечего готовить. Купите замороженную пиццу в супермаркете."])
         elif key == "sink":
             p.thirst = min(100, p.thirst + 30)
             self.advance(2)
@@ -2440,7 +2440,7 @@ class ActionsMixin:
         elif key == "tv":
             def watch():
                 self.advance(60)
-                self.info("Fernsehen", [random.choice(NEWS)])
+                self.info("Телевизор", [random.choice(NEWS)])
             self.dialog("Телевизор", ["Посмотреть телевизор 1 час?"], [("Смотреть", watch, True)])
         elif key == "sofa":
             self.advance(60)
@@ -2455,7 +2455,7 @@ class ActionsMixin:
                 "«Руководство по ремонту ВАЗ-2101, -2102» (1982), зачитанное до дыр.",
                 "Закладка на странице: «Порядок работы цилиндров 1-3-4-2. Зазор в контактах "
                 "прерывателя 0,35-0,45 мм. Уровень масла — между метками щупа (3,75 л)».",
-                "Рядом — немецко-русский словарь и сборник «Deutsch für Aussiedler»."])
+                "Рядом — немецко-русский словарь и учебник «Немецкий для переселенцев»."])
         elif key == "wardrobe":
             self.info("Шкаф", ["Спортивный костюм Adidas, рабочая куртка, выходная рубашка. Больше ничего полезного."])
         elif key == "ktable":
@@ -2488,7 +2488,7 @@ class ActionsMixin:
             car.vlat = car.ang_vel = 0.0
             car.engine_off()
             self.advance(90)
-            self.notify(f"Abschleppdienst Meier отбуксировал {car.name} "
+            self.notify(f"Эвакуатор Майера отбуксировал {car.name} "
                         + ("на место рядом с гаражом" if busy else "в ваш гараж") + " (120 DM).", GREEN)
 
         def mama():
@@ -2503,8 +2503,8 @@ class ActionsMixin:
                                           "Шапку надевай, октябрь на дворе!»"])
 
         self.dialog("Телефон", ["Кому позвонить?"], [
-            ("Pizza-Service — заказать пиццу (15 DM)", pizza, True),
-        ] + [(f"Abschleppdienst — {c.name} к гаражу (120 DM)", lambda k=k: tow(k), True)
+            ("Доставка пиццы — заказать (15 DM)", pizza, True),
+        ] + [(f"Эвакуатор — {c.name} к гаражу (120 DM)", lambda k=k: tow(k), True)
              for k, c in self.owned_cars()] + [
             ("Позвонить маме в Омск", mama, True)])
 
@@ -2513,7 +2513,7 @@ class ActionsMixin:
                  f"Деньги: {self.p.money:.2f} DM.  Квартира своя — за жильё платить не нужно."]
         for k, car in self.owned_cars():
             tuv = "нет" if car.tuv_until < self.day else f"до дня {car.tuv_until}"
-            lines.append(f"{car.name}: TÜV — {tuv}; номера — {car.plate if car.registered else 'нет'}; "
+            lines.append(f"{car.name}: техосмотр — {tuv}; номера — {car.plate if car.registered else 'нет'}; "
                          f"пробег {car.odometer:.0f} км; ржавчина до {car.max_rust():.0f}%.")
         lines += [f"Сделано доставок: {self.stats['deliveries']},  смен на складе: {self.stats['shifts']},  "
                   f"сдано машин на лом: {self.stats.get('scrapped', 0)}.", ""]
@@ -2523,5 +2523,5 @@ class ActionsMixin:
                       "трос (T) к «двойке», тащить на площадку у пресса, E — сдать на лом."]
         elif not self.goal_done:
             lines += ["План по AE86: 1) ремень ГРМ, АКБ, свечи, масло, бензин;  2) шины, тормоза, амортизаторы;",
-                      "3) сварка порогов/днища и покраска (в гараже);  4) TÜV;  5) номера в Rathaus."]
+                      "3) сварка порогов/днища и покраска (в гараже);  4) техосмотр;  5) номера в ратуше."]
         self.info("Дела и счета", lines, wide=True)

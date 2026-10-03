@@ -1205,9 +1205,9 @@ class AICar3D:
         if police:
             self.siren = Entity(parent=self.root, model="cube", position=(0, 1.5, -0.1), scale=(0.7, 0.12, 0.22),
                                 color=color.rgb(40, 70, 160))
-            t = Text("POLIZEI", parent=self.root, position=(0.86, 0.75, 0), rotation_y=-90, scale=6, origin=(0, 0),
+            t = Text("ПОЛИЦИЯ", parent=self.root, position=(0.86, 0.75, 0), rotation_y=-90, scale=6, origin=(0, 0),
                      color=color.rgb(30, 90, 60))
-            t2 = Text("POLIZEI", parent=self.root, position=(-0.86, 0.75, 0), rotation_y=90, scale=6, origin=(0, 0),
+            t2 = Text("ПОЛИЦИЯ", parent=self.root, position=(-0.86, 0.75, 0), rotation_y=90, scale=6, origin=(0, 0),
                       color=color.rgb(30, 90, 60))
         self.wheels = []
         for x in (-0.76, 0.76):

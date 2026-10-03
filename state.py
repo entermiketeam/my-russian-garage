@@ -28,7 +28,7 @@ import theft as _theft
 import tires as _tires
 
 START_DATE = datetime.datetime(1998, 12, 1, 0, 0)  # вторник, начало зимы
-WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+WEEKDAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 RENT = 0.0                # квартира своя — квартплаты нет (оставлено для совместимости)
 START_MONEY = 3000.0      # стартовый баланс новой игры
@@ -534,13 +534,13 @@ class GameState:
             return False
         del self.dealer["stock"][key]
         self.owned[key] = True
-        self.hand_over_keys(key, "Weber отдаёт ключи — один уже в замке зажигания")
+        self.hand_over_keys(key, "Вебер отдаёт ключи — один уже в замке зажигания")
         return True
 
     def sell_to_dealer(self, key):
         offer = self.dealer_offer(key)
         car = self.cars[key]
-        self.earn(offer, f"— Weber купил {car.name}")
+        self.earn(offer, f"— Вебер купил {car.name}")
         self.owned[key] = False
         if self.cur == key:
             self.cur = "vaz"
@@ -796,8 +796,8 @@ class GameState:
         if not self.owned["ae86"]:
             return "Цель: забрать ржавую AE86 у Ковальского за гаражом (бесплатно)"
         if ae.tuv_until < self.day:
-            return "Цель: починить AE86 и пройти TÜV"
-        return "Цель: поставить AE86 на учёт в Rathaus"
+            return "Цель: починить AE86 и пройти техосмотр"
+        return "Цель: поставить AE86 на учёт в ратуше"
 
     def check_goal(self):
         ae = self.cars["ae86"]
@@ -1098,7 +1098,7 @@ class GameState:
             before = len(self.dealer["stock"])
             self.spawn_dealer_stock(random.Random(day * 17 + 3))
             if len(self.dealer["stock"]) > before:
-                self.notify("Gebrauchtwagen Weber: на площадку пригнали новые машины.", YELLOW, 6)
+                self.notify("Автоплощадка Вебера: пригнали новые машины.", YELLOW, 6)
         if len([k for k in self.wreck_keys() if k.startswith("w")]) < MAX_FINDS and random.random() < 0.8:
             key = self.spawn_wreck()
             if key:
@@ -1112,13 +1112,13 @@ class GameState:
             mg = c.mangel
             if mg and c.registered and day > mg.get("until", 1e9):
                 c.registered = False
-                self.notify(f"{c.name}: срок по Mängelbericht истёк, дефекты не подтверждены в TÜV — "
-                            "регистрация аннулирована. Устраните, пройдите TÜV и снова в Rathaus.", RED, 10)
+                self.notify(f"{c.name}: срок предписания истёк, устранение дефектов не подтверждено на техосмотре — "
+                            "регистрация аннулирована. Устраните дефекты, пройдите техосмотр и снова в ратушу.", RED, 10)
             elif mg and c.registered and day == mg.get("until"):
-                self.notify(f"{c.name}: сегодня последний день — предъявите машину в TÜV (Mängelbericht).", YELLOW, 8)
+                self.notify(f"{c.name}: сегодня последний день по предписанию — предъявите машину на техосмотр.", YELLOW, 8)
         for k, c in self.owned_cars():
             if c.registered and 0 <= c.tuv_until < day:
-                self.notify(f"{c.name}: срок TÜV истёк! Нужно пройти техосмотр.", RED, 8)
+                self.notify(f"{c.name}: срок техосмотра истёк! Нужно пройти его заново.", RED, 8)
 
     def hospital(self, reason):
         self.notify(reason, RED, 8)
@@ -1556,7 +1556,7 @@ class GameState:
                             self.notify(f"Удар! ({vn * 3.6:.0f} км/ч){what}", RED)
                             if _damage.is_totaled(car) and not getattr(car, "_total_said", False):
                                 car._total_said = True
-                                self.notify(f"{car.name}: геометрия кузова уведена — похоже на Totalschaden. "
+                                self.notify(f"{car.name}: геометрия кузова уведена — похоже на «тотал». "
                                             "Ремонт дороже машины, проще сдать на лом.", RED, 10)
                     _damage.bounce(car, nx, ny, px, py, 0.15 if vn > 3 else 0.05)
                     break

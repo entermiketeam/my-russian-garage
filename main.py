@@ -26,7 +26,7 @@ def _set_enabled_fast(self, value):
 
 _UEntity.enabled = property(_enabled_prop.fget, _set_enabled_fast)
 
-TITLE = "Mein Garagen-Sommer 3D — ВАЗ 2102 в Германии"
+TITLE = "My Russian Garage"
 app = Ursina(title=TITLE, development_mode=False, fullscreen=False, size=(1280, 720), borderless=False, vsync=True)
 window.size = (1280, 720)
 window.center_on_screen()
@@ -173,7 +173,7 @@ class TitleMenu(Menu):
         if s == "load":
             return g.load_game
         if s == "help":
-            g.open_menu(Dialog("Управление", CONTROLS, wide=True))
+            show_controls(g)
             return None
         if s == "quit":
             application.quit()
@@ -181,6 +181,19 @@ class TitleMenu(Menu):
 
     def back(self):
         return False
+
+
+def show_controls(g, page=0):
+    """Справка по управлению — на двух страницах (целиком на экран не влезает крупным шрифтом)."""
+    cut = next((i for i, l in enumerate(CONTROLS) if l.startswith("КЛЮЧИ")), len(CONTROLS) // 2)
+    pages = [CONTROLS[:cut], CONTROLS[cut:]]
+
+    def go(p):
+        def f():
+            show_controls(g, p)                  # текущую страницу меню закрывает само
+        return f
+    opts = [("Дальше →", go(1), True)] if page == 0 else [("← Назад", go(0), True)]
+    g.open_menu(Dialog(f"Управление ({page + 1}/2)", pages[page], options=opts, wide=True))
 
 
 class PauseMenu(Menu):
@@ -204,7 +217,7 @@ class PauseMenu(Menu):
         if s == "load":
             return g.load_game
         if s == "help":
-            g.open_menu(Dialog("Управление", CONTROLS, wide=True))
+            show_controls(g)
             return None
         if s == "title":
             return g.show_title
@@ -526,7 +539,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.rebind()
         self.mode = "play"
         self.enter_apartment(silent=True)
-        self.open_menu(Dialog("Добро пожаловать в Kleinbruck", INTRO, wide=True))
+        self.open_menu(Dialog("Добро пожаловать в Кляйнбрук", INTRO, wide=True))
 
     def load_game(self):
         self.clear_menus()
@@ -766,7 +779,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         car.hotwired = True
         self.play_sound("tool", 0.6)
         self.notify("Кожух колонки снят, провода соединены: теперь машина заводится без ключа (I). Замок зажигания "
-                    "испорчен — TÜV это заметит; замена замков — в меню работы с машиной.", YELLOW, 10)
+                    "испорчен — на техосмотре это заметят; замена замков — в меню работы с машиной.", YELLOW, 10)
 
     def shift(self, gear):
         car = self.car
@@ -1068,10 +1081,10 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
 
     def place(self):
         if self.location == "apartment":
-            return "Квартира, Lindenstraße 7"
+            return "Квартира, Линденштрассе, 7"
         L = self.world.level_at(self.p.x, self.p.y)
         if L:
-            return f"{L['name']}, Ebene {'−1' if L['no'] == -1 else '−2'}"
+            return f"{L['name']}, уровень {'−1' if L['no'] == -1 else '−2'}"
         P = self.world.places.parking_at(self.p.x, self.p.y)
         if P:
             return P["name"]
@@ -1080,7 +1093,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             return r[5]
         if self.p.in_car:
             return f"{'Пассажир' if self.p.seat == 'passenger' else 'За рулём'} {self.car.name}"
-        return "Kleinbruck"
+        return "Кляйнбрук"
 
     def _view_yaw(self):
         if self.p.in_car:
@@ -1623,14 +1636,14 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         if p.in_car:
             if point_in(PUMP_ZONE, car.x, car.y):
                 acts.append(("Заправиться", self.refuel))
-                acts.append(("Колонка «Luft»: проверить и подкачать шины (бесплатно)",
+                acts.append(("Колонка «Воздух»: проверить и подкачать шины (бесплатно)",
                              lambda: self.open_menu(__import__("actions").TireMenu(self, self.cur, station=True))))
             if point_in(TUV_YARD, car.x, car.y):
-                acts.append(("Пройти TÜV (техосмотр)", self.tuv))
+                acts.append(("Пройти техосмотр (TÜV)", self.tuv))
             acts += self._service_actions()
             if self.cur in self.cars_in_sell_zone() and abs(car.speed) < 1:
-                acts.append((f"Предложить Weber: {car.name} ({self.dealer_offer(self.cur):.0f} DM) — выйдите и зайдите в контору",
-                             lambda: self.notify("Заглушите мотор, выйдите и зайдите в контору Weber (E у двери).")))
+                acts.append((f"Предложить Веберу: {car.name} ({self.dealer_offer(self.cur):.0f} DM) — выйдите и зайдите в контору",
+                             lambda: self.notify("Заглушите мотор, выйдите и зайдите в контору Вебера (E у двери).")))
         else:
             for bid, b in BUILDINGS.items():
                 door = b[7]
@@ -1662,7 +1675,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
             own = self.nearest_car(p.x, p.y) if self.near_car() else None
             sale = wreck if wreck is not None and wreck in self.dealer["stock"] else None
             if sale is not None:
-                acts.append((f"Weber продаёт: {self.cars[sale].name} — {self.dealer['stock'][sale]:.0f} DM (осмотреть)",
+                acts.append((f"Вебер продаёт: {self.cars[sale].name} — {self.dealer['stock'][sale]:.0f} DM (осмотреть)",
                              lambda k=sale: self.open_menu(Dealer(self, k))))
                 wreck = None
 
@@ -1678,7 +1691,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
                 acts.append((f"Открыть капот — {self.cars[own].name}", self.open_carwork))
                 if point_in(PUMP_ZONE, self.cars[own].x, self.cars[own].y):
                     acts.append(("Заправить машину", self.refuel))
-                    acts.append(("Колонка «Luft»: шины (давление, бесплатно)",
+                    acts.append(("Колонка «Воздух»: шины (давление, бесплатно)",
                                  lambda k=own: self.open_menu(__import__("actions").TireMenu(self, k, station=True))))
             if not find_first and self.nearest_car(p.x, p.y, 3.0, owned_only=False) == "ae86" and not self.owned["ae86"]:
                 acts.append(("Осмотреть Toyota AE86 (Ковальский отдаёт даром)", self.ae86_offer))

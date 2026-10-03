@@ -68,7 +68,7 @@ class TrafficView:
         bar = Entity(parent=c3.body, model="cube", position=(0, roof + 0.07, c3.Z(g.get("rs", 1.5)) + 0.3 if g else 0),
                      scale=(0.9, 0.1, 0.22), color=color.rgb(40, 70, 160))
         for sx in (-1, 1):
-            Text("POLIZEI", parent=c3.body, position=(sx * (g.get("W2", 0.8) + 0.02), g.get("belt", 0.8) - 0.12, c3.Z(g.get("L", 4.2) / 2)),
+            Text("ПОЛИЦИЯ", parent=c3.body, position=(sx * (g.get("W2", 0.8) + 0.02), g.get("belt", 0.8) - 0.12, c3.Z(g.get("L", 4.2) / 2)),
                  rotation_y=-90 * sx, scale=5, origin=(0, 0), color=color.rgb(30, 90, 60))
         c3._siren = bar
 

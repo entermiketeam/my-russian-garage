@@ -18,6 +18,28 @@ def safe(s):
     return str(s).replace("<", "‹").replace(">", "›")
 
 
+def text_w(s, size=1.0):
+    """Ширина надписи на экране (кириллица шире латиницы — считаем по-настоящему, а не по числу букв)."""
+    return Text.get_width(safe(s)) * size
+
+
+def wrap(s, maxw, size):
+    """Разбить строку по словам, чтобы каждая часть влезала в maxw."""
+    out = []
+    s = safe(s)
+    while s and text_w(s, size) > maxw:
+        words = s.split(" ")
+        cut = 1
+        for i in range(1, len(words) + 1):
+            if text_w(" ".join(words[:i]), size) > maxw:
+                break
+            cut = i
+        out.append(" ".join(words[:cut]))
+        s = " ".join(words[cut:]).lstrip()
+    out.append(s)
+    return out
+
+
 def rgb(c, a=255):
     return color.rgba(c[0], c[1], c[2], a)
 
@@ -99,8 +121,11 @@ class HUD:
                             position=(random.uniform(LEFT, RIGHT), random.uniform(-0.5, 0.5), -0.1)) for _ in range(140)]
         self._cache = {}
         # что в руках (левая / правая) — внизу по краям экрана
-        self.hand_t = [label("", LEFT + 0.02, -0.455, 0.8, (235, 225, 190), parent=r),
-                       label("", RIGHT - 0.02, -0.455, 0.8, (235, 225, 190), parent=r, origin=(0.5, 0.5))]
+        self.hand_t = [label("", LEFT + 0.02, -0.455, 0.8, (235, 225, 190), parent=r, z=-0.02),
+                       label("", RIGHT - 0.02, -0.455, 0.8, (235, 225, 190), parent=r, origin=(0.5, 0.5), z=-0.02)]
+        # тёмная подложка — подписи читаются и на фоне рук/снега
+        self.hand_bg = [panel(LEFT + 0.012, -0.447, 0.1, 0.03, a=200, parent=r, z=-0.01),
+                        panel(RIGHT - 0.112, -0.447, 0.1, 0.03, a=200, parent=r, z=-0.01)]
 
     def notify(self, s, col=(240, 240, 235), t=5.0):
         self.notes.append([safe(s), t, col])
@@ -135,8 +160,14 @@ class HUD:
         hs = state.get("hands")
         for i, t in enumerate(self.hand_t):
             t.enabled = hs is not None
+            self.hand_bg[i].enabled = bool(hs) and bool(hs[i])
             if hs:
                 self._set(("h", i), t, safe(hs[i]))
+                bw = text_w(hs[i], 0.8) + 0.016
+                bg = self.hand_bg[i]
+                if abs(bg.scale_x - bw) > 1e-4:
+                    bg.scale_x = bw
+                    bg.x = LEFT + 0.012 if i == 0 else RIGHT - 0.012 - bw
         # осадки: снег — медленные хлопья, мокрый снег — косые капли
         precip = state.get("precip") if visible else None
         if precip != getattr(self, "_precip", None):
@@ -189,6 +220,19 @@ class HUD:
         self.prompt_bg.enabled = bool(pr)
         self._set("pr1", self.prompt_t, pr[0] if pr else "")
         self._set("pr2", self.prompt2_t, pr[1] if len(pr) > 1 else "")
+        key = (self._cache.get("pr1"), self._cache.get("pr2"))
+        if pr and key != getattr(self, "_pr_key", None):
+            # плашка — по ширине текста; не помещается в экран — шрифт мельче
+            self._pr_key = key
+            maxw = RIGHT - LEFT - 0.06
+            s1 = min(0.95, 0.95 * maxw / max(0.01, text_w(key[0] or "", 0.95)))
+            s2 = min(0.8, 0.8 * maxw / max(0.01, text_w(key[1] or "", 0.8)))
+            self.prompt_t.scale = s1
+            self.prompt2_t.scale = s2
+            w = max(0.3, text_w(key[0] or "", s1), text_w(key[1] or "", s2)) + 0.04
+            two = bool(key[1])
+            self.prompt_bg.scale = (w, 0.09 if two else 0.05)
+            self.prompt_bg.x = -w / 2
         # доставка
         d = g.delivery
         self.deliv_bg.enabled = self.arrow.enabled = self.deliv_t.enabled = bool(d)
@@ -309,9 +353,9 @@ class MenuView:
         self.root = Entity(parent=UI, z=-0.2)
         r = self.root
         if title_screen:
-            label("MEIN GARAGEN-SOMMER", LEFT + 0.06, 0.4, 3.2, (235, 205, 95), parent=r)
+            label("MY RUSSIAN GARAGE", LEFT + 0.06, 0.4, 3.2, (235, 205, 95), parent=r)
             label("ВАЗ 2102 · Германия · 1998 · 3D", LEFT + 0.065, 0.3, 1.4, parent=r)
-            label("аналог My Winter Car — ржавая «двойка», квартира, работа, TÜV", LEFT + 0.065, 0.25, 0.9,
+            label("ржавая «двойка», квартира, работа и техосмотр — гаражная жизнь в 1998 году", LEFT + 0.065, 0.25, 0.9,
                   (170, 170, 170), parent=r)
             x, y, w = LEFT + 0.07, 0.12, 0.5
             rows = 8
@@ -320,23 +364,20 @@ class MenuView:
         else:
             wide = getattr(m, "wide", False)
             w = 1.2 if wide else 0.95
-            lines = []
-            wrapc = int(w * 95)
-            for l in m.lines():
-                if not l:
-                    lines.append("")
-                    continue
-                s = safe(l)
-                while len(s) > wrapc:
-                    cut = s.rfind(" ", 0, wrapc)
-                    cut = cut if cut > 0 else wrapc
-                    lines.append(s[:cut])
-                    s = s[cut:].lstrip()
-                lines.append(s)
             rows = 14 if wide else 11
             size = 0.95
             nrows = min(rows, len(items))
-            h = 0.09 + len(lines) * 0.032 + nrows * 0.038 + 0.06
+            src = m.lines()
+            k = 1.0
+            while True:                               # длинный текст — шрифт мельче, пока не влезет в экран
+                lines = []
+                for l in src:
+                    lines += wrap(l, w - 0.05, 0.9 * k) if l else [""]
+                if 0.09 + len(lines) * 0.032 * k + nrows * 0.038 + 0.06 <= 0.96 or k <= 0.6:
+                    break
+                k -= 0.04
+            lh = 0.032 * k
+            h = 0.09 + len(lines) * lh + nrows * 0.038 + 0.06
             h = min(h, 0.96)
             x = -w / 2
             y = h / 2
@@ -349,8 +390,8 @@ class MenuView:
             label(m.title, x + 0.025, y - 0.02, 1.35, (240, 200, 60), parent=r)
             yy = y - 0.075
             for l in lines:
-                label(l, x + 0.025, yy, 0.9, parent=r)
-                yy -= 0.032
+                label(l, x + 0.025, yy, 0.9 * k, parent=r)
+                yy -= lh
             y = yy - 0.01
             x += 0.03
             w -= 0.06
@@ -369,10 +410,14 @@ class MenuView:
             col = ((240, 200, 60) if sel else (240, 240, 235)) if enabled else (120, 120, 120)
             lab = it[0]
             if isinstance(lab, (list, tuple)):
-                label(lab[0], x, y, size, col, parent=r)
-                label(lab[1], x + w, y, size, col, parent=r, origin=(0.5, 0.5))
+                # слева — название, справа — время/цена: не даём им наехать друг на друга
+                wl, wr = text_w(lab[0], size), text_w(lab[1], size)
+                k = min(1.0, (w - 0.02) / max(0.01, wl + wr)) if wl + wr > w - 0.02 else 1.0
+                label(lab[0], x, y, size * max(0.72, k), col, parent=r)
+                label(lab[1], x + w, y, size * max(0.72, k), col, parent=r, origin=(0.5, 0.5))
             else:
-                label(lab, x, y, size, col, parent=r)
+                lw = text_w(lab, size)
+                label(lab, x, y, size * max(0.72, min(1.0, w / max(0.01, lw))), col, parent=r)
             y -= step
         if len(items) > rows:
             label(f"{self.index + 1}/{len(items)}", x + w, y, 0.7, (150, 150, 150), parent=r, origin=(0.5, 0.5))
@@ -400,6 +445,12 @@ class MenuView:
         return None
 
 
+MAP_SHORT = {"apartment": "Дом", "imbiss": "Закусочная", "pizzeria": "Пиццерия", "supermarkt": "Супермаркет",
+             "rathaus": "Ратуша", "autoteile": "Запчасти", "tanke": "Заправка", "tuv": "Техосмотр", "polizei": "Полиция",
+             "lager": "Склад", "kirche": "Церковь", "bahnhof": "Вокзал", "schrott": "Разборка",
+             "autohaus": "Автосалон", "dealer": "Автоплощадка"}
+
+
 class MapView:
     def __init__(self, tex, size):
         h = 0.9
@@ -408,10 +459,7 @@ class MapView:
         self.root = Entity(parent=UI, z=-0.3, enabled=False)
         Entity(parent=self.root, model="quad", scale=(3, 2), color=color.rgba(0, 0, 0, 200), z=0.02)
         self.map = Entity(parent=self.root, model="quad", texture=tex, scale=(w, h), position=(0, 0.02, 0.01))
-        for b in BUILDINGS.values():
-            cx = (b[0] + b[2] / 2) / MAP_W - 0.5
-            cy = 0.5 - b[1] / MAP_H
-            label(b[4], cx * w, 0.02 + cy * h + 0.012, 0.55, parent=self.root, origin=(0, 0), z=-0.01)
+        self._placed = []
         self.me = Entity(parent=self.root, model="circle", scale=0.016, color=color.red, z=-0.02)
         self.car = Entity(parent=self.root, model="circle", scale=0.014, color=color.rgb(230, 200, 60), z=-0.02)
         self.ae = Entity(parent=self.root, model="circle", scale=0.014, color=color.rgb(250, 250, 250), z=-0.02)
@@ -420,8 +468,27 @@ class MapView:
         self.mine_dots = [Entity(parent=self.root, model="circle", scale=0.014, color=color.rgb(90, 200, 230),
                                  z=-0.02, enabled=False) for _ in range(16)]
         self.target = Entity(parent=self.root, model="circle", scale=0.02, color=color.rgb(255, 230, 60), z=-0.02)
-        label("Kleinbruck (Niedersachsen) · вы — красная · ВАЗ — жёлтая · AE86 — белая · ваши находки — голубые · брошенные — серые · заброшенные гаражи — коричневые · M/Esc — закрыть",
+        label("Кляйнбрук (Нижняя Саксония) · вы — красная · ВАЗ — жёлтая · AE86 — белая · ваши находки — голубые · брошенные — серые · заброшенные гаражи — коричневые · M/Esc — закрыть",
               0, -0.465, 0.75, parent=self.root, origin=(0, 0))
+
+    def _label_buildings(self, squares):
+        """Подписи зданий — короткие и без наложений (в том числе на значки гаражей): не влезает над зданием —
+        ставим ниже, ещё ниже..."""
+        w, h = self.w, self.h
+        placed = list(squares)
+        for bid, b in BUILDINGS.items():
+            s = MAP_SHORT.get(bid, b[4])
+            cx = ((b[0] + b[2] / 2) / MAP_W - 0.5) * w
+            top = 0.02 + (0.5 - b[1] / MAP_H) * h
+            bot = 0.02 + (0.5 - (b[1] + b[3]) / MAP_H) * h
+            tw, th = text_w(s, 0.55), 0.02
+            for y in (top + 0.012, bot - 0.012, top + 0.034, bot - 0.034, top + 0.056, bot - 0.056):
+                box = (cx - tw / 2 - 0.004, cx + tw / 2 + 0.004, y - th / 2, y + th / 2)
+                if not any(box[0] < o[1] and o[0] < box[1] and box[2] < o[3] and o[2] < box[3] for o in placed):
+                    break
+            placed.append(box)
+            label(s, cx, y, 0.55, parent=self.root, origin=(0, 0), z=-0.01)
+        self._placed = placed
 
     def _pos(self, x, y):
         return ((x / MAP_W - 0.5) * self.w, 0.02 + (0.5 - y / MAP_H) * self.h)
@@ -431,12 +498,29 @@ class MapView:
         if not hasattr(self, "ag_marks"):
             # заброшенные гаражи: коричневые квадраты с подписью
             self.ag_marks = {}
+            sqs = []
+            for ag in g.world.abandoned:
+                gx, gy, gw, gh = ag["rect"]
+                px, py = self._pos(gx + gw / 2, gy + gh / 2)
+                sqs.append((px - 0.011, px + 0.011, py - 0.011, py + 0.011))
+            self._label_buildings(sqs)
             for ag in g.world.abandoned:
                 gx, gy, gw, gh = ag["rect"]
                 pos = self._pos(gx + gw / 2, gy + gh / 2)
                 sq = Entity(parent=self.root, model="quad", scale=0.018, color=color.rgb(150, 95, 55),
                             position=(*pos, -0.02))
-                t = label("?", pos[0] + 0.012, pos[1] + 0.01, 0.55, (240, 200, 120), parent=self.root)
+                # подпись справа от квадрата; у края карты или поверх другой подписи — слева / ниже
+                name_w = max(text_w("? Заброшенный гараж", 0.55), text_w(ag["name"], 0.55))
+                left = pos[0] + 0.012 + name_w > self.w / 2
+                tx = pos[0] - 0.012 if left else pos[0] + 0.012
+                ty = pos[1] + 0.01
+                for dy in (0.0, -0.022, 0.022, -0.044):
+                    x0, x1 = (tx - name_w, tx) if left else (tx, tx + name_w)
+                    if not any(x0 < o[1] and o[0] < x1 and ty + dy - 0.02 < o[3] and o[2] < ty + dy for o in self._placed):
+                        break
+                ty += dy
+                self._placed.append((x0, x1, ty - 0.02, ty))
+                t = label("?", tx, ty, 0.55, (240, 200, 120), parent=self.root, origin=(0.5, 0.5) if left else (-0.5, 0.5))
                 self.ag_marks[ag["id"]] = (sq, t)
         for gid, (sq, t) in self.ag_marks.items():
             gs = g.garages.get(gid, {})

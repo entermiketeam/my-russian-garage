@@ -23,7 +23,7 @@ class Mirrors:
             for name, sp in SPEC.items():
                 buf = app.win.makeTextureBuffer("mirror_" + name, *sp["size"])
                 if buf is None:
-                    raise RuntimeError("нет off-screen буфера")
+                    raise RuntimeError("нет внеэкранного буфера")
                 buf.setSort(-25)
                 buf.setClearColorActive(True)
                 tex = buf.getTexture()

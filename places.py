@@ -10,8 +10,8 @@ INTERIOR_X = 2400.0
 
 # ---------------------------------------------------------------- въезды в подземные гаражи (на поверхности)
 TG_ENTRANCES = [
-    dict(id="tg1", name="Tiefgarage Marktplatz", rect=(700, 316, 9, 14)),
-    dict(id="tg2", name="Tiefgarage am Bahnhof", rect=(440, 115, 9, 14)),
+    dict(id="tg1", name="Подземный гараж у Рыночной площади", rect=(700, 316, 9, 14)),
+    dict(id="tg2", name="Подземный гараж у вокзала", rect=(440, 115, 9, 14)),
 ]
 # ---------------------------------------------------------------- уровни (во внутренней области)
 TG_LEVELS = [
@@ -22,9 +22,9 @@ TG_LEVELS = [
 ]
 # ---------------------------------------------------------------- заброшенные парковки
 PARKINGS = [
-    dict(id="p1", name="Parkplatz ehem. Konsum-Markt", rect=(560, 718, 64, 40), door="n", style="market"),
-    dict(id="p2", name="Pendlerparkplatz an der L 342", rect=(1660, 318, 96, 28), door="n", style="gravel"),
-    dict(id="p3", name="Hinterhof der Spedition Müller", rect=(826, 496, 72, 42), door="w", style="yard"),
+    dict(id="p1", name="Парковка бывшего магазина «Консум»", rect=(560, 718, 64, 40), door="n", style="market"),
+    dict(id="p2", name="Парковка у трассы L 342", rect=(1660, 318, 96, 28), door="n", style="gravel"),
+    dict(id="p3", name="Задний двор транспортной фирмы Мюллера", rect=(826, 496, 72, 42), door="w", style="yard"),
 ]
 # ---------------------------------------------------------------- площадка купли-продажи
 DEALER_LOT = (1545, 314, 54, 36)
@@ -213,12 +213,12 @@ class Places:
             X0, Y0, W, H = l2["rect"]
             # поверхность -> уровень -1 (въезд), обратно — в западном конце проезда A
             self.portals.append(dict(trigger=e["trigger"], dir=(0, 1), to=(x0 + 10, y0 + 8, 0.0), label=e["name"] + ": −1"))
-            self.portals.append(dict(trigger=(x0 + 0.1, y0 + 5.2, 4.0, 5.6), dir=(-1, 0), to=e["exit"], label="Ausfahrt"))
+            self.portals.append(dict(trigger=(x0 + 0.1, y0 + 5.2, 4.0, 5.6), dir=(-1, 0), to=e["exit"], label="Выезд"))
             # −1 <-> −2: пандусы в восточных концах проездов
             self.portals.append(dict(trigger=(x0 + w - 4.1, y0 + 37.2, 4.0, 5.6), dir=(1, 0),
-                                     to=(X0 + W - 10, Y0 + 8, math.pi), label="Ebene −2"))
+                                     to=(X0 + W - 10, Y0 + 8, math.pi), label="Уровень −2"))
             self.portals.append(dict(trigger=(X0 + W - 4.1, Y0 + 5.2, 4.0, 5.6), dir=(1, 0),
-                                     to=(x0 + w - 10, y0 + 40, math.pi), label="Ebene −1"))
+                                     to=(x0 + w - 10, y0 + 40, math.pi), label="Уровень −1"))
             l1["ramps"] = [("up", (x0, y0 + 5, 4.5, 6)), ("down", (x0 + w - 4.5, y0 + 37, 4.5, 6))]
             l2["ramps"] = [("up", (X0 + W - 4.5, Y0 + 5, 4.5, 6))]
 

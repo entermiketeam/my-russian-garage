@@ -25,7 +25,7 @@ def label(e):
     if e.get("id") == "key":
         return key_label(e)
     if e.get("id") == "flyer":
-        return f"Листовки «Gestohlen!» ({int(round(e.get('cond', 100) / 10))} шт.)"
+        return f"Листовки «Угнана машина!» ({int(round(e.get('cond', 100) / 10))} шт.)"
     it = ITEMS.get(e["id"], {})
     return it.get("name", e["id"]) + (f" [{e['cond']:.0f}%]" if it.get("kind") == "part" else "")
 

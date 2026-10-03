@@ -213,7 +213,7 @@ class Places3D:
             self.surface.append(board("P", (px, 2.75, -py - 0.05), 0, 40, (250, 250, 250), (30, 80, 170)))
             self.surface.append(board(e["name"], (x + w / 2, 3.18, -(y + 4.6) + 0.33), 180, 12, (245, 245, 240),
                                       (35, 40, 50)))
-            self.surface.append(board("Einfahrt  ·  max. 2,00 m", (x + w / 2, 2.62, -(y + 4.6) + 0.34), 180, 8,
+            self.surface.append(board("Въезд  ·  высота до 2,00 м", (x + w / 2, 2.62, -(y + 4.6) + 0.34), 180, 8,
                                       (20, 20, 20), YELLOW))
         from city3d import additive
         self.surface.append(mesh_group(mb, "tg", double_sided=True))
@@ -255,7 +255,7 @@ class Places3D:
             rot = {"n": 180, "s": 0, "w": 90, "e": -90}[P["door"]]
             self.surface.append(board(P["name"], (sx, 2.2, -sy + (0.05 if rot == 180 else 0)), rot, 9,
                                       (30, 30, 30), (225, 222, 205)))
-            self.surface.append(board("Privatgelände — Betreten verboten", (sx, 1.75, -sy + (0.05 if rot == 180 else 0)),
+            self.surface.append(board("Частная территория — вход запрещён", (sx, 1.75, -sy + (0.05 if rot == 180 else 0)),
                                       rot, 6, (240, 240, 240), (170, 35, 30)))
         self.surface.append(mesh_group(gnd, "places_gnd", texture=textures3d.detail(), double_sided=True))
         self.surface.append(mesh_group(mb, "places", double_sided=True))
@@ -284,7 +284,7 @@ class Places3D:
             mb.box2d(px + pw - 0.15, py, 0.15, 0.15, 0, ph, (110, 110, 112))
             mb.box2d(px - 0.2, py, pw + 0.4, 0.12, ph - 1.3, ph, _mul(col, 0.8))
             mb.box2d(px + 0.4, py - 0.01, 0.9, 0.14, ph - 1.1, ph - 0.4, (150, 90, 60))   # ржавое пятно
-            self.surface.append(board("KONSUM", (px + pw / 2, ph - 0.65, -py + 0.08), 180, 22, (250, 245, 230),
+            self.surface.append(board("КОНСУМ", (px + pw / 2, ph - 0.65, -py + 0.08), 180, 22, (250, 245, 230),
                                       _mul(col, 0.8)))
         elif kind == "cart":
             tipped = r.random() < 0.35
@@ -421,13 +421,13 @@ class Places3D:
         mb.box2d(x + 2, y - 0.8, 0.2, 0.2, 0, 5.2, (120, 120, 125))
         mb.box2d(x + 9.8, y - 0.8, 0.2, 0.2, 0, 5.2, (120, 120, 125))
         mb.box2d(x + 1.5, y - 0.85, 9.0, 0.1, 3.2, 5.2, (40, 90, 150))
-        self.surface.append(board("GEBRAUCHTWAGEN WEBER", (x + 6, 4.55, -(y - 0.85) + 0.07), 180, 16,
+        self.surface.append(board("АВТОПЛОЩАДКА ВЕБЕРА", (x + 6, 4.55, -(y - 0.85) + 0.07), 180, 16,
                                   (250, 250, 240), (40, 90, 150)))
-        self.surface.append(board("An- & Verkauf · Barzahlung · Export", (x + 6, 3.7, -(y - 0.85) + 0.07), 180, 9,
+        self.surface.append(board("Покупка и продажа · наличные · экспорт", (x + 6, 3.7, -(y - 0.85) + 0.07), 180, 9,
                                   (40, 40, 40), (240, 200, 40)))
         # табличка «Ankauf» у площадки приёма
         mb.cylinder(sx + sw / 2, 0, -(sy - 0.6), 0.05, 2.6, (150, 150, 150), seg=6)
-        self.surface.append(board("ANKAUF — Wagen hier abstellen", (sx + sw / 2, 2.3, -(sy - 0.6) + 0.06), 180, 8,
+        self.surface.append(board("СКУПКА — ставьте машину сюда", (sx + sw / 2, 2.3, -(sy - 0.6) + 0.06), 180, 8,
                                   (20, 20, 20), YELLOW))
         # разметка мест продажи
         for bx, by, ba in self._dealer_spots():
@@ -485,7 +485,7 @@ class Places3D:
             col = rng.choice([(150, 40, 35), (196, 186, 150), (70, 110, 150), (230, 230, 220)])
             mb.box2d(430 + k * 1.6, 429.0, 1.3, 1.1, 0.0 + 0.0, 0.05 + 0.06 * (k % 3 + 1), col)
         self.surface.append(mesh_group(mb, "junk_extra", double_sided=True))
-        self.surface.append(board("Ersatzteile — Selbstabbau erlaubt", (jx + 40, 2.6, -(jy + 44)), 180, 9,
+        self.surface.append(board("Запчасти — снимайте сами", (jx + 40, 2.6, -(jy + 44)), 180, 9,
                                   (20, 20, 20), (240, 200, 40)))
 
     # -------------------------------------------------------------- подземный уровень
@@ -727,11 +727,11 @@ class Places3D:
         additive(pl_)
         self.interior += [interior, pe, on, pl_] + ([fl] if fl else [])
         # таблички
-        name = f"{L['name']}  ·  Ebene {'−1' if L['no'] == -1 else '−2'}"
+        name = f"{L['name']}  ·  уровень {'−1' if L['no'] == -1 else '−2'}"
         self.interior.append(board(name, (x0 + 12, 1.9, -(y0 + 0.01) - 0.02), 180, 12, (245, 245, 240), (40, 60, 90)))
         for kind, (rx, ry, rw, rh) in L.get("ramps", []):
             east = rx > x0 + w / 2
-            lab = ("Ausfahrt ↑" if L["no"] == -1 else "Ebene −1 ↑") if kind == "up" else "Ebene −2 ↓"
+            lab = ("Выезд ↑" if L["no"] == -1 else "Уровень −1 ↑") if kind == "up" else "Уровень −2 ↓"
             bxp = rx + rw + 1.2 if not east else rx - 1.2
             self.interior.append(board(lab, (bxp, H - 0.7, -(ry + rh / 2)), 90 if not east else -90, 12,
                                        (20, 20, 20), YELLOW))
@@ -739,9 +739,9 @@ class Places3D:
                                        (20, 20, 20), YELLOW))
         for room in L["rooms"]:
             dx, dy = room["door"]
-            lab = {"Treppenhaus": "Treppenhaus · Notausgang", "Technikraum": "Technik — Zutritt verboten",
-                   "Kellerabteile": "Kellerabteile", "Waschbox": "Waschbox", "Lager": "Lager",
-                   "Eingestürzt": "EINSTURZGEFAHR!", "Schutzraum": "Schutzraum"}[room["kind"]]
+            lab = {"Treppenhaus": "Лестница · запасный выход", "Technikraum": "Техпомещение — вход запрещён",
+                   "Kellerabteile": "Кладовки", "Waschbox": "Мойка", "Lager": "Склад",
+                   "Eingestürzt": "ОПАСНО: ОБРУШЕНИЕ!", "Schutzraum": "Бомбоубежище"}[room["kind"]]
             bg = (30, 130, 70) if room["kind"] == "Treppenhaus" else (
                 (200, 40, 30) if room["kind"] == "Eingestürzt" else (220, 220, 215))
             fg = (250, 250, 250) if bg != (220, 220, 215) else (30, 30, 30)

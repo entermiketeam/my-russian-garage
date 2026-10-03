@@ -1,9 +1,9 @@
-"""Общие настройки игры «Mein Garagen-Sommer: ВАЗ 2102»."""
+"""Общие настройки игры «My Russian Garage»."""
 import pygame
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
-TITLE = "Mein Garagen-Sommer — ВАЗ 2102 в Германии"
+TITLE = "My Russian Garage"
 
 # 1 реальная секунда = 1 игровая минута (сутки ≈ 24 минуты)
 GAME_MIN_PER_SEC = 1.0

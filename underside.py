@@ -187,7 +187,7 @@ def jack_up(g, key, end):
                 g.notify(f"Домкрат стоит под машиной {c2.name} ({END_RU[e2]}). Подставьте там подставки или опустите.",
                          (255, 80, 80), 6)
                 return False
-    if not g.need("jack", "домкрат (Rangierwagenheber) — Ost-Autoteile / Autohaus Krüger"):
+    if not g.need("jack", "домкрат — магазин «Восток» или автосалон Крюгера"):
         return False
     e = g.take_item("jack")
     car.lift_by[end] = e
@@ -195,7 +195,7 @@ def jack_up(g, key, end):
     g.advance(3, working=True)
     lf[end] = JACK_H
     g.notify(f"{car.name}: {END_RU[end]} поднят домкратом на {JACK_H * 100:.0f} см. Лежать под машиной на одном "
-             "домкрате опасно — подставьте подставки (Unterstellböcke).", (255, 210, 60), 7)
+             "домкрате опасно — подставьте подставки.", (255, 210, 60), 7)
     return True
 
 
@@ -205,7 +205,7 @@ def put_stands(g, key, end):
     if held_by(car, end) != "jack":
         g.notify("Подставки ставят под сторону, поднятую домкратом.", (255, 80, 80))
         return False
-    if not g.need("stands", "подставки (Unterstellböcke) — Ost-Autoteile / Autohaus Krüger"):
+    if not g.need("stands", "подставки — магазин «Восток» или автосалон Крюгера"):
         return False
     st = g.take_item("stands")
     jack = car.lift_by[end]

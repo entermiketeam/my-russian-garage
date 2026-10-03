@@ -75,17 +75,17 @@ PANELS = {
 # kind: food / drink / part / fluid / tool / material
 ITEMS = {
     # ---- Еда и напитки (Supermarkt) ----
-    "brot":      dict(name="Brot (хлеб)", kind="food", price=2.5, hunger=25),
-    "wurst":     dict(name="Bratwurst (колбаски)", kind="food", price=4.0, hunger=35),
-    "pizza_tk":  dict(name="Tiefkühlpizza (заморож.)", kind="food", price=3.5, hunger=10,
+    "brot":      dict(name="Хлеб", kind="food", price=2.5, hunger=25),
+    "wurst":     dict(name="Жареные колбаски", kind="food", price=4.0, hunger=35),
+    "pizza_tk":  dict(name="Замороженная пицца", kind="food", price=3.5, hunger=10,
                       note="Лучше разогреть на плите дома"),
     "pizza_hot": dict(name="Горячая пицца", kind="food", price=0, hunger=60),
-    "apfel":     dict(name="Äpfel (яблоки)", kind="food", price=2.0, hunger=12, thirst=5),
-    "wasser":    dict(name="Mineralwasser 1.5 л", kind="drink", price=0.9, thirst=45),
-    "cola":      dict(name="Cola", kind="drink", price=1.5, thirst=30, energy=6),
-    "kaffee":    dict(name="Kaffee (кофе)", kind="drink", price=6.0, thirst=10, energy=25),
-    "bier":      dict(name="Bier (пиво 0.5)", kind="drink", price=1.2, thirst=20, drunk=18),
-    "doener":    dict(name="Döner Kebab", kind="food", price=6.0, hunger=55),
+    "apfel":     dict(name="Яблоки", kind="food", price=2.0, hunger=12, thirst=5),
+    "wasser":    dict(name="Минеральная вода 1,5 л", kind="drink", price=0.9, thirst=45),
+    "cola":      dict(name="Кола", kind="drink", price=1.5, thirst=30, energy=6),
+    "kaffee":    dict(name="Кофе", kind="drink", price=6.0, thirst=10, energy=25),
+    "bier":      dict(name="Пиво 0,5", kind="drink", price=1.2, thirst=20, drunk=18),
+    "doener":    dict(name="Дёнер-кебаб", kind="food", price=6.0, hunger=55),
 
     # ---- Жидкости ----
     "fuel_can":  dict(name="Канистра бензина 10 л", kind="fluid", price=22.0),
@@ -95,8 +95,8 @@ ITEMS = {
 
     # ---- Инструменты / материалы ----
     "toolbox":   dict(name="Набор ключей", kind="tool", price=85.0),
-    "rope":      dict(name="Буксировочный трос (Abschleppseil)", kind="tool", price=15.0),
-    "crowbar":   dict(name="Монтировка (Brecheisen)", kind="tool", price=12.0),
+    "rope":      dict(name="Буксировочный трос", kind="tool", price=15.0),
+    "crowbar":   dict(name="Монтировка", kind="tool", price=12.0),
     "old_radio": dict(name="Старая магнитола Blaupunkt", kind="part", price=60.0),
     "jerrycan_old": dict(name="Старая канистра с бензином (5 л)", kind="fluid", price=8.0),
     "charger":   dict(name="Зарядное устройство", kind="tool", price=69.0),
@@ -244,7 +244,7 @@ ITEMS["key"] = dict(name="Ключ зажигания", kind="key", price=0.0)  
 ITEMS["lockset"] = dict(name="Комплект замков: личинки дверей + замок зажигания (2 новых ключа)", kind="part", price=45.0)
 ITEMS["compressor"] = dict(name="Автомобильный компрессор 12 В с манометром", kind="tool", price=35.0)
 ITEMS["tire_gauge"] = dict(name="Манометр для шин", kind="tool", price=6.0)
-ITEMS["flyer"] = dict(name="Листовки «Gestohlen!» (объявления об угоне)", kind="material", price=5.0)
+ITEMS["flyer"] = dict(name="Листовки «Угнана машина!» (объявления об угоне)", kind="material", price=5.0)
 _ELEC_SHOP = ["fuse_set", "multimeter", "wire_kit", "bulb", "relay", "coil", "horn", "lockset", "compressor", "tire_gauge"]
 SHOP_TANKE += ["fuse_set", "bulb", "tire_gauge", "compressor"]
 SHOP_TOYOTA += _ELEC_SHOP
@@ -252,8 +252,8 @@ SHOP_TEILE += _ELEC_SHOP + ["gearbox", "wiring", "steering", "glass", "door_l", 
 SHOP_TOYOTA += ["ae_gearbox", "ae_wiring", "ae_steering", "ae_glass", "ae_door_l", "ae_door_r", "ae_hood",
                 "ae_trunk", "ae_seats"]
 
-ITEMS["jack"] = dict(name="Домкрат подкатной (Rangierwagenheber, 2 т)", kind="tool", price=59.0)
-ITEMS["stands"] = dict(name="Подставки под машину (Unterstellböcke, пара)", kind="tool", price=29.0)
+ITEMS["jack"] = dict(name="Домкрат подкатной (2 т)", kind="tool", price=59.0)
+ITEMS["stands"] = dict(name="Подставки под машину (пара)", kind="tool", price=29.0)
 CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "crowbar", "metal", "paint", "rust_conv",
                "jack", "stands"]
 

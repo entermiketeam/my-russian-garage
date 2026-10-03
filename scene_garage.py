@@ -157,7 +157,7 @@ class CarWorkScene(Scene):
             if not self.in_garage():
                 g.notify("Зарядка — только в гараже (нужна розетка).", RED)
             elif not g.has("charger"):
-                g.notify("Нужно зарядное устройство (Ost-Autoteile).", RED)
+                g.notify("Нужно зарядное устройство (магазин «Восток»).", RED)
             elif not car.has("battery"):
                 g.notify("Аккумулятор не установлен.", RED)
             else:
@@ -202,7 +202,7 @@ class CarWorkScene(Scene):
             self.back()
         elif sel == "oil_add":
             if not g.has("oil"):
-                g.notify("Нет масла. Купите в Ost-Autoteile или на заправке.", RED)
+                g.notify("Нет масла. Купите в магазине «Восток» или на заправке.", RED)
             elif car.oil >= OIL_CAP - 0.1:
                 g.notify("Масла и так по верхней метке.", YELLOW)
             else:
@@ -262,7 +262,7 @@ class CarWorkScene(Scene):
             if not self.in_garage():
                 g.notify("Сварка — только в гараже.", RED)
             elif not g.has("welder"):
-                g.notify("Нужен сварочный аппарат (Ost-Autoteile, 320 DM).", RED)
+                g.notify("Нужен сварочный аппарат (магазин «Восток», 320 DM).", RED)
             elif g.count("metal") < need:
                 g.notify(f"Нужно листов металла: {need}.", RED)
             elif car.rust[p] < 15:
@@ -345,7 +345,7 @@ class CarWorkScene(Scene):
             ui.text(surf, val, (312, y), 15, GREY)
             y += 24
         ui.text(surf, f"Пробег: {car.odometer:.0f} км   Темп.: {car.temp:.0f}°C", (24, y + 4), 15)
-        ui.text(surf, f"TÜV: {tuv}   Номера: {'есть' if car.registered else 'нет'}   "
+        ui.text(surf, f"Техосмотр: {tuv}   Номера: {'есть' if car.registered else 'нет'}   "
                       f"{'В гараже' if garage else 'На улице (сварка и зарядка недоступны)'}",
                 (24, y + 28), 15, GREEN if garage else ORANGE)
         ui.text(surf, f"Макс. ржавчина: {car.max_rust():.0f}%", (24, y + 52), 15,

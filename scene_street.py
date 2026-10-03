@@ -269,11 +269,11 @@ class StreetScene(Scene):
         reasons = []
         lim = g.world.speed_limit(car.x, car.y)
         if not car.registered:
-            reasons.append(("Fahren ohne Zulassung und Versicherung (без номеров/страховки)", 250))
+            reasons.append(("Езда без регистрации и страховки", 250))
         elif car.tuv_until < g.day:
-            reasons.append(("Просроченный TÜV", 60))
+            reasons.append(("Просроченный техосмотр", 60))
         if g.p.drunk > 25:
-            reasons.append(("Alkohol am Steuer (вождение в нетрезвом виде)", 500))
+            reasons.append(("Вождение в нетрезвом виде", 500))
         if lim and car.kmh() > lim + 20:
             reasons.append((f"Превышение скорости ({car.kmh():.0f} при {lim})", 100))
         if car.c("lights") < 0.05 and g.darkness() > 0.4:
@@ -288,11 +288,11 @@ class StreetScene(Scene):
         g.sound.play("police", 0.6)
         total = sum(r[1] for r in reasons)
         g.charge(total)
-        lines = ["«Allgemeine Verkehrskontrolle! Führerschein und Fahrzeugschein, bitte.»", ""]
+        lines = ["«Плановая проверка! Права и документы на машину, пожалуйста.»", ""]
         lines += [f"• {r[0]}: {r[1]} DM" for r in reasons]
         lines += ["", f"Итого штраф: {total} DM.",
                   "Полицейский качает головой, глядя на ваши гнилые пороги."]
-        info(g, "Polizei", lines)
+        info(g, "Полиция", lines)
 
     # ------------------------------------------------------------ взаимодействия
     def find_action(self):
@@ -307,7 +307,7 @@ class StreetScene(Scene):
             if point_in(PUMP_ZONE, car.x, car.y):
                 acts.append(("Заправиться", self.refuel))
             if point_in(TUV_YARD, car.x, car.y):
-                acts.append(("Пройти TÜV (техосмотр)", self.tuv))
+                acts.append(("Пройти техосмотр", self.tuv))
         else:
             for bid, b in BUILDINGS.items():
                 door = b[7]
@@ -330,17 +330,17 @@ class StreetScene(Scene):
             g.push(ApartmentScene(g))
             return
         if not g.is_open(bid):
-            info(g, name, ["Geschlossen. Закрыто.", f"Часы работы: {g.hours_str(bid)}"])
+            info(g, name, ["Закрыто.", f"Часы работы: {g.hours_str(bid)}"])
             return
         if bid == "supermarkt":
-            g.push(ShopScene(g, "Supermarkt Kaufgut", SHOP_SUPERMARKT, subtitle="Продукты и напитки"))
+            g.push(ShopScene(g, "Супермаркет «Кауфгут»", SHOP_SUPERMARKT, subtitle="Продукты и напитки"))
         elif bid == "autoteile":
-            g.push(ShopScene(g, "Ost-Autoteile", SHOP_TEILE,
+            g.push(ShopScene(g, "Запчасти «Восток»", SHOP_TEILE,
                              subtitle="«Запчасти для Lada, Moskwitsch, Wolga. Привезём из Польши.»"))
         elif bid == "tanke":
-            g.push(ShopScene(g, "Tankstelle", SHOP_TANKE, subtitle="Открыто круглосуточно"))
+            g.push(ShopScene(g, "Заправка", SHOP_TANKE, subtitle="Открыто круглосуточно"))
         elif bid == "imbiss":
-            g.push(ShopScene(g, "Döner Imbiss", SHOP_IMBISS, subtitle="«Mit alles und scharf?»"))
+            g.push(ShopScene(g, "Дёнер-закусочная", SHOP_IMBISS, subtitle="«Со всем и поострее?»"))
         elif bid == "pizzeria":
             self.pizzeria()
         elif bid == "rathaus":
@@ -356,7 +356,7 @@ class StreetScene(Scene):
     def refuel(self):
         g, car = self.game, self.game.car
         if car.running:
-            info(g, "Tankstelle", ["«Motor aus!» — кричит заправщик. Заглушите двигатель."])
+            info(g, "Заправка", ["«Мотор заглушите!» — кричит заправщик. Заглушите двигатель."])
             return
         space = TANK - car.fuel
 
@@ -378,9 +378,9 @@ class StreetScene(Scene):
                 g.advance(5)
                 g.notify(f"Заправлено {l:.1f} л за {cost:.2f} DM.", GREEN)
 
-        g.push(DialogScene(g, "Tankstelle — Normalbenzin", [
+        g.push(DialogScene(g, "Заправка — бензин 91", [
             f"В баке: {car.fuel:.1f} / {TANK:.0f} л. Цена: {FUEL_PRICE:.2f} DM/л. У вас: {g.p.money:.2f} DM.",
-            "Старый мотор 2101 рассчитан на А-76, но и немецкий Normal (91) переварит."], [
+            "Старый мотор 2101 рассчитан на А-76, но и немецкий 91-й переварит."], [
             (f"10 литров ({10 * FUEL_PRICE:.2f} DM)", lambda: fill(10), True),
             (f"20 литров ({20 * FUEL_PRICE:.2f} DM)", lambda: fill(20), True),
             (f"Полный бак ({space:.1f} л = {space * FUEL_PRICE:.2f} DM)", lambda: fill(space), True),
@@ -390,10 +390,10 @@ class StreetScene(Scene):
     def tuv(self):
         g, car = self.game, self.game.car
         if not g.is_open("tuv"):
-            info(g, "TÜV", ["Geschlossen.", f"Часы работы: {g.hours_str('tuv')}"])
+            info(g, "Техосмотр TÜV", ["Закрыто.", f"Часы работы: {g.hours_str('tuv')}"])
             return
         if not point_in(TUV_YARD, car.x, car.y):
-            info(g, "TÜV-Prüfstelle", ["«Guten Tag. Для Hauptuntersuchung пригоните машину во двор перед зданием.»",
+            info(g, "Техосмотр TÜV", ["«Добрый день. Для техосмотра пригоните машину во двор перед зданием.»",
                                        "Стоимость проверки: 95 DM."])
             return
 
@@ -407,16 +407,16 @@ class StreetScene(Scene):
                 defects.insert(0, "Автомобиль не заводится своим ходом")
             if not defects:
                 car.tuv_until = g.day + 730
-                info(g, "TÜV — BESTANDEN!", [
+                info(g, "Техосмотр ПРОЙДЕН!", [
                     "Инспектор долго смотрит на «Жигули», потом на вас, потом снова на «Жигули».",
-                    "«Na gut... Ohne erhebliche Mängel.» Он клеит на номер свежую Plakette.",
-                    "TÜV действует 2 года. Теперь — в Rathaus за номерами."])
+                    "«Ну что ж... Существенных дефектов нет.» Он клеит на номер свежую наклейку техосмотра.",
+                    "Техосмотр действует 2 года. Теперь — в ратушу за номерами."])
             else:
-                info(g, "TÜV — NICHT BESTANDEN", ["Erhebliche Mängel (существенные дефекты):", ""] +
+                info(g, "Техосмотр НЕ ПРОЙДЕН", ["Существенные дефекты:", ""] +
                      [f"• {d}" for d in defects[:14]] + ["", "Устраните и приезжайте снова."])
 
-        g.push(DialogScene(g, "TÜV-Prüfstelle", [
-            "Hauptuntersuchung (техосмотр) для ВАЗ 2102, Baujahr 1979.",
+        g.push(DialogScene(g, "Техосмотр TÜV", [
+            "Техосмотр для ВАЗ 2102, 1979 года выпуска.",
             "Проверяют: коррозию, тормоза, шины, свет, выхлоп, амортизаторы, течи."],
             [("Пройти проверку (95 DM, 45 мин)", check, True)]))
 
@@ -426,12 +426,12 @@ class StreetScene(Scene):
 
         def register():
             if car.tuv_until < g.day:
-                info(g, "Zulassungsstelle", ["«Ohne gültigen TÜV-Bericht — keine Zulassung.» Сначала TÜV."])
+                info(g, "Регистрация машин", ["«Без действующего техосмотра регистрации не будет.» Сначала техосмотр."])
                 return
             if g.pay(145):
                 g.advance(120)
                 car.registered = True
-                info(g, "Zulassungsstelle", [
+                info(g, "Регистрация машин", [
                     f"Два часа в очереди, три формуляра — и номера ваши: {PLATE}.",
                     "Страховка и налог (24 DM) будут списываться еженедельно.",
                     "Теперь можно ездить легально!"])
@@ -439,10 +439,10 @@ class StreetScene(Scene):
         opts = []
         if not car.registered:
             opts.append(("Поставить машину на учёт (145 DM: номера + страховка)", register, True))
-        g.push(DialogScene(g, "Rathaus — Zulassungsstelle",
-                           ["Nummer 47 bitte... Служащая Frau Becker смотрит поверх очков."] +
+        g.push(DialogScene(g, "Ратуша — регистрация машин",
+                           ["«Номер сорок семь, пожалуйста...» Служащая госпожа Беккер смотрит поверх очков."] +
                            ([f"Ваша машина зарегистрирована: {PLATE}."] if car.registered else
-                            ["Для регистрации нужен действующий TÜV."]), opts))
+                            ["Для регистрации нужен действующий техосмотр."]), opts))
 
     # --- склад
     def lager(self):
@@ -452,10 +452,10 @@ class StreetScene(Scene):
 
         def shift():
             if p.drunk > 15:
-                info(g, "Lager", ["Бригадир Herr Wolff: «Du bist besoffen! Nach Hause!» — сегодня без работы."])
+                info(g, "Склад", ["Бригадир Вольф: «Да ты пьян! Марш домой!» — сегодня без работы."])
                 return
             if p.energy < 30:
-                info(g, "Lager", ["Вы слишком устали для смены (бодрость < 30)."])
+                info(g, "Склад", ["Вы слишком устали для смены (бодрость < 30)."])
                 return
             for _ in range(48):
                 g.advance(10, working=True)
@@ -468,10 +468,10 @@ class StreetScene(Scene):
                 note = " Бригадир ворчал, что от вас воняет (−30%)."
             g.stats["shifts"] += 1
             g.earn(pay, "за смену на складе")
-            info(g, "Lager", [f"8 часов таскали коробки и водили погрузчик. Заработано {pay:.0f} DM.{note}"])
+            info(g, "Склад", [f"8 часов таскали коробки и водили погрузчик. Заработано {pay:.0f} DM.{note}"])
 
         can = wd < 5 and 6 <= h < 9
-        g.push(DialogScene(g, "Spedition Müller — Lager", [
+        g.push(DialogScene(g, "Склад транспортной фирмы Мюллера", [
             "Склад логистической компании. Платят 13 DM в час (8 часов = 104 DM).",
             "Смену можно начать по будням с 06:00 до 09:00."],
             [("Отработать смену (8 часов)", shift, can)]))
@@ -488,8 +488,8 @@ class StreetScene(Scene):
             limit = dist / 8.0 + 60
             g.delivery = {"x": x, "y": y, "deadline": g.minutes + limit, "start": g.minutes,
                           "pay": round(10 + dist / 70, 2)}
-            info(g, "Pizzeria Da Luigi", [
-                "Luigi: «Ecco! Eine Pizza Salami. Schnell, schnell!»",
+            info(g, "Пиццерия «У Луиджи»", [
+                "Луиджи: «Вот! Пицца с салями. Быстро, быстро!»",
                 f"Адрес отмечен на карте (M). Расстояние ~{dist:.0f} м, время ~{limit:.0f} мин.",
                 f"Оплата: {g.delivery['pay']:.2f} DM + чаевые за скорость. Пешком не успеть!"])
 
@@ -502,7 +502,7 @@ class StreetScene(Scene):
             opts.insert(0, ("Заказ уже на руках — отвезите его", None, False))
         else:
             opts.insert(0, ("Взять заказ на доставку", take, True))
-        g.push(DialogScene(g, "Pizzeria Da Luigi", ["Luigi ищет курьера со своей машиной. Платит за каждый заказ."], opts))
+        g.push(DialogScene(g, "Пиццерия «У Луиджи»", ["Луиджи ищет курьера со своей машиной. Платит за каждый заказ."], opts))
 
     def deliver(self):
         g = self.game
@@ -531,13 +531,13 @@ class StreetScene(Scene):
                 g.schrott_stock.append({"id": pid, "cond": round(cond, 1), "price": used_price(pid, cond)})
             if rng.random() < 0.4:
                 g.schrott_stock.append({"id": "metal", "cond": 100, "price": 6.0})
-        g.push(DialogScene(g, "Autoverwertung Kowalski", [
+        g.push(DialogScene(g, "Авторазборка Ковальского", [
             "Пан Ковальский: «Лада? О, у меня стояла одна 2103, всё поснимали. Посмотри, может, что есть.»",
             "Ассортимент меняется каждый день."], [
-            ("Купить б/у запчасти", lambda: g.push(ShopScene(g, "Schrottplatz — б/у", [], mode="used",
+            ("Купить б/у запчасти", lambda: g.push(ShopScene(g, "Свалка — б/у запчасти", [], mode="used",
                                                            stock=g.schrott_stock,
                                                            subtitle="Всё как есть, без гарантии")), True),
-            ("Продать старые детали", lambda: g.push(ShopScene(g, "Schrottplatz — скупка", [], mode="sell",
+            ("Продать старые детали", lambda: g.push(ShopScene(g, "Свалка — скупка", [], mode="sell",
                                                              subtitle="Цена зависит от состояния")), True),
         ]))
 
@@ -581,7 +581,7 @@ class StreetScene(Scene):
             fl = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             fl.fill((255, 255, 255, int(200 * self.flash)))
             surf.blit(fl, (0, 0))
-        place = "За рулём ВАЗ 2102" if p.in_car else "Kleinbruck"
+        place = "За рулём ВАЗ 2102" if p.in_car else "Кляйнбрук"
         rd = w.road_at(p.x, p.y)
         if rd:
             place = rd[5]
@@ -685,7 +685,7 @@ class StreetScene(Scene):
         pygame.draw.circle(surf, (230, 200, 60), (int(ox + g.car.x * k), int(oy + g.car.y * k)), 4, 2)
         if g.delivery:
             pygame.draw.circle(surf, YELLOW, (int(ox + g.delivery["x"] * k), int(oy + g.delivery["y"] * k)), 7, 2)
-        ui.text(surf, "Kleinbruck (Niedersachsen)  ·  красная точка — вы, жёлтый круг — машина  ·  M/Esc — закрыть",
+        ui.text(surf, "Кляйнбрук (Нижняя Саксония)  ·  красная точка — вы, жёлтый круг — машина  ·  M/Esc — закрыть",
                 (WIDTH // 2, HEIGHT - 20), 14, WHITE, center=True)
 
     def draw_dash(self, surf):

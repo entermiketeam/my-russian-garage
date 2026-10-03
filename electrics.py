@@ -409,7 +409,7 @@ def repair(g, car, key):
                  "потом поставьте новую. Электрика вылечится вместе с деталью.", (240, 200, 60), 8)
         return None
     if need and not g.has(need):
-        g.notify(f"Нужно: {what}. Купить — Ost-Autoteile / Autohaus Krüger.", (210, 60, 50), 6)
+        g.notify(f"Нужно: {what}. Купить — в магазине «Восток» или в автосалоне Крюгера.", (210, 60, 50), 6)
         return None
     if need:
         g.take_item(need)
@@ -451,14 +451,14 @@ def tuv_defects(car):
     names = {"head_l": "левая фара", "head_r": "правая фара", "tail": "задние габаритные огни",
              "brake": "стоп-сигналы", "turn": "указатели поворота", "horn": "звуковой сигнал"}
     for key, nm in names.items():
-        pre = "Hupe" if key == "horn" else "Beleuchtung"
+        pre = "Звуковой сигнал" if key == "horn" else "Освещение"
         if not works(car, key):
             out.append(f"{pre}: не работает — {nm} (F{fuse_no(key)})")
         elif (d["faults"].get(key) or {}).get("kind") == "consumer":
             out.append(f"{pre}: неисправен потребитель — {nm}")
     for key, st in d["fuses"].items():
         if st == "bug":
-            out.append(f"Sicherung F{fuse_no(key)} überbrückt: «жучок» вместо предохранителя (пожароопасно)")
+            out.append(f"Предохранитель F{fuse_no(key)} закорочен: «жучок» вместо предохранителя (пожароопасно)")
     return out
 
 

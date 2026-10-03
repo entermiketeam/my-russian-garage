@@ -1183,7 +1183,7 @@ class Car:
         if self.c("wiring") < 0.3:
             d.append("Электрика: проводка неисправна (свет, сигналы)")
         if getattr(self, "hotwired", False):
-            d.append("Zündschloss: замок зажигания разобран, заводится проводами напрямую")
+            d.append("Замок зажигания: разобран, машина заводится проводами напрямую")
         if self.c("glass") < 0.4:
             d.append("Лобовое стекло: трещины в зоне обзора")
         for sl, txt in (("door_l", "Нет левых дверей"), ("door_r", "Нет правых дверей"), ("hood", "Нет капота"),
@@ -1198,9 +1198,9 @@ class Car:
             names = {"front": "перед", "rear": "зад", "left": "левый борт", "right": "правый борт"}
             for zk, v in zn.items():
                 if v > 0.06:
-                    d.append(f"Unfallschaden: деформация кузова — {names[zk]} ({v * 100:.0f} см)")
+                    d.append(f"Повреждение после аварии: деформация кузова — {names[zk]} ({v * 100:.0f} см)")
             if damage.is_totaled(self):
-                d.append("Rahmen verzogen: геометрия кузова нарушена (Totalschaden)")
+                d.append("Кузов повело: геометрия нарушена («тотал»)")
         if self.eng and self.parts.get("engine"):
             if self.eng.get("head_gasket") and self.eng["head_gasket"]["cond"] < 30:
                 d.append("Течь по прокладке ГБЦ (антифриз/масло)")
@@ -1213,7 +1213,7 @@ class Car:
             d.append("Развал-схождение: машину уводит в сторону (погнута подвеска)")
         if self.has_tune("turbo"):
             if self.boost_setting[0] == "race":
-                d.append("Leistungssteigerung nicht eingetragen: наддув «Гонка» — верните «Мягкий» или «Спорт»")
+                d.append("Незарегистрированный тюнинг мотора: наддув «Гонка» — верните «Мягкий» или «Спорт»")
             if self.tc("turbo") < 0.3:
                 d.append("Турбина: течь масла, сизый дым из выхлопа")
         return d

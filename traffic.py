@@ -933,10 +933,10 @@ class Traffic:
             return d
         for i in range(n_cars):
             make(NORMAL_MODELS[i % len(NORMAL_MODELS)], rng.choice(COLORS), rng.choice(["calm", "normal", "normal"]))
-        names = ["«Turbo-Timo»", "«Der Blitz»", "«Kalle GTI»", "«Nachtfalke»"]
+        names = ["«Турбо-Тимо»", "«Молния»", "«Калле GTI»", "«Ночной сокол»"]
         for i in range(n_racers):
             make(RACER_MODELS[i % len(RACER_MODELS)], RACER_COLORS[i % len(RACER_COLORS)], "racer", name=names[i % 4])
-        self.police = make("audi80", (235, 235, 235), "police", police=True, name="Polizei")
+        self.police = make("audi80", (235, 235, 235), "police", police=True, name="Полиция")
         self.police.car.spec = dict(self.police.car.spec, drive="fwd")
         self.peds = Pedestrians(self, n_peds, random.Random(seed + 1))
         self._grid = {}
