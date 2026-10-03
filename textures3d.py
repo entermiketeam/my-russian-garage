@@ -107,3 +107,46 @@ def map_texture(world, buildings, roads, k=0.5):
     for b in buildings.values():
         pg.draw.rect(m, (80, 140, 220), (b[0] * k, b[1] * k, b[2] * k, b[3] * k))
     return surface_to_texture(m), m.get_size()
+
+
+def gauge(kind="speed"):
+    """Циферблат прибора: чёрное поле, белые риски и цифры-штрихи (стрелка — отдельной деталью)."""
+    key = "gauge_" + kind
+    if key not in _cache:
+        s = 128
+        surf = pygame.Surface((s, s), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, 0))
+        pygame.draw.circle(surf, (18, 18, 20, 255), (s // 2, s // 2), s // 2 - 2)
+        pygame.draw.circle(surf, (170, 170, 165, 255), (s // 2, s // 2), s // 2 - 2, 3)
+        n = {"speed": 16, "rpm": 14, "small": 8}.get(kind, 12)
+        import math as _m
+        for i in range(n + 1):
+            a = _m.radians(225 - 270 * i / n)
+            r0 = s * (0.36 if i % 2 == 0 else 0.40)
+            r1 = s * 0.45
+            c = (230, 60, 50, 255) if (kind == "rpm" and i > n * 0.78) else (235, 235, 225, 255)
+            pygame.draw.line(surf, c, (s / 2 + _m.cos(a) * r0, s / 2 - _m.sin(a) * r0),
+                             (s / 2 + _m.cos(a) * r1, s / 2 - _m.sin(a) * r1), 3 if i % 2 == 0 else 1)
+        pygame.draw.circle(surf, (60, 60, 60, 255), (s // 2, s // 2), 6)
+        _cache[key] = surface_to_texture(surf)
+    return _cache[key]
+
+
+def fabric():
+    """Ткань сидений: мелкое плетение (умножается на цвет вершин)."""
+    if "fabric" not in _cache:
+        n = 128
+        y, x = np.mgrid[0:n, 0:n]
+        weave = 0.88 + 0.07 * (np.sin(x * 1.6) * np.sin(y * 1.6) > 0) + 0.05 * np.random.default_rng(4).random((n, n))
+        a = np.clip(weave * 255, 0, 255).astype(np.uint8)
+        _cache["fabric"] = _tex(Image.fromarray(a).convert("RGB"))
+    return _cache["fabric"]
+
+
+def carpet():
+    if "carpet" not in _cache:
+        n = 128
+        v = 0.8 + 0.2 * np.random.default_rng(9).random((n, n))
+        a = np.clip(v * 255, 0, 255).astype(np.uint8)
+        _cache["carpet"] = _tex(Image.fromarray(a).convert("RGB"))
+    return _cache["carpet"]

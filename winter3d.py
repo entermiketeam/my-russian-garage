@@ -11,9 +11,10 @@ from PIL import Image
 from ursina import Entity, Mesh, Texture
 from panda3d.core import TransparencyAttrib
 
+from streaming import mesh_group
 from mesh3d import MeshBuilder
 from world import ROADS, MAP_W, MAP_H, BUILDINGS, GARAGE, PUMP_ZONE, TUV_YARD, AUTOHAUS_LOT, JUNKYARD, SCRAP_DROP, \
-    PARKING2
+    PARKING2, SERVICE_LOT
 from places import DEALER_LOT, TG_ENTRANCES
 from winter import CELL, _noise
 
@@ -66,7 +67,7 @@ class Winter3D:
             fill(c, 3)
         for g in self.world.places.gaps:
             fill(g, 1)
-        for r in (GARAGE, PUMP_ZONE, TUV_YARD, AUTOHAUS_LOT, JUNKYARD, SCRAP_DROP, PARKING2, DEALER_LOT):
+        for r in (GARAGE, PUMP_ZONE, TUV_YARD, AUTOHAUS_LOT, JUNKYARD, SCRAP_DROP, PARKING2, DEALER_LOT, SERVICE_LOT):
             fill(r, 2)
         for e in TG_ENTRANCES:
             fill(e["rect"], 2)
@@ -182,7 +183,7 @@ class Winter3D:
                                         dirty_side=1)
                         run = []
                     s += step
-        self.entities.append(Entity(model=mb.build(), double_sided=True))
+        self.entities.append(mesh_group(mb, "snow", double_sided=True))
 
     # -------------------------------------------------------------- сугробы у стен
     def build_drifts(self, rng):
@@ -218,7 +219,7 @@ class Winter3D:
                             # сугроб: высокий у стены, пологий наружу
                             self._drift(mb, run, rng)
                         run = []
-        self.entities.append(Entity(model=mb.build(), double_sided=True))
+        self.entities.append(mesh_group(mb, "snow", double_sided=True))
 
     def _free_side(self, x, y):
         """Снаружи дома: не на дороге и не на проезде (там снег счищен)."""
@@ -277,10 +278,9 @@ class Winter3D:
             for k in range(int(ph // 3)):
                 mb.box2d(px + 0.3, py + k * 3 + 0.3, pw - 0.6, 2.4, 2.2 + rng.uniform(0, 0.6), 2.5 + rng.uniform(0, 0.8),
                          _snow_col(rng, 0.97))
-        self.entities.append(Entity(model=mb.build(), double_sided=True))
+        self.entities.append(mesh_group(mb, "snow", double_sided=True))
         if len(ice):
-            ie = Entity(model=ice.build(), double_sided=True)
-            ie.setTransparency(TransparencyAttrib.MAlpha)
+            ie = mesh_group(ice, "ice", setup=lambda e: e.setTransparency(TransparencyAttrib.MAlpha), double_sided=True)
             self.entities.append(ie)
 
     def _gable_snow(self, mb, ice, rng, x, y, w, h, wh, rh):
@@ -340,10 +340,9 @@ class Winter3D:
                     rr = r * 0.75 * (1 - lvl) * 1.15
                     mb.cone(tx, 1.0 + r * 3.6 * lvl - 0.05, -ty, rr, r * 3.6 * 0.12, _snow_col(rng), seg=7)
                 mb.cone(tx, 1.0 + r * 3.6 * 0.86, -ty, r * 0.12, r * 3.6 * 0.15, _snow_col(rng), seg=5)
-            else:           # лиственные: снег на верхушке кроны
-                cy = r * 1.3 + r * 0.6
-                mb.blob(tx, cy + r * 0.35, -ty, r * 0.6, _snow_col(rng), shade=0.97)
-        self.entities.append(Entity(model=mb.build(), double_sided=True))
+            else:           # лиственные: зимой без листьев — снег лежит на развилке голых веток
+                mb.blob(tx, r * 2.3, -ty, r * 0.38, _snow_col(rng), shade=0.97)
+        self.entities.append(mesh_group(mb, "snow", double_sided=True))
 
     # -------------------------------------------------------------- слякоть
     @staticmethod

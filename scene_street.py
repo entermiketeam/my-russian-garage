@@ -209,7 +209,7 @@ class StreetScene(Scene):
                 if ai.speed > 4 and math.hypot(ai.x - p.x, ai.y - p.y) < 1.5:
                     g.hospital("Вас сбила машина! Смотрите по сторонам.")
                     return
-        g.world.update_ai(dt, car)
+        g.traffic.update(dt, g, (car.x, car.y)) if hasattr(g, "traffic") else g.world.update_ai(dt, car)
 
         # потеря сознания от усталости
         if g.pending_faint:

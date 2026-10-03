@@ -10,7 +10,7 @@ import random
 
 import numpy as np
 
-from world import ROADS, MAP_W, MAP_H, BUILDINGS, GARAGE, rect_overlap
+from world import ROADS, MAP_W, MAP_H, BUILDINGS, GARAGE, SERVICE_LOT, SERVICE_HALL, rect_overlap
 
 CELL = 0.25      # шаг сетки слякоти, м
 
@@ -79,7 +79,8 @@ class SnowCover:
         for ag in world.abandoned:
             _fill(build, ag["rect"])
         _fill(build, GARAGE)
-        yards = [GARAGE] + [ag["apron"] for ag in world.abandoned]
+        _fill(build, SERVICE_HALL)                      # цех автосервиса — под крышей
+        yards = [GARAGE, SERVICE_LOT] + [ag["apron"] for ag in world.abandoned]
         from places import DEALER_LOT
         yards.append(DEALER_LOT)
         dead = np.zeros((H, W), bool)          # заброшенные парковки: никто не чистит — снег по щиколотку
@@ -339,20 +340,22 @@ class Winter:
         self.snow = SnowCover(world)
         self.slush = SlushField(world)
         self._last = {}      # последняя точка продавливания для каждой машины
+        self.level = 1.0     # сколько снега лежит по сезону (state.snow_level): 0 — лето, 1 — зима
 
     def surface(self, car):
         """(сцепление, глубина слякоти под колёсами) для машины."""
-        if car.x >= 2350:                  # подземные гаражи: сухой бетон
+        if car.x >= 2350 or self.level <= 0.02:      # подземные гаражи / бесснежный сезон: сухо
             return 1.0, 0.0
         pts = wheel_points(car)
         depth = sum(self.slush.depth(x, y) for x, y in pts) / 4
         off = sum(self.snow.offroad_depth(x, y) for x, y in pts) / 4
         grip = sum(self.snow.grip(x, y) for x, y in pts) / 4
-        return grip, depth + off
+        lv = self.level
+        return 1.0 - (1.0 - grip) * lv, (depth + off) * lv
 
     def drive(self, key, car):
         """Колёса движущейся машины оставляют колеи в слякоти."""
-        if abs(car.speed) < 0.3 or car.x >= 2350:
+        if abs(car.speed) < 0.3 or car.x >= 2350 or self.level <= 0.1:
             return
         last = self._last.get(key)
         if last and math.hypot(car.x - last[0], car.y - last[1]) < 0.18:

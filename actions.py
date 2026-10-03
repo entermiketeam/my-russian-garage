@@ -14,6 +14,13 @@ import random
 from items import (ITEMS, SLOTS, SLOTS_BY_MODEL, PANELS, item_name, SHOP_SUPERMARKT, SHOP_TEILE, SHOP_TANKE,
                    SHOP_IMBISS, SHOP_TOYOTA, SHOP_MODELS, MODEL_NAMES, CONSUMABLES, shop_for_model)
 from models import MODELS, SLOT_MINUTES, model_info
+import damage
+import engine as eng
+import fasteners as fast
+import electrics as elec
+import underside
+from tuning import LEGEND, is_legend
+from tuning import tune_slots, TUNE_NAMES, NEEDS_TURBO, BOOST_PRESETS, BOOST_BY_KEY, TORQUE_PER_BAR
 from world import JUNKYARD
 from state import BASE_VALUE
 from world import BUILDINGS, BLITZER, PUMP_ZONE, TUV_YARD, GARAGE, PARKING2, SCRAP_DROP, point_in
@@ -39,8 +46,27 @@ NEWS = [
 
 CONTROLS = [
     "ПЕШКОМ: WASD — идти, мышь — смотреть, Shift — бежать, E — действие, F — сесть в машину.",
-    "Tab — инвентарь, M — карта, Esc — пауза, «-» / «=» — чувствительность мыши.",
-    "ЗА РУЛЁМ: W — газ, S — тормоз, A/D — руль, Пробел — сцепление (держать).",
+    "Tab — руки (что держите), M — карта, Esc — пауза, «-» / «=» — чувствительность мыши.",
+    "РУКИ: с собой только два предмета — в левой и правой руке. E на вещи — взять в свободную руку; "
+    "E с едой/питьём в руке — съесть/выпить (если рядом нет другого действия, иначе G); Q — поменять руки; "
+    "Z / X — положить из левой / правой (в открытый багажник рядом, на стеллаж в гараже или на землю). "
+    "Инструменты и материалы для работы берутся из рук или с того, что лежит рядом: открытый багажник, "
+    "стеллаж в гараже (там набор ключей). В багажнике ВАЗ — трос и предохранители.",
+    "ЗА РУЛЁМ: W — газ, S — тормоз, A/D — руль, Пробел — сцепление (держать), стрелка ВНИЗ — ручник.",
+    "ПРИЦЕЛ (E): смотрите на деталь машины — ручку двери (открыть), сиденье (сесть), капот, багажник, болт/гайку "
+    "(открутить/затянуть). G — снять деталь, у которой откручен весь крепёж. В салоне: E на подрулевых "
+    "переключателях — поворотники ([ и ] — с клавиатуры), E на ручке двери — открыть/закрыть, на проёме — выйти.",
+    "ЭЛЕКТРИКА: блок предохранителей — под панелью слева от руля (у W123/Taunus — под капотом): E на нём. "
+    "Сгорел снова — ищите причину: «Прозвонить мультиметром» покажет участок, место отметится на машине красным, "
+    "E там — устранить. Ночью без исправных фар/фонарей полиция штрафует и может снять машину с учёта.",
+    "КЛЮЧИ: у каждой машины свой ключ. K — запереть/отпереть (снаружи — с ключом в руке, изнутри — кнопкой). "
+    "I — вставить ключ из руки и, держа I, завести; E на замке зажигания — вынуть ключ (или завести напрямую). "
+    "Запасные ключи — на ключнице у двери квартиры. Незапертую машину на улице ночью могут угнать — "
+    "тогда в Polizeirevier (Hauptstraße, восточнее Autoteile): заявление и объявления с вознаграждением.",
+    "ШИНЫ: протектор и давление каждой — «Шины и давление» в меню машины; подкачать — компрессор или колонка «Luft» "
+    "на заправке. Лысые шины на мокром и снегу — длинный тормозной путь и занос; без ABS колёса блокируются.",
+    "ДРИФТ: на скорости держите W + A или D и дёрните ручник (стрелка вниз), затем отпустите его и держите занос "
+    "газом и контррулём. Лучше всего — заднеприводные (ВАЗ, BMW E21, Civic, AE86); передний привод сам выравнивается.",
     "Shift / Ctrl — передача вверх/вниз (или 1-4, R — задняя, N — нейтраль).",
     "I (держать) — стартер / заглушить, C — подсос, L — фары, H — гудок, V — вид (салон / сзади).",
     "F — выйти, E — действие (заправка, TÜV, доставка, сдать машину на лом).",
@@ -171,12 +197,12 @@ class Shop(Menu):
             if not self.stock:
                 out.append(("Сегодня ничего нет. Приходите завтра.", None, False))
         else:
-            for e in g.p.inventory:
+            for e in g.available():            # в руках и рядом (открытый багажник у входа)
                 it = ITEMS.get(e["id"], {})
                 if it.get("kind") in ("part", "tool"):
                     out.append(((f"{it['name']} ({e['cond']:.0f}%)", f"{self.sell_price(e):.2f} DM"), ("sell", e), True))
             if not out:
-                out.append(("Нечего продавать (только детали и инструменты).", None, False))
+                out.append(("Нечего продавать: детали — в руках или в открытом багажнике рядом.", None, False))
         out.append(("Выйти", CLOSE, True))
         return out
 
@@ -185,18 +211,21 @@ class Shop(Menu):
             return "close"
         g = self.g
         kind, data = payload
+        if kind in ("buy", "used") and not g.can_receive(shop=True):
+            g.notify("Обе руки заняты, а своей машины у входа нет — освободите руку (X / Z), потом покупайте.", RED, 6)
+            return None
         if kind == "buy":
             it = ITEMS[data]
             if g.pay(it["price"]):
-                g.add_item(data)
-                g.notify(f"Куплено: {it['name']}", GREEN)
+                where = g.give({"id": data, "cond": 100.0}, shop=True)
+                g.notify(f"Куплено: {it['name']}" + (" — в руке" if where == "hand" else ""), GREEN)
         elif kind == "used":
             if data in self.stock and g.pay(data["price"]):
-                g.add_item(data["id"], data["cond"])
+                g.give({"id": data["id"], "cond": data["cond"]}, shop=True)
                 self.stock.remove(data)
                 g.notify(f"Куплено б/у: {item_name(data['id'])}", GREEN)
         elif kind == "sell":
-            if data in g.p.inventory:
+            if any(x is data for x in g.available()):
                 g.take_item(data["id"], data)
                 g.earn(self.sell_price(data), "(продажа)")
         return None
@@ -205,45 +234,382 @@ class Shop(Menu):
         return "W/S — выбор, Enter — купить/продать, Esc — выйти"
 
 
+HAND_RU = ("левая", "правая")
+
+
 class Inventory(Menu):
+    """Инвентарь — две руки. Съесть/выпить, осмотреть, поменять руками, положить; взять из того, что рядом."""
     time_flows = True
 
-    def __init__(self, g, only_food=False, title="Инвентарь"):
+    def __init__(self, g, only_food=False, title="Руки"):
         self.g = g
-        self.only_food = only_food
         self.title = title
 
     def lines(self):
-        return [f"Деньги: {self.g.p.money:.2f} DM"]
-
-    def items(self):
-        groups = {}
-        for e in self.g.p.inventory:
-            it = ITEMS.get(e["id"], {})
-            if self.only_food and it.get("kind") not in ("food", "drink"):
-                continue
-            key = e["id"] if it.get("kind") != "part" else (e["id"], round(e["cond"]))
-            groups.setdefault(key, []).append(e)
-        order = {"food": 0, "drink": 1, "fluid": 2, "material": 3, "part": 4, "tool": 5}
-        names = {"part": "деталь", "tool": "инструмент", "fluid": "жидкость", "material": "материал"}
-        out = []
-        for key, es in sorted(groups.items(), key=lambda kv: (order.get(ITEMS[kv[1][0]["id"]]["kind"], 9), str(kv[0]))):
-            e = es[0]
-            it = ITEMS[e["id"]]
-            name = it["name"] + (f"  [{e['cond']:.0f}%]" if it["kind"] == "part" else "")
-            usable = it["kind"] in ("food", "drink")
-            out.append(((f"{name}  x{len(es)}", "съесть/выпить" if usable else names.get(it["kind"], "")), e, usable))
-        if not out:
-            out.append(("Пусто", None, False))
+        g = self.g
+        out = [f"Деньги: {g.p.money:.2f} DM. С собой — только то, что в руках (2 предмета)."]
+        for i in (0, 1):
+            e = g.p.hands[i]
+            out.append(f"{HAND_RU[i].capitalize()} рука: " + (self._name(e) if e else "пусто"))
+        out.append("Клавиши: E — съесть/выпить (если нечего делать рядом), Q — поменять руки, Z / X — положить из левой / правой.")
         return out
 
-    def select(self, e):
-        self.g.take_item(e["id"], e)
-        self.g.consume(e["id"])
+    @staticmethod
+    def _name(e):
+        if e.get("id") in ("key", "flyer"):
+            import storage
+            return storage.label(e)
+        it = ITEMS.get(e["id"], {})
+        k = it.get("kind")
+        tail = f" [{e['cond']:.0f}%]" if k in ("part", "food", "drink") else ""
+        if e["id"] == "fuse_set":
+            tail = f" [{int(round(e['cond'] / 10))} шт.]"
+        return it.get("name", e["id"]) + tail
+
+    def items(self):
+        g = self.g
+        out = []
+        for i in (1, 0):
+            e = g.p.hands[i]
+            if not e:
+                continue
+            k = ITEMS.get(e["id"], {}).get("kind")
+            if k == "food":
+                out.append(((f"Съесть: {self._name(e)}", HAND_RU[i] + " рука"), ("eat", i), True))
+            elif k == "drink":
+                out.append(((f"Выпить: {self._name(e)}", HAND_RU[i] + " рука"), ("eat", i), True))
+            elif k == "part":
+                out.append(((f"Осмотреть: {self._name(e)}", HAND_RU[i] + " рука"), ("look", i), True))
+            out.append(((f"Положить: {self._name(e)}", "рядом / на землю"), ("drop", i), True))
+        if any(g.p.hands):
+            out.append(("Поменять предметы между руками (Q)", ("swap", 0), True))
+        for cont, kind, lab in g.nearby_stores():
+            out.append(((f"Взять из: {lab}", f"внутри {len(cont)}"), ("store", kind, lab), True))
+        if not out:
+            out.append(("Руки пусты. Взять вещь — E на ней (на земле, в багажнике, на стеллаже, в холодильнике).",
+                        None, False))
+        out.append(("Закрыть", CLOSE, True))
+        return out
+
+    def select(self, sel):
+        g = self.g
+        if sel == CLOSE or sel is None:
+            return "close"
+        kind = sel[0]
+        if kind == "eat":
+            i = sel[1]
+            return lambda: g.start_eat(i)
+        if kind == "look":
+            g.open_menu(Dialog("Осмотр детали", eng.inspect_lines(g.p.hands[sel[1]]), wide=True))
+        elif kind == "drop":
+            e = g.p.hands[sel[1]]
+            where = g.drop_hand(sel[1])
+            if where:
+                g.notify(f"Положили: {self._name(e)} — {where}.", GREEN)
+        elif kind == "swap":
+            g.swap_hands()
+        elif kind == "store":
+            for cont, k, lab in g.nearby_stores():
+                if lab == sel[2]:
+                    g.open_menu(StorageTake(g, cont, k, lab.capitalize()))
         return None
 
     def hint(self):
-        return "Enter — использовать, Tab/Esc — закрыть"
+        return "Enter — выбрать, Tab/Esc — закрыть"
+
+
+class StoragePut(Menu):
+    """Что положить в хранилище (багажник / холодильник): короткий список того, что у игрока с собой."""
+    time_flows = True
+
+    def __init__(self, g, container, kind, title, only=None):
+        self.g, self.container, self.kind, self.title, self.only = g, container, kind, title, only
+
+    def lines(self):
+        import storage
+        n = len(self.container)
+        return [f"Внутри: {n} из {storage.CAPACITY.get(self.kind, 99)} мест. Enter — положить (по одному)."]
+
+    def items(self):
+        import storage
+        out = [((f"Положить: {storage.label(e)}", f"с собой {n}"), e, True)
+               for e, n in storage.grouped(self.g.p.inventory, self.only)]
+        if not out:
+            out.append(("В руках ничего нет.", None, False))
+        out.append(("Готово", CLOSE, True))
+        return out
+
+    def select(self, e):
+        import storage
+        if e == CLOSE:
+            return "close"
+        if storage.put(self.g, self.container, e, self.kind):
+            self.g.play_sound("door", 0.3)
+            self.g.notify(f"Положили: {storage.label(e)}", GREEN)
+        return None
+
+
+class StorageTake(Menu):
+    """Холодильник: взять с собой или съесть на месте; положить своё."""
+    time_flows = True
+
+    def __init__(self, g, container, kind, title):
+        self.g, self.container, self.kind, self.title = g, container, kind, title
+
+    def lines(self):
+        h = self.g.p.hands
+        return ["Enter — взять в свободную руку. Еду в руке можно съесть где угодно (E или Tab).",
+                "В руках: " + ", ".join(Inventory._name(e) if e else "пусто" for e in (h[0], h[1])) +
+                ("  — ОБЕ РУКИ ЗАНЯТЫ" if all(h) else "")]
+
+    def items(self):
+        import storage
+        out = [((f"Взять: {storage.label(e)}", f"внутри {n}"), ("take", e), True) for e, n in storage.grouped(self.container)]
+        if not out:
+            out.append(("Пусто. Продукты — в Supermarkt Kaufgut." if self.kind == "fridge" else "Пусто.", None, False))
+        out.append(("Положить своё сюда…", "put", True))
+        out.append(("Закрыть", CLOSE, True))
+        return out
+
+    def select(self, sel):
+        import storage
+        if sel == CLOSE:
+            return "close"
+        if sel == "put":
+            self.g.open_menu(StoragePut(self.g, self.container, self.kind, "Положить в " + self.title.lower()))
+            return None
+        if isinstance(sel, tuple) and sel[0] == "take" and storage.take(self.g, self.container, sel[1]):
+            self.g.notify(f"Взяли в руку: {storage.label(sel[1])}", GREEN)
+        return None
+
+
+class TireMenu(Menu):
+    """Шины: протектор каждой, давление (с манометром — точно, без — «на глаз»), подкачка компрессором."""
+    time_flows = True
+    wide = True
+
+    def __init__(self, g, key, station=False):
+        self.g, self.key, self.station = g, key, station
+        self.sel = None
+
+    @property
+    def car(self):
+        return self.g.cars[self.key]
+
+    @property
+    def title(self):
+        return f"Шины — {self.car.name}" + (" · колонка «Luft» на заправке" if self.station else "")
+
+    def gauge(self):
+        return self.station or self.g.has("compressor") or self.g.has("tire_gauge")
+
+    def pump(self):
+        return self.station or self.g.has("compressor")
+
+    def lines(self):
+        import tires
+        car, g = self.car, self.g
+        amb = g.ambient_temp(car.x)
+        out = [f"Норма (при +20°C): перёд {tires.nominal(car, 'tire_fl'):.1f}, зад {tires.nominal(car, 'tire_rl'):.1f} бар. "
+               f"Сейчас {amb:+.0f}°C — на холоде давление ниже." +
+               ("" if self.gauge() else " Манометра нет — давление только «на глаз» (манометр/компрессор — на заправке)."),
+               "Протектор: новая 8 мм, по закону не меньше 1,6 мм. Лысая шина на мокром и снегу — как коньки."]
+        return out
+
+    def items(self):
+        import tires
+        car, g = self.car, self.g
+        amb = g.ambient_temp(car.x)
+        out = []
+        for s in car.tire_list():
+            nm = tires.SLOT_RU[s].capitalize()
+            if not car.has(s):
+                out.append(((f"{nm}: шины нет", "поставить — «Детали»"), None, False))
+                continue
+            mm = tires.tread_mm(car, s)
+            p = tires.pressure(car, s, amb)
+            n = tires.nominal(car, s)
+            ptxt = f"{p:.1f}/{n:.1f} бар" if self.gauge() else ("на вид спущена" if p < n * 0.7 else "на вид нормально")
+            out.append(((f"{nm}: протектор {mm:.1f} мм ({car.c(s) * 100:.0f}%) · {ptxt}", tires.state_text(car, s, amb)),
+                        ("tire", s), True))
+            if self.sel == s:
+                ok = self.pump()
+                out.append(((f"   ↳ подкачать +0,1 бар", "компрессор" if not self.station else "Luft"), ("add", s, 0.1), ok))
+                out.append(((f"   ↳ довести до нормы {n:.1f} бар", "1–3 мин"), ("norm", s), ok))
+                out.append(((f"   ↳ стравить −0,1 бар", "ниппель"), ("add", s, -0.1), True))
+        if not self.pump():
+            out.append(("Подкачать нечем: компрессор — Tankstelle / Autoteile (35 DM), или бесплатно у колонки «Luft» "
+                        "на заправке", None, False))
+        else:
+            out.append((("Все шины — до нормы", "5 мин"), "all", True))
+        out.append(("Закрыть", CLOSE, True))
+        return out
+
+    def select(self, sel):
+        import tires
+        car, g = self.car, self.g
+        if sel == CLOSE:
+            return "close"
+        amb = g.ambient_temp(car.x)
+        tp = tires.ensure(car)
+        k20 = 293 / (273 + amb)                        # сколько «на холодную» соответствует показанию сейчас
+
+        def fix(s, target_now):
+            if car.c(s) < 0.05:
+                g.notify(f"{tires.SLOT_RU[s].capitalize()}: шина разорвана — держать давление не будет, только замена.", RED)
+                return
+            tp[s] = round(max(0.0, (target_now + 1.013) * k20 - 1.013), 2)
+        if isinstance(sel, tuple) and sel[0] == "tire":
+            self.sel = None if self.sel == sel[1] else sel[1]
+        elif isinstance(sel, tuple) and sel[0] == "add":
+            s = sel[1]
+            fix(s, tires.pressure(car, s, amb) + sel[2])
+            g.advance(1)
+            g.play_sound("tool", 0.2)
+        elif isinstance(sel, tuple) and sel[0] == "norm":
+            s = sel[1]
+            before = tp[s]
+            if car.c(s) < 0.05:
+                fix(s, 0)
+            else:
+                tp[s] = tires.nominal(car, s)            # норма — «на холодную», как пишут на стойке двери
+            g.advance(max(1, int(abs(tp[s] - before) * 3)))
+            g.play_sound("tool", 0.3)
+        elif sel == "all":
+            for s in car.tire_list():
+                if car.has(s) and car.c(s) >= 0.05:
+                    tp[s] = tires.nominal(car, s)
+            g.advance(5)
+            g.notify("Давление во всех шинах — по норме.", GREEN)
+        return None
+
+
+class FuseBox(Menu):
+    """Блок предохранителей конкретной машины: осмотр, замена, проверка, прозвонка, чистка контактов."""
+    time_flows = True
+    wide = True
+
+    def __init__(self, g, key):
+        self.g, self.key = g, key
+        self.sel = None
+        self.out = []            # последний результат проверки/прозвонки
+
+    @property
+    def car(self):
+        return self.g.cars[self.key]
+
+    @property
+    def title(self):
+        if self.sel:
+            return f"F{elec.fuse_no(self.sel)} {elec.BY_KEY[self.sel]['amp']}А — {elec.circuit_name(self.car, self.sel)}"
+        return f"Блок предохранителей — {self.car.name}"
+
+    def lines(self):
+        g, car = self.g, self.car
+        d = elec.data(car)
+        if not self.sel:
+            nb = sum(1 for v in d["fuses"].values() if v == "blown")
+            return [f"Где: {elec.box_name(car)}. Крышка снята. Перегоревших: {nb}.",
+                    f"Запасных предохранителей: {elec.fuses_left(g)} · мультиметр: {'есть' if g.has('multimeter') else 'нет'}"
+                    f" · набор ключей: {'есть' if g.has('toolbox') else 'нет'}",
+                    "Выберите предохранитель: осмотреть, заменить, проверить цепь, прозвонить."]
+        k = self.sel
+        c = elec.BY_KEY[k]
+        st = {"ok": "цел (нить целая)", "blown": "ПЕРЕГОРЕЛ — нить разорвана, корпус потемнел",
+              "bug": "вместо него — «жучок» из проволоки"}[d["fuses"][k]]
+        path = " → ".join(elec.SEGMENTS[x][0].split(" — ")[0] for x in ["box"] + c["path"])
+        out = [f"Предохранитель: {st}.", f"Цепь: {path}. Потребитель: {c['consumer'][0]}."]
+        f = d["faults"].get(k)
+        if f and f["found"]:
+            need, what = elec.fix_needs(car, k)
+            out.append(f"Найдено: {elec.KIND_RU[f['kind']]} — {elec.SEGMENTS[f['seg']][0]}. "
+                       f"Доступ: {elec.SEGMENTS[f['seg']][1]}. Нужно: {what}.")
+        return out + [""] + self.out
+
+    def items(self):
+        g, car = self.g, self.car
+        d = elec.data(car)
+        if not self.sel:
+            out = []
+            for k in elec.KEYS:
+                st = d["fuses"][k]
+                tag = {"ok": "цел", "blown": "ПЕРЕГОРЕЛ", "bug": "жучок"}[st]
+                f = d["faults"].get(k)
+                if f and f["found"]:
+                    tag += " · найдена неисправность"
+                out.append(((f"F{elec.fuse_no(k)} {elec.BY_KEY[k]['amp']}А  {elec.circuit_name(car, k)}", tag),
+                            ("fuse", k), True))
+            out.append(("Закрыть", CLOSE, True))
+            return out
+        k = self.sel
+        st = d["fuses"][k]
+        f = d["faults"].get(k)
+        n = elec.fuses_left(g)
+        out = []
+        if st != "ok":
+            out.append(((f"Поставить новый предохранитель {elec.BY_KEY[k]['amp']}А", f"запасных: {n}"), "replace", n > 0))
+            if n <= 0:
+                out.append(("Нет запасных: набор предохранителей — заправка, Ost-Autoteile (4 DM)", None, False))
+        out.append((("Включить цепь и проверить", "1 мин"), "test", True))
+        out.append((("Прозвонить цепь мультиметром", "15 мин"), "probe", g.has("multimeter")))
+        if not g.has("multimeter"):
+            out.append(("Мультиметра нет — Ost-Autoteile / Autohaus Krüger, 39 DM", None, False))
+        if f and f["found"] and f["kind"] == "corrosion":
+            out.append((("Зачистить окисленные контакты гнезда", "10 мин"), "clean", True))
+        elif f and f["found"]:
+            need, what = elec.fix_needs(car, k)
+            out.append(((f"Неисправность — на машине (отмечена красным): {elec.SEGMENTS[f['seg']][1]}", what), None, False))
+        if st != "bug":
+            out.append((("Поставить «жучок» из проволоки (не сгорит — но при КЗ сгорит проводка!)", "2 мин"), "bug", True))
+        out.append(("← Назад к блоку", "back", True))
+        return out
+
+    def back(self):
+        if self.sel:
+            self.sel = None
+            self.out = []
+            return False
+        return True
+
+    def select(self, sel):
+        g, car = self.g, self.car
+        if sel == CLOSE:
+            return "close"
+        if sel == "back":
+            self.back()
+            return None
+        if isinstance(sel, tuple) and sel[0] == "fuse":
+            self.sel, self.out = sel[1], []
+            return None
+        k = self.sel
+        d = elec.data(car)
+        if sel == "replace":
+            if not elec.take_fuse(g):
+                return None
+            g.advance(2)
+            d["fuses"][k] = "ok"
+            d["t"].pop(k, None)
+            g.play_sound("click", 0.6)
+            self.out = [f"Новый предохранитель F{elec.fuse_no(k)} стоит. Включите цепь, чтобы проверить."]
+        elif sel == "test":
+            g.advance(1)
+            self.out = [elec.test_circuit(car, k)]
+            g.play_sound("click", 0.5)
+        elif sel == "probe":
+            g.advance(15, working=True)
+            self.out = elec.probe(car, k)
+            g.play_sound("tool", 0.4)
+        elif sel == "clean":
+            r = elec.repair(g, car, k)
+            if r:
+                self.out = [r]
+                g.notify(r, GREEN, 6)
+        elif sel == "bug":
+            g.advance(2)
+            d["fuses"][k] = "bug"
+            self.out = ["«Жучок» стоит. Цепь больше не защищена: если неисправность осталась — будет плавиться проводка. "
+                        "TÜV с жучком не пропустит."]
+        return None
 
 
 class CarWork(Menu):
@@ -256,6 +622,7 @@ class CarWork(Menu):
         self.stack = ["root"]
         self.slot = None
         self.panel = None
+        self.ekey = None
 
     @property
     def car(self):
@@ -277,20 +644,116 @@ class CarWork(Menu):
             return "Жидкости"
         if m == "body":
             return "Кузов — ржавчина"
+        if m == "tune":
+            return "Тюнинг — турбонаддув"
+        if m == "engine":
+            return f"Двигатель {eng.layout(self.car.model)['name']} — разборка и сборка"
+        if m == "epart":
+            return eng.label(self.car, self.ekey)
+        if m == "boost":
+            return "Режим наддува"
+        if m == "lift":
+            return "Подъём машины — домкрат и подставки"
         return f"{PANELS[self.panel]}: {self.car.rust[self.panel]:.0f}% ржавчины"
+
+    def tune_lines(self):
+        car = self.car
+        if car.model in LEGEND:
+            nodes = tune_slots(car.model)
+            done = [n for n in nodes if car.has_tune(n)]
+            sp_ = car.spec
+            hp = max(sp_["tq_peak"] * (1 - 0.55 * ((r - sp_["tq_rpm"]) / sp_["tq_width"]) ** 2) * r / 7121
+                     for r in range(1000, int(sp_["cut"]) + 1, 100))
+            cost_left = sum(ITEMS[pid]["price"] for n, (pid, _, _) in nodes.items() if n not in done)
+            head = ("ЛЕГЕНДА: " + car.name + " — собран полностью!") if is_legend(car) else \
+                f"Комплект Shelby GT500: {len(done)} из {len(nodes)} · осталось купить на {cost_left:,.0f} DM".replace(",", " ")
+            return [head, f"Сейчас ≈{hp:.0f} л.с., момент {car.spec['tq_peak']:.0f} Н·м · масса {car.spec['mass']:.0f} кг · "
+                    f"сцепление шин ×{car.spec['grip']:.2f} · тормоза ×{car.spec['brake']:.2f}",
+                    "Каждая деталь сразу меняет машину; все десять — и это уже «Eleanor». Детали — в Autohaus Krüger."]
+        base_hp = {"civic": 85}.get(car.model, 0)
+        if not car.has_tune("turbo"):
+            return [f"Сейчас: атмосферный мотор, {base_hp} л.с. Турбина необязательна — Civic ездит и без неё.",
+                    "Сначала ставится турбокит (5 ч, только в гараже). Интеркулер снимает перегрев и детонацию, "
+                    "буст-контроллер открывает режимы «Спорт» и «Гонка». Всё продаётся в Autohaus Krüger."]
+        key, bar = car.boost_setting
+        eff = bar * (0.35 + 0.65 * car.tc("turbo"))
+        hp = base_hp * (1 + TORQUE_PER_BAR * eff)
+        ic = "есть" if car.has_tune("intercooler") else "НЕТ (на наддуве выше 0.5 бар — детонация)"
+        return [f"Режим: {BOOST_BY_KEY[key][0]} · фактически ~{eff:.2f} бар · около {hp:.0f} л.с. (без турбины {base_hp})",
+                f"Турбина {car.tc('turbo') * 100:.0f}% · интеркулер: {ic}. Наддув греет мотор, сильнее изнашивает "
+                "двигатель, сцепление и КПП, увеличивает расход. Старое масло быстро убивает турбину."]
+
+    def engine_lines(self):
+        car = self.car
+        L = eng.layout(car.model)
+        if self.stack[-1] == "engine":
+            fl = car.eng_flags or {}
+            warn = []
+            if fl.get("timing_off"):
+                warn.append("метки ГРМ сбиты")
+            if fl.get("head_loose"):
+                warn.append("ГБЦ затянута не по схеме")
+            if fl.get("gasket_reused"):
+                warn.append("стоит старая прокладка ГБЦ")
+            n_in = sum(1 for v in car.eng.values() if v)
+            return [f"{'Двухтактный' if L['stroke'] == 2 else 'Четырёхтактный'}, {L['cyl']} цил. · деталей на месте: "
+                    f"{n_in} из {len(car.eng)} · состояние мотора {car.c('engine') * 100:.0f}%",
+                    f"Компрессия {eng.compression(car) * 100:.0f}% · вкладыши {eng.bearings(car) * 100:.0f}% · "
+                    f"давление масла {eng.oil_pressure(car) * 100:.0f}%" + ("  ⚠ " + ", ".join(warn) if warn else ""),
+                    "Снимать можно только то, до чего есть доступ; ставить — в обратном порядке. Инструмент — набор ключей."]
+        k = self.ekey
+        out = []
+        if eng.has(car, k):
+            out.append(f"Стоит на машине: {eng.cond(car, k) * 100:.0f}%. "
+                       + (fast.describe(car, "eng:" + k) if not k.startswith("slot:") else fast.describe(car, k[5:])))
+            covered = [c for c in eng.COVERED.get(k, ()) if eng.has(car, c)]
+            if covered:
+                out.append("Не видно: закрыто — " + ", ".join(eng.label(car, c).lower() for c in covered) + ".")
+            else:
+                pid = car.eng[k]["id"] if not k.startswith("slot:") else car.parts[k[5:]]["id"]
+                out += eng.inspect_lines({"id": pid, "cond": eng.cond(car, k) * 100})[1:2]
+            ok, why = eng.can_remove(car, k) if not k.startswith("slot:") else (not eng.blockers(car, k), "")
+            if not ok and why:
+                out.append(why)
+        else:
+            out.append("Не установлено.")
+            ok, why = eng.can_install(car, k)
+            if not ok:
+                out.append(why)
+        return out
 
     def lines(self):
         car, g = self.car, self.g
+        if self.stack[-1] in ("tune", "boost"):
+            return self.tune_lines()
+        if self.stack[-1] in ("engine", "epart"):
+            return self.engine_lines()
         tuv = "действует" if car.tuv_until >= g.day else "нет"
-        return [
+        pos = []
+        if underside.enabled(g):
+            lying = getattr(g.p, "under_car", None) == g.cur
+            st = underside.status(car)
+            pos = [("ВЫ ПОД МАШИНОЙ: доступно то, что снизу (поддон, КПП, сцепление, выхлоп, подвеска, рулевые тяги, "
+                    "стартер, низ двигателя)" if lying else "Вы у открытого капота: доступно то, что сверху; низ машины — "
+                    "лёжа под ней") + f" · просвет {underside.clearance(car, 0.5) * 100:.0f} см"
+                   + (f" · поднято: {st}" if st else "")]
+        if self.stack[-1] == "lift":
+            return pos + ["Домкрат поднимает одну сторону на 30 см. Лежать под машиной на одном домкрате опасно — "
+                          "подставьте подставки (Unterstellböcke), домкрат освободится.",
+                          "Поднятая машина не поедет. Домкрат и подставки — Ost-Autoteile и Autohaus Krüger (расходники)."]
+        return pos + [
             f"{'Дизель' if car.sp('diesel') else 'Бензин'} {car.fuel:.1f}/{car.tank:.0f} л · "
             + (f"Масло {car.oil:.2f}/{car.oil_cap} л ({car.oil_quality:.0f}%) · " if car.oil_cap > 0 else "Масло — в бензине · ")
             + (f"Антифриз {car.coolant:.1f}/{car.coolant_cap} л" if car.coolant_cap > 0 else "Охлаждение воздушное"),
             f"Торм. жидк. {car.brake_fluid:.0f}% · АКБ {car.battery_charge:.0f}% · Темп. {car.temp:.0f}°C · "
             f"Пробег {car.odometer:.0f} км",
+            (f"ПОСЛЕ АВАРИИ: {damage.damage_text(car)}" + (" — TOTALSCHADEN, ремонт нецелесообразен" if damage.is_totaled(car) else "")
+             if car.deforms else "Кузов без аварийных повреждений") + " · "
             f"TÜV: {tuv} · Номера: {car.plate if car.registered else 'нет'} · "
             + ("в гараже" if self.in_garage() else "на улице (сварка и зарядка недоступны)"),
-        ]
+        ] + ([("⚠ Mängelbericht полиции: " + "; ".join(car.mangel["items"]) +
+               " — устранить и пройти TÜV" + (", затем Rathaus" if not car.registered else "") +
+               f" (срок: ещё {max(0, car.mangel['until'] - g.day)} дн.)")] if car.mangel else [])
 
     def items(self):
         g, car = self.g, self.car
@@ -300,24 +763,152 @@ class CarWork(Menu):
             out = [("Детали (снять / поставить)", "parts", True),
                    ("Жидкости (масло, антифриз, бензин...)", "fluids", True),
                    ("Кузов и ржавчина (сварка, покраска)", "body", True),
-                   (("Зарядить аккумулятор", "3 ч, в гараже"), "charge", True),
-                   ("Закрыть капот", CLOSE, True)]
+                   (("Зарядить аккумулятор", "3 ч, в гараже"), "charge", True)]
+            if car.has("engine") and car.eng:
+                n_in = sum(1 for v in car.eng.values() if v)
+                out.append(((f"Двигатель: разборка и сборка до болта", f"{n_in}/{len(car.eng)} деталей"), "engine", True))
+            lk = []
+            if car.lock_broken:
+                lk.append("замок двери сломан")
+            if car.hotwired:
+                lk.append("замок зажигания разобран")
+            out.append(((f"Заменить замки и получить 2 новых ключа" + (f" ({', '.join(lk)})" if lk else ""),
+                         "1 ч, комплект замков"), "lockset", True))
+            nbad = sum(1 for k in elec.KEYS if not elec.works(car, k) or elec.fault(car, k))
+            import tires as _t
+            worst = min((_t.tread_mm(car, s_) for s_ in car.tire_list() if car.has(s_)), default=0)
+            bad_p = sum(1 for s_ in car.tire_list() if car.has(s_) and abs(_t.pressure(car, s_, g.ambient_temp(car.x))
+                                                                             / _t.nominal(car, s_) - 1) > 0.12)
+            out.append(((f"Шины и давление (протектор до {worst:.1f} мм" + (f", давление не в норме: {bad_p}" if bad_p else "")
+                         + ")", "осмотр, подкачка"), "tires", True))
+            out.append(((f"Электрика: {elec.box_name(car)}", f"проблемных цепей: {nbad}" if nbad else "всё в порядке"),
+                        "fusebox", True))
+            out.append((("Диагностика: электрика" + (" + двигатель (компрессия, давление масла)"
+                                                     if car.has("engine") and car.eng else ""), "20 мин"), "diag", True))
+            if tune_slots(car.model):
+                out.append(("Тюнинг (турбина, интеркулер, наддув)", "tune", True))
+            if underside.enabled(g) and getattr(g.p, "under_car", None) != g.cur:
+                st = underside.status(car)
+                out.append((("Подъём машины: домкрат и подставки", st or "стоит на колёсах"), "lift", True))
+            out.append(("Закрыть меню" if getattr(g.p, "under_car", None) == g.cur else "Закрыть капот", CLOSE, True))
+        elif m == "lift":
+            lf = underside.lift(car)
+            for end in ("f", "r"):
+                nm = underside.END_RU[end].capitalize()
+                by = underside.held_by(car, end)
+                if by is None:
+                    out.append(((f"{nm}: поднять домкратом", f"3 мин · домкратов под рукой: {g.count('jack')}"),
+                                ("jack", end), True))
+                elif by == "jack":
+                    out.append(((f"{nm}: поставить на подставки (домкрат освободится)",
+                                 f"4 мин · подставок под рукой: {g.count('stands')}"), ("stands", end), True))
+                    out.append(((f"{nm}: опустить домкрат", "2 мин"), ("lower", end), True))
+                else:
+                    out.append(((f"{nm}: снять с подставок и опустить", "4 мин, нужен домкрат"), ("lower", end), True))
+            out.append(("← Назад", "back", True))
+        elif m == "tune":
+            for node, (pid, mins, garage) in tune_slots(car.model).items():
+                p = car.tune.get(node)
+                nm = TUNE_NAMES[node]
+                if isinstance(p, dict):
+                    out.append(((f"{nm}: снять — {item_name(p['id'])} ({p['cond']:.0f}%)", f"{mins} мин"),
+                                ("tune_rm", node), True))
+                    continue
+                cands = sorted([e for e in g.available() if e["id"] == pid], key=lambda e: -e["cond"])
+                ok = node not in NEEDS_TURBO or car.has_tune("turbo")
+                for e in cands[:3]:
+                    out.append(((f"{nm}: поставить ({e['cond']:.0f}%)" + ("" if ok else " — сначала турбина"),
+                                 f"{mins} мин" + (", гараж" if garage else "")), ("tune_in", node, e), ok))
+                if not cands:
+                    out.append((f"{nm}: нет под рукой (в руках / открытом багажнике / на стеллаже) — Autohaus Krüger, {ITEMS[pid]['price']:.0f} DM", None, False))
+            if "turbo" in tune_slots(car.model):
+                key = car.tune.get("boost", "soft")
+                out.append(((f"Режим наддува: {BOOST_BY_KEY[key][0].split(' (')[0]}", "10 мин"), "boost",
+                            car.has_tune("turbo")))
+            out.append(("← Назад", "back", True))
+        elif m == "boost":
+            cur = car.tune.get("boost", "soft")
+            for key, name, bar, need in BOOST_PRESETS:
+                miss = [TUNE_NAMES[n] for n in need if not car.has_tune(n)]
+                tag = "  ← сейчас" if key == cur else ""
+                out.append(((name + tag, "нужен " + ", ".join(miss) if miss else f"{bar:.2f} бар"), ("set_boost", key),
+                            not miss))
+            out.append(("← Назад", "back", True))
         elif m == "parts":
             for s, (name, pid, mins) in car.slots.items():
                 p = car.parts.get(s)
-                out.append(((name, "НЕТ" if p is None else f"{p['cond']:.0f}%"), ("slot", s), True))
+                tag = (" · снизу" if underside.is_under(s) else "") if underside.enabled(g) else ""
+                out.append(((name + tag, "НЕТ" if p is None else f"{p['cond']:.0f}%"), ("slot", s), True))
             out.append(("← Назад", "back", True))
         elif m == "slot":
             name, pid, mins = car.slots[self.slot]
             p = car.parts.get(self.slot)
+            if p is not None and fast.loose(car, self.slot):
+                n_l = fast.loose(car, self.slot)
+                out.append(((f"Затянуть крепёж ({n_l} шт. отпущено)", f"{int(n_l * fast.minutes_each(car, self.slot))} мин"),
+                            ("tighten", self.slot), True))
             if p is not None:
-                out.append(((f"Снять: {item_name(p['id'])} ({p['cond']:.0f}%)", f"{mins} мин"), ("remove", self.slot), True))
+                out.append(((f"Снять: {item_name(p['id'])} ({p['cond']:.0f}%) — с откручиванием крепежа", f"{mins} мин"),
+                            ("remove", self.slot), True))
             else:
-                cands = sorted([e for e in g.p.inventory if e["id"] == pid], key=lambda e: -e["cond"])
+                cands = sorted([e for e in g.available() if e["id"] == pid], key=lambda e: -e["cond"])
                 for e in cands:
                     out.append(((f"Поставить: {item_name(pid)} ({e['cond']:.0f}%)", f"{mins} мин"), ("install", e), True))
                 if not cands:
-                    out.append((f"Нет детали «{item_name(pid)}» в инвентаре", None, False))
+                    out.append((f"Нет детали «{item_name(pid)}» под рукой (руки, открытый багажник, стеллаж)", None, False))
+            out.append(("← Назад", "back", True))
+        elif m == "engine":
+            out.append((("Разобрать полностью (всё, что снимается)", self._chain_time(self._full_chain())),
+                        "e_strip", bool(self._full_chain())))
+            asm = self._assembly_plan()
+            out.append((("Собрать из деталей под рукой (аккуратно, по меткам)", f"{len(asm)} дет."), "e_build", bool(asm)))
+            for k in eng.keys(car.model) + [k for k in eng.graph(car.model) if k.startswith("slot:")]:
+                if eng.has(car, k):
+                    free = eng.can_remove(car, k)[0] if not k.startswith("slot:") else not eng.blockers(car, k)
+                    st = f"{eng.cond(car, k) * 100:.0f}%" + ("" if free else "  (закрыто)")
+                else:
+                    have = [e for e in g.available() if e["id"] == self._pid(k)]
+                    st = "СНЯТО" + (f" · под рукой {len(have)}" if have else "")
+                tag = (" · снизу" if underside.is_under(underside.eng_key(k)) else "") if underside.enabled(g) else ""
+                out.append(((eng.label(car, k) + tag, st), ("epart", k), True))
+            out.append(("← Назад", "back", True))
+        elif m == "epart":
+            k = self.ekey
+            mins = eng.minutes(car, k)
+            if k.startswith("slot:"):
+                out.append((("Открыть в меню деталей", ""), ("slot", k[5:]), True))
+            elif eng.has(car, k):
+                if fast.loose(car, "eng:" + k):
+                    n_l = fast.loose(car, "eng:" + k)
+                    out.append(((f"Затянуть крепёж ({n_l} шт. отпущено)", f"{int(n_l * fast.minutes_each(car, 'eng:' + k))} мин"),
+                                ("tighten", "eng:" + k), True))
+                ok, why = eng.can_remove(car, k)
+                out.append(((f"Снять: {eng.label(car, k)}", f"{mins} мин"), ("e_rm", k), ok))
+                if not ok:
+                    chain = eng.removal_chain(car, k)
+                    out.append(((f"Снять всё мешающее и её ({len(chain)} дет.)", self._chain_time(chain)), ("e_chain", k), True))
+                covered = [c for c in eng.COVERED.get(k, ()) if eng.has(car, c)]
+                out.append((("Осмотреть на месте", "5 мин"), ("e_look", k), not covered))
+            else:
+                ok, why = eng.can_install(car, k)
+                cands = sorted([e for e in g.available() if e["id"] == self._pid(k)], key=lambda e: -e["cond"])[:4]
+                for e in cands:
+                    extra = " + ГБЦ в сборе" if (e.get("sub") or {}).get("head") else ""
+                    if k == "head":
+                        out.append(((f"Поставить ({e['cond']:.0f}%{extra}) — затянуть по схеме, моментом", f"{int(mins * 1.4)} мин"),
+                                    ("e_in", k, e, True), ok))
+                        out.append(((f"Поставить ({e['cond']:.0f}%{extra}) — быстро, «на глаз»", f"{int(mins * 0.7)} мин"),
+                                    ("e_in", k, e, False), ok))
+                    elif k == "timing":
+                        out.append(((f"Поставить ({e['cond']:.0f}%) — выставить по меткам", f"{int(mins * 1.4)} мин"),
+                                    ("e_in", k, e, True), ok))
+                        out.append(((f"Поставить ({e['cond']:.0f}%) — на глаз, без меток", f"{int(mins * 0.6)} мин"),
+                                    ("e_in", k, e, False), ok))
+                    else:
+                        out.append(((f"Поставить ({e['cond']:.0f}%)", f"{mins} мин"), ("e_in", k, e, True), ok))
+                if not cands:
+                    price = ITEMS.get(self._pid(k), {}).get("price", 0)
+                    out.append((f"Нет под рукой — магазин запчастей ({price:.0f} DM) или донор на свалке", None, False))
             out.append(("← Назад", "back", True))
         elif m == "fluids":
             out = [((f"Долить масло 15W-40 (канистр: {g.count('oil')})", "10 мин"), "oil_add", car.oil_cap > 0),
@@ -327,13 +918,28 @@ class CarWork(Menu):
                    ((f"Залить бензин из канистры ({g.count('fuel_can')})", "5 мин"), "fuel_add", True),
                    ("← Назад", "back", True)]
         elif m == "body":
+            zn = damage.zones(car)
+            names = {"front": "перед", "rear": "зад", "left": "левый борт", "right": "правый борт"}
+            total = damage.is_totaled(car)
+            for zk, depth in zn.items():
+                if depth > 0.02:
+                    need = max(1, math.ceil(depth * 8))
+                    hrs = max(1, round(depth * 8))
+                    hrs = max(1, round(depth * 8 * (2.5 if total else 1.0)))
+                    tools = f"{need} лист., сварка" if self._tools(need) else "без материалов"
+                    out.append(((f"Выправить после аварии: {names[zk]} — смято {depth * 100:.0f} см",
+                                 f"~{hrs} ч, {tools}"), ("straighten", zk), True))
+            if total:
+                out.append(((f"Стапель у Krüger: восстановить геометрию кузова", f"{damage.FRAME_SHOP_PRICE:.0f} DM"),
+                            "frame_shop", True))
             for p, name in PANELS.items():
                 tag = " (покрашено)" if car.painted[p] else ""
                 out.append(((name + tag, f"{car.rust[p]:.0f}%"), ("panel", p), True))
             out.append(("← Назад", "back", True))
         elif m == "panel":
             need = 2 if self.panel in ("floor", "sill_l", "sill_r") else 1
-            out = [((f"Вырезать гниль и вварить металл ({need} лист.)", "2 ч"), "weld", True),
+            out = [((f"Вырезать гниль и вварить металл ({need} лист.)", "2 ч"), "weld", True) if self._tools(need) else
+                   (("Залатать гниль без сварки (выколотка, холодная сварка)", "4 ч"), "weld", True),
                    (("Обработать преобразователем ржавчины", "20 мин"), "conv", True),
                    (("Загрунтовать и покрасить", "40 мин"), "paint", True),
                    ("← Назад", "back", True)]
@@ -344,6 +950,13 @@ class CarWork(Menu):
             self.stack.pop()
             return False
         return True
+
+    def _acc(self, k, heavy=None):
+        """Доступ к детали из того места, где сейчас игрок (сверху / из-под машины)."""
+        ok, why = underside.access(self.g, self.g.cur, k, heavy)
+        if not ok:
+            self.g.notify(why, RED, 7)
+        return ok
 
     def need_off(self):
         if self.car.running:
@@ -365,8 +978,56 @@ class CarWork(Menu):
         if sel == "back":
             self.back()
             return None
-        if sel in ("parts", "fluids", "body"):
+        if isinstance(sel, tuple) and sel[0] == "tighten":
+            if not g.need("toolbox"):
+                return None
+            k = sel[1]
+            if not self._acc(k, heavy=False):
+                return None
+            self.work(int(fast.loose(car, k) * fast.minutes_each(car, k)) or 5)
+            while fast.loose(car, k):
+                fast.screw(car, k)
+            g.notify("Весь крепёж затянут.", GREEN)
+            return None
+        if sel in ("parts", "fluids", "body", "tune", "boost", "engine", "lift"):
             self.stack.append(sel)
+            return None
+        if isinstance(sel, tuple) and sel[0] in ("jack", "stands", "lower"):
+            fn = {"jack": underside.jack_up, "stands": underside.put_stands, "lower": underside.lower}[sel[0]]
+            fn(g, g.cur, sel[1])
+            return None
+        if isinstance(sel, tuple) and sel[0] == "epart":
+            self.ekey = sel[1]
+            self.stack.append("epart")
+            return None
+        if sel == "diag":
+            return self.diagnose()
+        if sel == "fusebox":
+            g.open_menu(FuseBox(g, g.cur))
+            return None
+        if sel == "tires":
+            from world import PUMP_ZONE as _PZ
+            g.open_menu(TireMenu(g, g.cur, station=point_in(_PZ, car.x, car.y)))
+            return None
+        if sel == "lockset":
+            import keys
+            if not g.need("toolbox") or not g.need("lockset", "комплект замков (Ost-Autoteile / Autohaus Krüger, 45 DM)"):
+                return None
+            g.take_item("lockset")
+            self.work(60)
+            car.key_code = f"{random.randint(10000, 99999)}"
+            car.lock_broken = car.hotwired = False
+            car.locked = False
+            car.ign_key = None
+            g.give(keys.make(g, g.cur))
+            g.keyhook.append(keys.make(g, g.cur, spare=True))
+            g.notify("Новые личинки и замок зажигания стоят. Новый ключ — у вас, запасной — на ключнице дома. "
+                     "Старые ключи больше не подходят.", GREEN, 10)
+            return None
+        if sel in ("e_strip", "e_build") or (isinstance(sel, tuple) and sel[0] in ("e_rm", "e_chain", "e_in", "e_look")):
+            return self.engine_work(sel)
+        if isinstance(sel, tuple) and sel[0] in ("tune_rm", "tune_in", "set_boost"):
+            self.tune_work(sel)
             return None
         if isinstance(sel, tuple) and sel[0] == "slot":
             self.slot = sel[1]
@@ -379,8 +1040,8 @@ class CarWork(Menu):
         if sel == "charge":
             if not self.in_garage():
                 g.notify("Зарядка — только в гараже (нужна розетка).", RED)
-            elif not g.has("charger"):
-                g.notify("Нужно зарядное устройство (Ost-Autoteile).", RED)
+            elif not g.need("charger"):
+                pass
             elif not car.has("battery"):
                 g.notify("Аккумулятор не установлен.", RED)
             else:
@@ -391,31 +1052,52 @@ class CarWork(Menu):
             s = self.slot
             if not self.need_off():
                 return None
-            if not g.has("toolbox"):
-                g.notify("Нужен набор ключей.", RED)
+            if not self._acc(s):
                 return None
-            if s in ("engine", "clutch") and not self.in_garage():
-                g.notify("Такую работу можно делать только в гараже.", RED)
+            if not g.need("toolbox"):
                 return None
+            gk = eng.graph(car.model).get("slot:" + s)
+            if gk and car.eng and car.parts.get("engine"):
+                b = eng.blockers(car, "slot:" + s)
+                if b:
+                    g.notify("Сначала снимите: " + ", ".join(eng.label(car, x) for x in b), RED)
+                    return None
+                if sel[0] == "install":
+                    mn = eng.missing_needs(car, "slot:" + s)
+                    if mn:
+                        g.notify("Сначала поставьте: " + ", ".join(eng.label(car, x) for x in mn), RED)
+                        return None
             if sel[0] == "remove":
                 part = car.parts[s]
                 self.work(car.slots[s][2])
                 car.parts[s] = None
-                g.add_item(part["id"], part["cond"])
+                fast.on_removed(car, s)
+                entry = {"id": part["id"], "cond": round(float(part["cond"]), 1)}
                 if s == "engine":
                     car.oil = 0.0
+                    entry["sub"] = eng.remove_whole(car)          # внутренности едут вместе с двигателем
+                g.give(entry)
                 g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
             else:
                 e = sel[1]
                 g.take_item(e["id"], e)
                 self.work(car.slots[s][2])
                 car.parts[s] = {"id": e["id"], "cond": e["cond"]}
+                fast.on_placed(car, s, tightened=True)
+                elec.on_slot_installed(car, s)
+                if s == "engine":
+                    eng.install_whole(car, e)
                 if s == "battery":
                     car.battery_charge = 60.0 if e["cond"] > 95 else 20.0
                 g.notify(f"Установлено: {item_name(e['id'])}", GREEN)
                 if s == "engine":
                     g.notify("Не забудьте залить масло в новый двигатель!", YELLOW)
             self.stack.pop()
+        elif sel == "oil_add" and car.eng and car.has("engine") and ("oil_pan" in car.eng and car.eng["oil_pan"] is None):
+            g.notify("Масло выльется на землю — не стоит масляный поддон.", RED)
+        elif sel == "cool_add" and car.eng and car.has("engine") and any(
+                k in car.eng and car.eng[k] is None for k in ("water_pump", "thermostat", "head", "head_gasket")):
+            g.notify("Антифриз вытечет — система охлаждения разобрана (помпа/термостат/ГБЦ).", RED)
         elif sel == "oil_add":
             if not g.has("oil"):
                 g.notify("Нет масла. Купите в Ost-Autoteile или на заправке.", RED)
@@ -430,7 +1112,7 @@ class CarWork(Menu):
                 self.work(10)
                 g.notify(f"Масло: {car.oil:.2f} л, качество {car.oil_quality:.0f}%.", GREEN)
         elif sel == "oil_drain":
-            if self.need_off():
+            if self.need_off() and self._acc("eng:oil_pan", heavy=False):      # пробка — внизу поддона
                 self.work(20)
                 car.oil = 0.0
                 car.oil_quality = 100.0
@@ -468,23 +1150,370 @@ class CarWork(Menu):
                 self.work(5)
                 g.notify(f"В баке {car.fuel:.1f} л." + (" Подмешали 2T-масло (1:50)." if car.sp("two_stroke") else ""),
                          GREEN)
+        elif isinstance(sel, tuple) and sel[0] == "straighten":
+            self.straighten(sel[1])
+        elif sel == "frame_shop":
+            if g.pay(damage.FRAME_SHOP_PRICE):
+                g.advance(60 * 24 * 2)
+                car.deforms = []
+                car.align = 0.0
+                car._total_said = False
+                g.notify("Krüger забрал машину на стапель и через два дня вернул с ровной геометрией.", GREEN, 8)
         elif sel in ("weld", "conv", "paint"):
             self.body_work(sel)
         return None
+
+    # ------------------------------------------------------------ двигатель «до болта»
+    def _pid(self, k):
+        car = self.car
+        if k.startswith("slot:"):
+            return car.slots[k[5:]][1]
+        return eng.part_id(car.model, k)
+
+    def _chain_time(self, chain):
+        m = sum(eng.minutes(self.car, k) for k in chain)
+        return f"{m // 60} ч {m % 60:02d} мин" if m >= 60 else f"{m} мин"
+
+    class _Sim:
+        """Копия машины для расчёта порядка работ (ничего не меняет на самой машине)."""
+        def __init__(self, car):
+            self.model, self.slots, self.eng_flags = car.model, car.slots, dict(car.eng_flags or {})
+            self.eng = dict(car.eng)
+            self.parts = dict(car.parts)
+
+    def _full_chain(self):
+        """Порядок полной разборки: всё внутреннее + навесное, которое мешает (впуск, выпуск, КПП...)."""
+        car = self.car
+        if not car.has("engine") or not car.eng:
+            return []
+        sim = self._Sim(car)
+        g_ = eng.graph(car.model)
+        cand = eng.keys(car.model) + sorted({b for d in g_.values() for b in d["blocked"] if b.startswith("slot:")})
+        order = []
+        progress = True
+        while progress:
+            progress = False
+            for k in cand:
+                if not eng.has(sim, k):
+                    continue
+                if k.startswith("slot:"):
+                    ok = not eng.blockers(sim, k)
+                else:
+                    ok = eng.can_remove(sim, k)[0]
+                if ok:
+                    order.append(k)
+                    if k.startswith("slot:"):
+                        sim.parts[k[5:]] = None
+                    else:
+                        sim.eng[k] = None
+                        if k == "head":
+                            for ch in eng.HEAD_CHILDREN:
+                                sim.eng[ch] = None
+                    progress = True
+        return order
+
+    def _assembly_plan(self):
+        """Что можно поставить из того, что под рукой, и в каком порядке (лучшие по состоянию)."""
+        car, g = self.car, self.g
+        if not car.has("engine") or not car.eng:
+            return []
+        sim = self._Sim(car)
+        g_ = eng.graph(car.model)
+        cand = list(reversed(eng.keys(car.model))) + [k for k in g_ if k.startswith("slot:")] + \
+            sorted({b for d in g_.values() for b in d["blocked"] if b.startswith("slot:")})
+        used = set()
+        plan = []
+
+        def avail(k):
+            return [e for e in g.available() if e["id"] == self._pid(k) and id(e) not in used]
+
+        progress = True
+        while progress:
+            progress = False
+            for k in cand:
+                if eng.has(sim, k):
+                    continue
+                have = sorted(avail(k), key=lambda e: -e["cond"])
+                if not have:
+                    continue
+                # не закрывать доступ: если эта деталь мешает другой, которую ещё предстоит поставить, — позже
+                if any(k in g_[y]["blocked"] for y in cand if y != k and y in g_ and not eng.has(sim, y) and avail(y)):
+                    continue
+                if k.startswith("slot:"):
+                    ok = not eng.blockers(sim, k) and not eng.missing_needs(sim, k)
+                else:
+                    ok = eng.can_install(sim, k)[0]
+                if ok:
+                    e = have[0]
+                    used.add(id(e))
+                    plan.append((k, e))
+                    if k.startswith("slot:"):
+                        sim.parts[k[5:]] = {"id": e["id"], "cond": e["cond"]}
+                    else:
+                        sim.eng[k] = {"id": e["id"], "cond": e["cond"]}
+                        for ch, p_ in ((e.get("sub") or {}).get("head") or {}).items():
+                            sim.eng[ch] = p_
+                    progress = True
+        return plan
+
+    def _remove_one(self, k):
+        g, car = self.g, self.car
+        self.work(eng.minutes(car, k))
+        if k.startswith("slot:"):
+            s_ = k[5:]
+            part = car.parts[s_]
+            car.parts[s_] = None
+            fast.on_removed(car, s_)
+            entry = {"id": part["id"], "cond": round(float(part["cond"]), 1)}
+        else:
+            entry = eng.take_off(car, k)
+        g.give(entry)
+        return entry
+
+    def _install_one(self, k, e, careful=True):
+        g, car = self.g, self.car
+        mins = eng.minutes(car, k)
+        if k in ("head", "timing"):
+            mins = int(mins * (1.4 if careful else (0.7 if k == "head" else 0.6)))
+        g.take_item(e["id"], e)
+        self.work(mins)
+        if k.startswith("slot:"):
+            car.parts[k[5:]] = {"id": e["id"], "cond": e["cond"]}
+            fast.on_placed(car, k[5:], tightened=True)
+        else:
+            eng.put_on(car, k, e, careful)
+
+    def engine_work(self, sel):
+        g, car = self.g, self.car
+        if not self.need_off():
+            return None
+        if not g.need("toolbox"):
+            return None
+        kind = sel if isinstance(sel, str) else sel[0]
+        if kind in ("e_look", "e_rm", "e_in") and not self._acc(underside.eng_key(sel[1])):
+            return None
+        if kind == "e_look":
+            self.work(5)
+            k = sel[1]
+            pid = self._pid(k)
+            lines = eng.inspect_lines({"id": pid, "cond": eng.cond(car, k) * 100})
+            self.g.open_menu(Dialog(eng.label(car, k), lines, wide=True))
+            return None
+        if kind == "e_rm":
+            ok, why = eng.can_remove(car, sel[1])
+            if not ok:
+                g.notify(why, RED)
+                return None
+            e = self._remove_one(sel[1])
+            g.notify(f"Снято: {item_name(e['id'])} ({e['cond']:.0f}%)" + (" — вместе с распредвалом и клапанами"
+                                                                          if e.get("sub") else ""), GREEN)
+            self.stack.pop()
+            return None
+        if kind in ("e_chain", "e_strip"):
+            chain = eng.removal_chain(car, sel[1]) if kind == "e_chain" else self._full_chain()
+            done = 0
+            stop = ""
+            target = sel[1] if kind == "e_chain" else None
+            progress = True
+            while progress:                       # снимаем всё, что доступно отсюда (сверху / снизу), по порядку
+                progress = False
+                skipped = []
+                for k in chain:
+                    if not eng.has(car, k):
+                        continue
+                    ok = (not eng.blockers(car, k)) if k.startswith("slot:") else eng.can_remove(car, k)[0]
+                    if not ok:
+                        if kind == "e_chain":
+                            break
+                        continue
+                    acc_ok, why = underside.access(g, g.cur, underside.eng_key(k))
+                    if not acc_ok:
+                        skipped.append((k, why))
+                        if kind == "e_chain":
+                            break
+                        continue
+                    self._remove_one(k)
+                    done += 1
+                    progress = True
+                    if kind == "e_chain":
+                        break
+                if kind == "e_chain" and target and not eng.has(car, target):
+                    break
+            if skipped:
+                k, why = skipped[0]
+                rest = ", ".join(eng.label(car, x).lower() for x, _ in skipped[:4])
+                stop = (f" Осталось {'снизу' if underside.is_under(underside.eng_key(k)) else 'сверху'}: {rest}"
+                        + ("…" if len(skipped) > 4 else "") + f". {why}")
+            g.notify(f"Снято деталей: {done}. Детали — в руках, на стеллаже / в открытом багажнике или на земле рядом."
+                     + stop, GREEN if not stop else YELLOW, 9)
+            if kind == "e_chain":
+                self.stack.pop()
+            return None
+        if kind == "e_in":
+            k, e, careful = sel[1], sel[2], sel[3]
+            ok, why = eng.can_install(car, k)
+            if not ok:
+                g.notify(why, RED)
+                return None
+            self._install_one(k, e, careful)
+            msg = f"Установлено: {item_name(e['id'])} ({e['cond']:.0f}%)"
+            if k == "head_gasket" and e["cond"] < 60:
+                msg += ". Старая прокладка — скоро потечёт!"
+            if not careful and k == "head":
+                msg += ". Болты затянуты как попало — прокладка долго не проживёт."
+            if not careful and k == "timing":
+                msg += (". Метки не совпали — мотор будет троить!" if car.eng_flags.get("timing_off")
+                        else ". Повезло — метки совпали.")
+            g.notify(msg, YELLOW if (not careful or e["cond"] < 40) else GREEN, 7)
+            self.stack.pop()
+            return None
+        if kind == "e_build":
+            plan = self._assembly_plan()
+            n = 0
+            stop = ""
+            for k, e in plan:
+                acc_ok, why = underside.access(g, g.cur, underside.eng_key(k))
+                if not acc_ok:
+                    stop = f" Дальше — {eng.label(car, k).lower()}: {why}"
+                    break
+                self._install_one(k, e, True)
+                n += 1
+            left = [k for k in eng.keys(car.model) if not eng.has(car, k)]
+            txt = f"Собрано деталей: {n}." + stop
+            if stop:
+                g.notify(txt, YELLOW, 9)
+                return None
+            if left:
+                txt += " Не хватает: " + ", ".join(eng.label(car, k).lower() for k in left[:5]) + (
+                    "…" if len(left) > 5 else "") + " — купите или снимите с донора."
+            else:
+                txt += " Двигатель собран! Залейте масло и антифриз."
+            g.notify(txt, GREEN if not left else YELLOW, 9)
+            return None
+        return None
+
+    def diagnose(self):
+        """Тестер: сначала электрика (всегда), потом компрессия и давление масла — если мотор можно прокрутить."""
+        g, car = self.g, self.car
+        self.work(20)
+        lines = elec.report(car, g.has("multimeter")) + [""]
+        if not car.has("engine") or not car.eng:
+            lines.append("ДВИГАТЕЛЬ: не установлен.")
+        else:
+            why = eng.start_problem(car)
+            if why:
+                lines.append("ДВИГАТЕЛЬ: компрессию не замерить — " + why)
+            elif not car.has("starter") or car.battery_charge < 15 or not elec.works(car, "starter"):
+                lines.append("ДВИГАТЕЛЬ: компрессию не замерить — стартер не крутит (стартер, АКБ или цепь стартера F2).")
+            else:
+                car.battery_charge = max(0.0, car.battery_charge - 6)
+                lines += ["ДВИГАТЕЛЬ:"] + eng.diagnose(car)
+        g.open_menu(Dialog(f"Диагностика: {car.name}", lines, wide=True))
+        return None
+
+    def tune_work(self, sel):
+        g, car = self.g, self.car
+        if sel[0] == "set_boost":
+            if not g.need("toolbox"):
+                return
+            self.work(10)
+            car.tune["boost"] = sel[1]
+            g.notify(f"Наддув: {BOOST_BY_KEY[sel[1]][0]}", GREEN)
+            if sel[1] == "race" and not car.has_tune("intercooler"):
+                g.notify("Без интеркулера на 0.85 бар мотор будет детонировать и перегреваться!", ORANGE, 8)
+            if sel[1] == "race":
+                g.notify("В режиме «Гонка» TÜV машину не пропустит.", YELLOW, 8)
+            self.stack.pop()
+            return
+        node = sel[1]
+        pid, mins, garage = tune_slots(car.model)[node]
+        if not self.need_off():
+            return
+        if not g.need("toolbox"):
+            return
+        if garage and not self.in_garage():
+            g.notify("Такую работу можно делать только в гараже.", RED)
+            return
+        if sel[0] == "tune_rm":
+            part = car.tune[node]
+            self.work(mins)
+            car.tune[node] = None
+            if node == "paint" and getattr(car, "base_color", None):
+                car.color = tuple(car.base_color)               # сняли «покраску» — вернулся старый цвет
+            car.refresh_spec()
+            g.add_item(part["id"], part["cond"])
+            g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
+            if node == "turbo":
+                g.notify("Мотор снова атмосферный — машина ездит как стоковая.", YELLOW)
+        else:
+            e = sel[2]
+            if node in NEEDS_TURBO and not car.has_tune("turbo"):
+                g.notify("Сначала поставьте турбину.", RED)
+                return
+            g.take_item(e["id"], e)
+            self.work(mins)
+            car.tune[node] = {"id": e["id"], "cond": e["cond"]}
+            if node == "paint":
+                car.base_color = car.color
+                car.color = (96, 99, 104)                       # Pepper Grey, чёрные полосы — в 3D
+                car.fade = 0.0
+                for pn in car.rust:
+                    car.rust[pn] = min(car.rust[pn], 2.0)
+                    car.painted[pn] = True
+            car.refresh_spec()
+            if is_legend(car):
+                g.notify(f"Готово: {car.name}! 428 Cobra Jet, Toploader, обвес GT500, полосы — легенда ожила.", GREEN, 10)
+                g.play_sound("start", 1.0)
+            g.notify(f"Установлено: {item_name(e['id'])}", GREEN)
+            if node == "turbo":
+                g.notify("Турбина стоит! Режим «Мягкий» 0.4 бар. Меняйте масло чаще — турбина его не любит.", YELLOW, 8)
+
+    # ------------------------------------------------------------ кузов: ремонт где угодно
+    def _tools(self, need_metal=0):
+        """Есть ли сварка и металл: с ними быстрее, но без них тоже можно (выколотка, рихтовка, эпоксидка)."""
+        g = self.g
+        return g.has("welder") and g.count("metal") >= need_metal
+
+    def straighten(self, zk):
+        g, car = self.g, self.car
+        depth = damage.zones(car).get(zk, 0.0)
+        if depth <= 0:
+            return
+        total = damage.is_totaled(car)
+        hours = max(1.0, depth * 8) * (2.5 if total else 1.0)
+        need = max(1, math.ceil(depth * 8))
+        how = "руками: домкрат, цепь за столб, кувалда и выколотка"
+        if self._tools(need):
+            for _ in range(need):
+                g.take_item("metal")
+            hours *= 0.6
+            how = "вытянули цепями, вырезали рваное, вварили заплаты"
+        elif g.has("toolbox"):
+            hours *= 0.85
+        self.work(int(hours * 60), "weld" if "вварили" in how else "tool")
+        car.deforms = [d for d in car.deforms if damage.zone_of(d["ds"], d["dl"]) != zk]
+        # кузов по-настоящему в норме: геометрия, панели этой зоны, увод
+        panels = {"front": ("hood", "lights"), "rear": ("trunk",), "left": ("door_l",), "right": ("door_r",)}[zk]
+        for sl in panels:
+            pt = car.parts.get(sl)
+            if pt is not None and sl != "lights":
+                pt["cond"] = max(pt["cond"], 85.0)
+        if not car.deforms:
+            car.align = 0.0
+        elif zk in ("front", "left", "right"):
+            car.align *= 0.3
+        car._total_said = False
+        car._def_cache = None
+        where = "в гараже" if self.in_garage() else "прямо на месте"
+        g.notify(f"Кузов выправлен {where} ({how}), {hours:.0f} ч. Геометрия в норме, увода нет.", GREEN, 8)
 
     def body_work(self, what):
         g, car, p = self.g, self.car, self.panel
         if what == "weld":
             need = 2 if p in ("floor", "sill_l", "sill_r") else 1
-            if not self.in_garage():
-                g.notify("Сварка — только в гараже.", RED)
-            elif not g.has("welder"):
-                g.notify("Нужен сварочный аппарат (Ost-Autoteile, 320 DM).", RED)
-            elif g.count("metal") < need:
-                g.notify(f"Нужно листов металла: {need}.", RED)
-            elif car.rust[p] < 15:
-                g.notify("Здесь варить нечего — только поверхностная ржавчина.", YELLOW)
-            else:
+            if car.rust[p] < 15:
+                g.notify("Здесь латать нечего — только поверхностная ржавчина.", YELLOW)
+            elif self._tools(need):
                 for _ in range(need):
                     g.take_item("metal")
                 self.work(120, "weld")
@@ -492,6 +1521,14 @@ class CarWork(Menu):
                 car.painted[p] = False
                 g.p.hygiene = max(0, g.p.hygiene - 15)
                 g.notify(f"{PANELS[p]}: гниль вырезана, вварена заплатка. Покрасьте, иначе снова заржавеет!", GREEN)
+            else:
+                # без сварки: вычистить гниль, выколотить, закрыть холодной сваркой/стеклотканью — дольше, но надёжно
+                self.work(240, "tool")
+                car.rust[p] = 8.0
+                car.painted[p] = False
+                g.p.hygiene = max(0, g.p.hygiene - 20)
+                g.notify(f"{PANELS[p]}: гниль вычищена и закрыта без сварки (выколотка, холодная сварка). "
+                         "Покрасьте, иначе снова заржавеет!", GREEN, 7)
         elif what == "conv":
             if not g.has("rust_conv"):
                 g.notify("Нет преобразователя ржавчины.", RED)
@@ -651,7 +1688,7 @@ class Dealer(Menu):
 
 
 class Dismantle(Menu):
-    """Разборка машины на запчасти. Детали идут в инвентарь и ставятся на машины той же модели."""
+    """Разборка машины на запчасти. Детали — в руки, в открытый багажник рядом или на землю, ставятся на машины той же модели."""
     time_flows = True
     side = True
     HEAVY = ("engine", "gearbox", "clutch")
@@ -689,7 +1726,20 @@ class Dismantle(Menu):
             if p_ is None:
                 continue
             heavy_ok = sl not in self.HEAVY or self.crane()
+            if c.eng and c.parts.get("engine") and eng.blockers(c, "slot:" + sl):
+                heavy_ok = False                       # например, ремень ГРМ под кожухом
             out.append(((f"Снять: {name} ({p_['cond']:.0f}%)", f"{max(5, int(mins * 0.6))} мин"), ("take", sl), heavy_ok))
+        # внутренности двигателя донора — то, до чего сейчас есть доступ
+        if c.eng and c.parts.get("engine"):
+            for k in eng.keys(c.model):
+                if eng.has(c, k) and eng.can_remove(c, k)[0]:
+                    out.append(((f"Снять с двигателя: {eng.label(c, k)} ({eng.cond(c, k) * 100:.0f}%)",
+                                 f"{max(5, int(eng.minutes(c, k) * 0.6))} мин"), ("etake", k), True))
+        for node, (pid, mins, garage) in tune_slots(c.model).items():
+            p_ = c.tune.get(node)
+            if isinstance(p_, dict):
+                out.append(((f"Снять: {item_name(p_['id'])} ({p_['cond']:.0f}%)", f"{max(5, int(mins * 0.6))} мин"),
+                            ("tune", node), not garage or self.crane()))
         if not out:
             out.append(("Снимать больше нечего — только кузов на пресс.", None, False))
         out.append(("Закончить", CLOSE, True))
@@ -702,8 +1752,7 @@ class Dismantle(Menu):
         if isinstance(sel, tuple) and sel[0] == "take":
             sl = sel[1]
             c = self.car
-            if not g.has("toolbox"):
-                g.notify("Нужен набор ключей.", RED)
+            if not g.need("toolbox"):
                 return None
             if c.running:
                 c.engine_off()
@@ -717,6 +1766,40 @@ class Dismantle(Menu):
                 g.advance(min(10, left), working=True)
                 left -= 10
             c.parts[sl] = None
+            fast.on_removed(c, sl)
+            entry = {"id": part["id"], "cond": round(float(part["cond"]), 1)}
+            if sl == "engine" and c.eng:
+                entry["sub"] = eng.remove_whole(c)
+            g.give(entry)
+            g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
+        if isinstance(sel, tuple) and sel[0] == "etake":
+            c = self.car
+            if not g.need("toolbox"):
+                return None
+            k = sel[1]
+            if not eng.can_remove(c, k)[0]:
+                return None
+            left = max(5, int(eng.minutes(c, k) * 0.6))
+            g.play_sound("tool", 0.6)
+            while left > 0:
+                g.advance(min(10, left), working=True)
+                left -= 10
+            e = eng.take_off(c, k)
+            g.give(e)
+            g.notify(f"Снято: {item_name(e['id'])} ({e['cond']:.0f}%)", GREEN)
+        if isinstance(sel, tuple) and sel[0] == "tune":
+            c = self.car
+            if not g.need("toolbox"):
+                return None
+            part = c.tune.get(sel[1])
+            if not isinstance(part, dict):
+                return None
+            mins = max(5, int(tune_slots(c.model)[sel[1]][1] * 0.6))
+            left = mins
+            while left > 0:
+                g.advance(min(10, left), working=True)
+                left -= 10
+            c.tune[sel[1]] = None
             g.add_item(part["id"], part["cond"])
             g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
         return None
@@ -769,6 +1852,9 @@ class ActionsMixin:
             self.autohaus()
         elif bid == "dealer":
             self.open_menu(Dealer(self))
+        elif bid == "polizei":
+            import theft
+            theft.police_station(self)
 
     def parts_shop(self, where, title, subtitle):
         """Выбор марки, затем список запчастей этой марки."""
@@ -787,7 +1873,8 @@ class ActionsMixin:
     def autohaus(self):
         self.dialog("Autohaus Krüger — Toyota & West", [
             "Herr Krüger — бывший механик Toyota. Возит детали из Японии и Голландии, а заодно держит склад "
-            "б/у и новых деталей для западных машин: Opel, VW, Ford, Mercedes.",
+            "б/у и новых деталей для западных машин: Opel, VW, Ford, Mercedes, Volvo, BMW, Audi и Honda.",
+            "Для Honda Civic есть тюнинг: турбокит IHI, интеркулер и буст-контроллер (в списке запчастей Civic).",
             "«AE86 у Ковальского? Ja, kenne ich. Ремень ГРМ — первым делом, sonst ist der Motor kaputt!»"],
             [("Выбрать марку и запчасти", lambda: self.parts_shop(
                 "west", "Autohaus Krüger", "Toyota, Opel, VW, Ford, Mercedes — оригинал и контрактные"), True)], wide=True)
@@ -847,6 +1934,9 @@ class ActionsMixin:
                  "Хуже всего: " + ", ".join(f"{n} {c:.0f}%" for c, n in worst) + "."]
         if missing:
             lines.append("Нет совсем: " + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else "") + ".")
+        if car.has_tune("turbo"):
+            lines.append(f"Под капотом — самодельная турбина IHI ({car.tc('turbo') * 100:.0f}%)! Прошлый хозяин "
+                         "явно любил скорость.")
         if key.startswith("j"):
             lines.append("Ковальский: «Забирай даром, если утащишь. Или разбери на запчасти (R) — тоже бесплатно.»")
         else:
@@ -894,6 +1984,8 @@ class ActionsMixin:
 
     def pick_loose(self, idx):
         it = self.pickup(idx)
+        if it is None:
+            return
         self.play_sound("tool", 0.4)
         self.notify(f"Подобрано: {item_name(it['id'])} ({it['cond']:.0f}%)", GREEN)
 
@@ -933,7 +2025,9 @@ class ActionsMixin:
     def attach_rope(self, target):
         """target: ключ машины (своей или брошенной), которую тянем."""
         if not self.has("rope"):
-            self.notify("Нет троса. Купите Abschleppseil на заправке или в Ost-Autoteile (15 DM).", RED)
+            w = self.where_is("rope")
+            self.notify("Трос не под рукой: лежит " + w + "." if w else
+                        "Нет троса. Купите Abschleppseil на заправке или в Ost-Autoteile (15 DM).", RED, 6)
             return
         tgt = self.cars[target]
         best, bd = None, 14.0
@@ -1033,15 +2127,27 @@ class ActionsMixin:
                                          "Стоимость проверки: 95 DM."])
             return
 
+        nach = bool(car.mangel) and car.tuv_until >= self.day      # только перепроверка дефектов
+        price = 25 if nach else 95
+
         def check():
-            if not self.pay(95):
+            if not self.pay(price):
                 return
-            self.advance(45)
-            defects = car.tuv_defects()
+            self.advance(20 if nach else 45)
+            defects = car.tuv_defects() + elec.tuv_defects(car)
+            if nach:          # перепроверка — только то, что в предписании: свет, сигналы, электрика
+                defects = [x for x in defects if x.startswith(("Beleuchtung", "Sicherung", "Фары", "Электрика"))]
             p, why = car._start_chance()
             if p <= 0 or car.battery_charge < 10:
                 defects.insert(0, "Автомобиль не заводится своим ходом")
+            if not defects and nach:
+                car.mangel = None
+                self.info("TÜV — Nachprüfung bestanden", [
+                    "«Mängel beseitigt.» Инспектор ставит штамп в Mängelbericht.",
+                    "Предписание закрыто." + ("" if car.registered else " Теперь — в Rathaus: заново поставить на учёт.")])
+                return
             if not defects:
+                car.mangel = None
                 car.tuv_until = self.day + 730
                 first = ("Инспектор долго смотрит на «Жигули», потом на вас, потом снова на «Жигули»."
                          if car.model == "vaz2102" else
@@ -1053,16 +2159,22 @@ class ActionsMixin:
                 self.info("TÜV — NICHT BESTANDEN", ["Erhebliche Mängel (существенные дефекты):", ""] +
                           [f"• {d}" for d in defects[:14]] + ["", "Устраните и приезжайте снова."])
 
+        mg = ["", "Mängelbericht от полиции: " + "; ".join(car.mangel["items"])] if car.mangel else []
         self.dialog("TÜV-Prüfstelle", [
             f"Hauptuntersuchung (техосмотр) для {car.name}.",
-            "Проверяют: коррозию, тормоза, шины, свет, выхлоп, амортизаторы, течи."],
-            [("Пройти проверку (95 DM, 45 мин)", check, True)])
+            "Проверяют: коррозию, тормоза, шины, свет и сигналы, предохранители, выхлоп, амортизаторы, течи."] + mg,
+            [("Nachprüfung — перепроверка дефектов (25 DM, 20 мин)" if nach else "Пройти проверку (95 DM, 45 мин)",
+              check, True)])
 
     def rathaus(self):
         def register(key):
             car = self.cars[key]
             if car.tuv_until < self.day:
                 self.info("Zulassungsstelle", ["«Ohne gültigen TÜV-Bericht — keine Zulassung.» Сначала TÜV."])
+                return
+            if car.mangel:
+                self.info("Zulassungsstelle", ["«Hier liegt ein offener Mängelbericht vor.» Сначала устраните дефекты "
+                                               "и пройдите Nachprüfung в TÜV: " + "; ".join(car.mangel["items"])])
                 return
             if self.pay(145):
                 self.advance(120)
@@ -1226,8 +2338,12 @@ class ActionsMixin:
             reasons.append(("Alkohol am Steuer (вождение в нетрезвом виде)", 500))
         if lim and car.kmh() > lim + 20:
             reasons.append((f"Превышение скорости ({car.kmh():.0f} при {lim})", 100))
-        if car.c("lights") < 0.05 and self.darkness() > 0.4:
-            reasons.append(("Езда без света ночью", 30))
+        night = self.darkness() > 0.4
+        light = elec.light_defects(car, night)          # неисправный свет, который видно со стороны
+        if night and not car.lights and not any(r[1] for r in light):
+            reasons.append(("Езда без включённого света ночью", 30))
+        for txt, serious, fine in light:
+            reasons.append((txt, fine))
         if car.c("exhaust") < 0.2:
             reasons.append(("Слишком громкий выхлоп", 40))
         if not reasons:
@@ -1235,12 +2351,32 @@ class ActionsMixin:
         self.police_cd = 240
         pol.siren = 8.0
         car.speed = 0
+        car.vlat = car.ang_vel = 0.0
         self.play_sound("police", 0.6)
         total = sum(r[1] for r in reasons)
         self.charge(total)
+        extra = []
+        if light:
+            serious = any(x[1] for x in light)
+            items = [x[0] for x in light]
+            if serious and car.registered:
+                car.registered = False
+                car.mangel = {"items": items, "until": self.day + 14, "serious": True}
+                extra = ["«Weiterfahrt untersagt!» Машина не соответствует требованиям — полицейский снимает печать "
+                         "с номеров: регистрация аннулирована.",
+                         "Что делать: устранить неисправность света → пройти TÜV (Nachprüfung) → заново поставить на учёт "
+                         "в Rathaus. До тех пор езда — уже без регистрации."]
+            elif serious:
+                car.mangel = {"items": items, "until": self.day + 14, "serious": True}
+                extra = ["«Weiterfahrt untersagt!» Без исправного света ехать нельзя. Почините, пройдите TÜV."]
+            elif not car.mangel:
+                car.mangel = {"items": items, "until": self.day + 7, "serious": False}
+                extra = ["Выписан Mängelbericht: устранить дефекты и в течение 7 дней предъявить машину в TÜV "
+                         "(Nachprüfung, 25 DM). Иначе регистрацию аннулируют."]
         self.info("Polizei", ["«Allgemeine Verkehrskontrolle! Führerschein und Fahrzeugschein, bitte.»", ""] +
                   [f"• {r[0]}: {r[1]} DM" for r in reasons] +
-                  ["", f"Итого штраф: {total} DM.", "Полицейский качает головой, глядя на ваши гнилые пороги."])
+                  ["", f"Итого штраф: {total} DM."] + (extra or
+                  ["Полицейский качает головой, глядя на ваши гнилые пороги."]))
 
     # ----------------------------------------------------------------- квартира
     def sleep(self, minutes):
@@ -1270,14 +2406,16 @@ class ActionsMixin:
                 ("Поспать 4 часа", lambda: self.sleep(240), True),
                 ("Спать до 07:00 утра (и сохранить)", until_morning, True)])
         elif key == "fridge":
-            self.open_menu(Inventory(self, only_food=True, title="Холодильник (ваши продукты)"))
+            self.open_menu(StorageTake(self, self.fridge, "fridge", "Холодильник"))
+        elif key == "keyhook":
+            self.open_menu(StorageTake(self, self.keyhook, "hook", "Ключница у двери"))
         elif key == "stove":
             if self.has("pizza_tk"):
                 def cook():
                     self.take_item("pizza_tk")
                     self.advance(15)
                     self.add_item("pizza_hot")
-                    self.notify("Пицца готова (горячая пицца в инвентаре).", GREEN)
+                    self.notify("Пицца готова — горячая пицца в руке (или в холодильнике, если руки заняты).", GREEN)
                 self.dialog("Плита", ["Разогреть замороженную пиццу? (15 мин)"], [("Разогреть", cook, True)])
             else:
                 self.info("Плита", ["Нечего готовить. Купите Tiefkühlpizza в Supermarkt."])
@@ -1347,6 +2485,7 @@ class ActionsMixin:
                 car.x, car.y = gx + gw / 2, gy + gh / 2 + 0.5
             car.angle = -math.pi / 2
             car.speed = 0
+            car.vlat = car.ang_vel = 0.0
             car.engine_off()
             self.advance(90)
             self.notify(f"Abschleppdienst Meier отбуксировал {car.name} "

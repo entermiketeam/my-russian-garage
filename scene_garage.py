@@ -1,5 +1,6 @@
 """Работа с машиной: детали, жидкости, зарядка, сварка кузова. Вид сбоку."""
 import pygame
+import engine as _eng
 
 import ui
 from config import WIDTH, HEIGHT, WHITE, GREY, YELLOW, GREEN, RED, ORANGE
@@ -170,15 +171,14 @@ class CarWorkScene(Scene):
             if not g.has("toolbox"):
                 g.notify("Нужен набор ключей.", RED)
                 return
-            if s in ("engine", "clutch") and not self.in_garage():
-                g.notify("Такую работу можно делать только в гараже.", RED)
-                return
             part = car.parts[s]
             self.work(SLOTS[s][2])
             car.parts[s] = None
-            g.add_item(part["id"], part["cond"])
+            entry = {"id": part["id"], "cond": round(float(part["cond"]), 1)}
             if s == "engine":
                 car.oil = 0.0
+                entry["sub"] = _eng.remove_whole(car)      # внутренности двигателя едут вместе с ним
+            g.p.inventory.append(entry)
             g.notify(f"Снято: {item_name(part['id'])} ({part['cond']:.0f}%)", GREEN)
             self.back()
         elif isinstance(sel, tuple) and sel[0] == "install":
@@ -189,12 +189,11 @@ class CarWorkScene(Scene):
             if not g.has("toolbox"):
                 g.notify("Нужен набор ключей.", RED)
                 return
-            if s in ("engine", "clutch") and not self.in_garage():
-                g.notify("Такую работу можно делать только в гараже.", RED)
-                return
             g.take_item(e["id"], e)
             self.work(SLOTS[s][2])
             car.parts[s] = {"id": e["id"], "cond": e["cond"]}
+            if s == "engine":
+                _eng.install_whole(car, e)
             if s == "battery":
                 car.battery_charge = 60.0 if e["cond"] > 95 else 20.0
             g.notify(f"Установлено: {item_name(e['id'])}", GREEN)

@@ -65,6 +65,13 @@ def _decay(dur, f, vol):
 
 def generate():
     os.makedirs(DIR, exist_ok=True)
+    if not os.path.exists(os.path.join(DIR, "bov.wav")):
+        # «пшшш» перепускного клапана турбины: шипящий шум с быстрым затуханием
+        n = int(SR * 0.45)
+        w = np.random.default_rng(12).standard_normal(n)
+        w = w - np.convolve(w, np.ones(8) / 8, mode="same")        # только высокие частоты
+        tt_ = np.arange(n) / SR
+        _write("bov", w * np.exp(-tt_ * 7) * np.minimum(1, tt_ * 60) * 0.5)
     if os.path.exists(os.path.join(DIR, "blitz.wav")):
         return
     t = lambda d: np.arange(int(SR * d)) / SR
@@ -100,14 +107,39 @@ def generate():
     _write("blitz", _tone(0.12, 2600, 0.3))
 
 
+def generate_locks():
+    """Звуки замков (дописываются к уже созданным звукам, если их ещё нет)."""
+    if os.path.exists(os.path.join(DIR, "handle.wav")):
+        return
+    t = lambda d: np.arange(int(SR * d)) / SR
+    rng = np.random.default_rng(21)
+    tt = t(0.18)
+    thunk = lambda f, k: np.sin(2 * np.pi * f * tt) * np.exp(-tt * k)
+    # центральный замок: два быстрых «клац» (запереть — ниже, отпереть — выше)
+    for name, f in (("lock", 520), ("unlock", 760)):
+        a = thunk(f, 55) * 0.5 + rng.standard_normal(len(tt)) * np.exp(-tt * 90) * 0.35
+        out = np.zeros(int(SR * 0.32))
+        out[:len(a)] += a
+        out[int(SR * 0.09):int(SR * 0.09) + len(a)] += a * 0.8
+        _write(name, out)
+    # дёрнули запертую ручку: сухой щелчок и дребезг
+    tt = t(0.25)
+    _write("handle", (rng.standard_normal(len(tt)) * np.exp(-tt * 30) * 0.3 + np.sin(2 * np.pi * 300 * tt)
+                      * np.exp(-tt * 20) * 0.3) * (np.sin(2 * np.pi * 22 * tt) > -0.3))
+    # ключ в замке: короткий металлический скрежет
+    tt = t(0.2)
+    _write("key", rng.standard_normal(len(tt)) * np.exp(-tt * 18) * 0.18 * np.sin(2 * np.pi * 40 * tt) ** 2)
+
+
 class Audio3D:
     ONE_SHOTS = ["click", "start", "stall", "misfire", "crash", "grind", "horn", "cash", "door", "weld",
-                 "tool", "police", "blitz", "step"]
+                 "tool", "police", "blitz", "step", "bov", "lock", "unlock", "handle", "key"]
 
     def __init__(self, loader):
         self.ok = False
         try:
             generate()
+            generate_locks()
             self.loader = loader
             self.loops = {n: self._load(n, loop=True) for n in ("engine", "rattle", "crank", "rain", "skid")}
             self.fx = {n: [self._load(n) for _ in range(3)] for n in self.ONE_SHOTS}

@@ -5,6 +5,7 @@ import random
 from panda3d.core import ColorBlendAttrib, TransparencyAttrib
 from ursina import Entity, Text, color, scene
 
+from streaming import mesh_group, point_group
 from mesh3d import MeshBuilder
 from world import (ROADS, BUILDINGS, GARAGE, GARAGE_WALLS, PUMP_ZONE, PUMPS, TUV_YARD, BLITZER,
                    MAP_W, MAP_H, AUTOHAUS_LOT, PARKING2, JUNKYARD, JUNK_LANE, JUNK_FENCES, JUNK_PILES,
@@ -95,7 +96,7 @@ class City:
         for zx in (445, 520):
             for k in range(6):
                 g.flat2d(zx + k * 0.9, 300.5, 0.5, 9, 0.09, LINE)
-        self.ground = Entity(model=g.build(), texture=textures3d.detail(), double_sided=True)
+        self.ground = mesh_group(g, "ground", texture=textures3d.detail(), double_sided=True)
 
     # ----------------------------------------------------------------- здания
     def _windows(self, wb, nb, rect, floors, wall_h, door=None, rng=None, lit=0.35):
@@ -228,10 +229,9 @@ class City:
                     zx = x + 10 + k * 24
                     mb.box2d(zx, y + h - 0.1, 6, 0.3, 0, 4.2, (200, 160, 40))
                 mb.box2d(x, y + h, w, 3, 0, 1.2, (130, 130, 128))
-        self.buildings = Entity(model=mb.build(), double_sided=True)
-        self.windows_day = Entity(model=wb.build(), double_sided=True)
-        self.windows_night = Entity(model=nb.build(), double_sided=True)
-        self.windows_night.setLightOff()
+        self.buildings = mesh_group(mb, "buildings", double_sided=True)
+        self.windows_day = mesh_group(wb, "windows_day", double_sided=True)
+        self.windows_night = mesh_group(nb, "windows_night", setup=lambda e: e.setLightOff(), double_sided=True)
         self.windows_night.enabled = False
 
     # ----------------------------------------------------------------- мелочи
@@ -331,19 +331,24 @@ class City:
             mb.box2d(bx - 0.3, by - 0.3, 0.6, 0.6, 0, 2.6, (230, 230, 230))
             mb.box2d(bx - 0.35, by - 0.5, 0.7, 1.0, 2.0, 2.6, (40, 40, 40))
         # деревья
+        crowns = MeshBuilder()
         for tx, ty, r, k in self.world.trees:
             if k == 2:   # ель
                 mb.cylinder(tx, 0, -ty, 0.18, 1.2, (80, 60, 40), seg=5, cap=False)
                 mb.cone(tx, 1.0, -ty, r * 0.75, r * 3.6, (40, 72, 45))
             else:
                 mb.cylinder(tx, 0, -ty, 0.22, r * 1.3, (95, 72, 50), seg=5, cap=False)
-                col = (62, 104, 48) if k == 0 else (84, 116, 52)
-                mb.blob(tx, r * 1.3 + r * 0.6, -ty, r * 0.95, col)
+                mb.cone(tx, r * 1.45, -ty, r * 0.4, r * 1.2, (78, 62, 48), seg=5)      # голые ветки (летом внутри кроны)
+                # крона — отдельно: её цвет и видимость меняются по месяцу (set_season)
+                shade = 235 if k == 0 else 255
+                crowns.blob(tx, r * 1.3 + r * 0.6, -ty, r * 0.95, (shade, shade, shade))
         # фонари
         for lx, ly in self.world.lamps:
             mb.cylinder(lx, 0, -ly, 0.08, 5.2, (60, 62, 66), seg=5)
             mb.box(lx - 0.25, 5.0, -ly - 0.25, lx + 0.25, 5.25, -ly + 0.25, (50, 50, 55))
-        self.props = Entity(model=mb.build(), double_sided=True)
+        self.props = mesh_group(mb, "props", double_sided=True)
+        self.crowns = mesh_group(crowns, "crowns", double_sided=True)
+        self._season = None
 
     def build_abandoned(self):
         """Заброшенные гаражи: бетонные стены с потёками, ржавая крыша, мох, полки с хламом, ворота-гармошка."""
@@ -412,13 +417,14 @@ class City:
                     dm.box2d(dx + 0.05, dy, dw - 0.1, dh, y0, y0 + 2.35 / ribs - 0.015, (120 + (k % 2) * 12, 72, 45))
             door.model = dm.build()
             door.double_sided = True
-            self.garage_doors[ag["id"]] = door
-        self.abandoned_mesh = Entity(model=mb.build(), double_sided=True)
+            self.garage_doors[ag["id"]] = point_group(door, dx + dw / 2, dy + dh / 2, 4.0, "door")
+        self.abandoned_mesh = mesh_group(mb, "abandoned", double_sided=True)
 
     def set_garage_door(self, gid, open_):
         d = self.garage_doors.get(gid)
         if d is None:
             return
+        d = d.items[0][0]
         # ворота «сворачиваются» под потолок
         d.y = 2.0 if open_ else 0.0
         d.scale_y = 0.15 if open_ else 1.0
@@ -431,10 +437,8 @@ class City:
             r = 11.0
             glows.poly([(lx - r, 0.12, -ly - r), (lx + r, 0.12, -ly - r), (lx + r, 0.12, -ly + r), (lx - r, 0.12, -ly + r)],
                        (255, 200, 130, 150), (0, 1, 0), uvs=[(0, 0), (1, 0), (1, 1), (0, 1)])
-        self.bulbs = Entity(model=bulbs.build(), double_sided=True)
-        self.bulbs.setLightOff()
-        self.glow = Entity(model=Mesh_with_uvs(glows), texture=textures3d.glow(), double_sided=True)
-        additive(self.glow)
+        self.bulbs = mesh_group(bulbs, "bulbs", setup=lambda e: e.setLightOff(), double_sided=True)
+        self.glow = mesh_group(glows, "glow", with_uvs=True, setup=additive, texture=textures3d.glow(), double_sided=True)
         self.bulbs.enabled = False
         self.glow.enabled = False
 
@@ -455,14 +459,16 @@ class City:
                     pos, rot = (x + w + 0.25, min(wh - 0.8, 4.2), -dy), -90
             else:
                 pos, rot = (x + w / 2, wh - 1.2, -(y + h) - 0.25), 0
-            self.signs.append(self._board(name, pos, rot, 34, (250, 245, 225), (25, 30, 40)))
+            self.signs.append(point_group(self._board(name, pos, rot, 34, (250, 245, 225), (25, 30, 40)),
+                                          pos[0], -pos[2], 6.0, "sign"))
         # вывеска над воротами свалки (видна с Hauptstraße)
-        self.signs.append(self._board("Autoverwertung Kowalski — Ankauf von Altautos", (390.3, 4.2, -343.6), 180, 17,
-                                      (20, 20, 20), (240, 200, 40)))
+        self.signs.append(point_group(self._board("Autoverwertung Kowalski — Ankauf von Altautos", (390.3, 4.2, -343.6),
+                                                  180, 17, (20, 20, 20), (240, 200, 40)), 390.3, 343.6, 8.0, "sign"))
         # табличка населённого пункта (жёлтая, как в Германии)
         for (sx, sy, rot) in ((1318, 297, -90), (297, 918, 0), (297, 96, 180)):
             Entity(model="cube", position=(sx, 1.1, -sy), scale=(0.08, 2.2, 0.08), color=color.gray)
-            self.signs.append(self._board("Kleinbruck", (sx, 2.5, -sy), rot, 16, (10, 10, 10), (245, 205, 40), h=0.8))
+            self.signs.append(point_group(self._board("Kleinbruck", (sx, 2.5, -sy), rot, 16, (10, 10, 10), (245, 205, 40),
+                                                      h=0.8), sx, sy, 3.0, "sign"))
 
     def _board(self, name, pos, rot, size, fg, bg, h=None):
         """Вывеска: щит + надпись (светятся ночью)."""
@@ -477,6 +483,8 @@ class City:
     def set_visible(self, v):
         for e in (self.ground, self.buildings, self.windows_day, self.props, self.garage, self.abandoned_mesh):
             e.enabled = v
+        if getattr(self, "_season", None):
+            self.crowns.enabled = v and self._season[1] >= 0.15
         for d in self.garage_doors.values():
             d.enabled = v
         for t in self.signs:
@@ -488,6 +496,22 @@ class City:
 
     # ----------------------------------------------------------------- день/ночь
     _night = False
+
+    # цвет листвы по месяцам: весной светлая, летом тёмная, осенью жёлтая/рыжая, зимой крон нет
+    LEAF = {3: (150, 185, 95), 4: (120, 180, 80), 5: (80, 140, 60), 6: (68, 118, 50), 7: (64, 112, 48),
+            8: (72, 112, 46), 9: (120, 130, 50), 10: (200, 130, 45), 11: (150, 95, 50)}
+
+    def set_season(self, month, leaves):
+        """Листва по календарю (calendar_de: leaves 0..1). Голые деревья — когда листьев почти нет."""
+        key = (month, round(leaves, 1))
+        if key == self._season:
+            return
+        self._season = key
+        show = leaves >= 0.15
+        col = self.LEAF.get(month, (64, 112, 48))
+        for item in self.crowns.items:
+            item[0].color = color.rgb(*col)
+        self.crowns.enabled = show
 
     def set_night(self, night):
         self._night = night

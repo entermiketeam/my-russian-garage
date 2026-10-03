@@ -8,6 +8,7 @@ import random
 
 from ursina import Entity, Text, color
 
+from streaming import mesh_group, point_group
 from mesh3d import MeshBuilder
 from places import INTERIOR_X, TG_ENTRANCES, DEALER_LOT, DEALER_SELL, driveway
 from world import JUNKYARD
@@ -154,6 +155,9 @@ class Places3D:
         self.build_dealer(rng)
         self.build_junk_extra(rng)
         self.level_ents = {}
+        # вывески на поверхности — тоже по расстоянию
+        self.surface = [point_group(e, e.x, -e.z, 6.0, "board") if isinstance(e, Entity) and e.model is None else e
+                        for e in self.surface]
         for L in self.pl.levels:
             i0 = len(self.interior)
             self.build_level(L)
@@ -211,12 +215,10 @@ class Places3D:
                                       (35, 40, 50)))
             self.surface.append(board("Einfahrt  ·  max. 2,00 m", (x + w / 2, 2.62, -(y + 4.6) + 0.34), 180, 8,
                                       (20, 20, 20), YELLOW))
-        ent = Entity(model=mb.build(), double_sided=True)
-        self.surface.append(ent)
-        g = Entity(model=_mesh_uv(glow), texture=textures3d.glow(), double_sided=True)
         from city3d import additive
-        additive(g)
-        self.surface.append(g)
+        self.surface.append(mesh_group(mb, "tg", double_sided=True))
+        self.surface.append(mesh_group(glow, "tg_glow", with_uvs=True, setup=additive, texture=textures3d.glow(),
+                                       double_sided=True))
 
     # -------------------------------------------------------------- парковки
     def build_parkings(self, rng):
@@ -255,8 +257,8 @@ class Places3D:
                                       (30, 30, 30), (225, 222, 205)))
             self.surface.append(board("Privatgelände — Betreten verboten", (sx, 1.75, -sy + (0.05 if rot == 180 else 0)),
                                       rot, 6, (240, 240, 240), (170, 35, 30)))
-        self.surface.append(Entity(model=gnd.build(), texture=textures3d.detail(), double_sided=True))
-        self.surface.append(Entity(model=mb.build(), double_sided=True))
+        self.surface.append(mesh_group(gnd, "places_gnd", texture=textures3d.detail(), double_sided=True))
+        self.surface.append(mesh_group(mb, "places", double_sided=True))
 
     def _prop(self, mb, r, kind, px, py, ang, pw, pd, ph, col, P):
         if kind == "wall":
@@ -431,8 +433,8 @@ class Places3D:
         for bx, by, ba in self._dealer_spots():
             for side in (-1.55, 1.55):
                 mb.flat2d(bx + side - 0.05, by - 2.4, 0.1, 4.8, 0.065, WHITE)
-        self.surface.append(Entity(model=gnd.build(), texture=textures3d.detail(), double_sided=True))
-        self.surface.append(Entity(model=mb.build(), double_sided=True))
+        self.surface.append(mesh_group(gnd, "places_gnd", texture=textures3d.detail(), double_sided=True))
+        self.surface.append(mesh_group(mb, "places", double_sided=True))
 
     @staticmethod
     def _dealer_spots():
@@ -482,7 +484,7 @@ class Places3D:
         for k in range(6):
             col = rng.choice([(150, 40, 35), (196, 186, 150), (70, 110, 150), (230, 230, 220)])
             mb.box2d(430 + k * 1.6, 429.0, 1.3, 1.1, 0.0 + 0.0, 0.05 + 0.06 * (k % 3 + 1), col)
-        self.surface.append(Entity(model=mb.build(), double_sided=True))
+        self.surface.append(mesh_group(mb, "junk_extra", double_sided=True))
         self.surface.append(board("Ersatzteile — Selbstabbau erlaubt", (jx + 40, 2.6, -(jy + 44)), 180, 9,
                                   (20, 20, 20), (240, 200, 40)))
 

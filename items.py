@@ -234,11 +234,28 @@ ITEMS.update({
     "ae_seats":    dict(name="Ковшеобразные сиденья AE86", kind="part", price=280.0),
 })
 ITEMS.update(model_items())
-SHOP_TEILE += ["gearbox", "wiring", "steering", "glass", "door_l", "door_r", "hood", "trunk", "seats"]
+from tuning import TUNE_ITEMS, tune_items_for   # noqa: E402
+ITEMS.update(TUNE_ITEMS)
+import engine as _engine   # noqa: E402
+ITEMS.update(_engine.items())          # внутренние детали двигателей: ГБЦ, поршни, вкладыши, помпа...
+import electrics as _electrics   # noqa: E402
+ITEMS.update(_electrics.ITEM_DEFS)     # электрика: предохранители, мультиметр, лампы, реле...
+ITEMS["key"] = dict(name="Ключ зажигания", kind="key", price=0.0)           # у каждого свой код (keys.py)
+ITEMS["lockset"] = dict(name="Комплект замков: личинки дверей + замок зажигания (2 новых ключа)", kind="part", price=45.0)
+ITEMS["compressor"] = dict(name="Автомобильный компрессор 12 В с манометром", kind="tool", price=35.0)
+ITEMS["tire_gauge"] = dict(name="Манометр для шин", kind="tool", price=6.0)
+ITEMS["flyer"] = dict(name="Листовки «Gestohlen!» (объявления об угоне)", kind="material", price=5.0)
+_ELEC_SHOP = ["fuse_set", "multimeter", "wire_kit", "bulb", "relay", "coil", "horn", "lockset", "compressor", "tire_gauge"]
+SHOP_TANKE += ["fuse_set", "bulb", "tire_gauge", "compressor"]
+SHOP_TOYOTA += _ELEC_SHOP
+SHOP_TEILE += _ELEC_SHOP + ["gearbox", "wiring", "steering", "glass", "door_l", "door_r", "hood", "trunk", "seats"]
 SHOP_TOYOTA += ["ae_gearbox", "ae_wiring", "ae_steering", "ae_glass", "ae_door_l", "ae_door_r", "ae_hood",
                 "ae_trunk", "ae_seats"]
 
-CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "crowbar", "metal", "paint", "rust_conv"]
+ITEMS["jack"] = dict(name="Домкрат подкатной (Rangierwagenheber, 2 т)", kind="tool", price=59.0)
+ITEMS["stands"] = dict(name="Подставки под машину (Unterstellböcke, пара)", kind="tool", price=29.0)
+CONSUMABLES = ["battery", "oil", "coolant", "brake_fl", "fuel_can", "rope", "crowbar", "metal", "paint", "rust_conv",
+               "jack", "stands"]
 
 
 def shop_for_model(model):
@@ -247,13 +264,16 @@ def shop_for_model(model):
     for s, (name, pid, _) in SLOTS_BY_MODEL[model].items():
         if pid not in ids:
             ids.append(pid)
+    if model in _engine.LAYOUTS:           # детали двигателя «до болтика» — после навесного
+        ids += [_engine.part_id(model, k) for k in _engine.keys(model)]
+    ids += [pid for pid in tune_items_for(model) if pid not in ids]   # тюнинг — в конце списка
     return ids
 
 
 # Где продаются запчасти: Ost-Autoteile — восточные машины, Autohaus Krüger — Toyota и западные
 SHOP_MODELS = {
     "ost": ["vaz2102", "trabant", "wartburg", "moskvich"],
-    "west": ["ae86", "kadett", "golf", "taunus", "w123", "volvo240", "bmw_e21", "audi80"],
+    "west": ["ae86", "kadett", "golf", "taunus", "w123", "volvo240", "bmw_e21", "audi80", "civic", "mustang"],
 }
 MODEL_NAMES = {"vaz2102": "ВАЗ 2102", "ae86": "Toyota AE86"}
 MODEL_NAMES.update({m: info["name"] for m, info in MODELS.items()})

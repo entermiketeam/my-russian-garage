@@ -34,6 +34,7 @@ def rgba(c, a=1.0):
 class MeshBuilder:
     def __init__(self, uv_tile=None):
         self.v, self.t, self.c, self.n, self.uv = [], [], [], [], []
+        self.polys = []         # (первая вершина, число вершин) — для деформации кузова (damage.py)
         self.uv_tile = uv_tile  # если задано — uv = мировые координаты / tile
 
     def __len__(self):
@@ -61,6 +62,7 @@ class MeshBuilder:
             self.uv.append(uvs[i] if uvs else self._uv(p))
         for i in range(1, len(pts) - 1):
             self.t += (base, base + i, base + i + 1)
+        self.polys.append((base, len(pts)))
 
     def box(self, x0, y0, z0, x1, y1, z1, color, top=None, sides=None, bottom=False, faces="all"):
         """Коробка по двум углам (3D). top/sides — отдельные цвета граней."""
@@ -137,6 +139,69 @@ class MeshBuilder:
             self.poly([a, b, top], color, (mx, r * 0.7, mz))
             self.poly([a, b, bot], dark, (mx, -r * 0.5, mz))
 
-    def build(self):
-        return Mesh(vertices=self.v, triangles=self.t, colors=self.c, normals=self.n,
-                    uvs=self.uv if self.uv_tile else None)
+    def build(self, keep=False):
+        m = Mesh(vertices=self.v, triangles=self.t, colors=self.c, normals=self.n,
+                 uvs=self.uv if self.uv_tile else None)
+        if keep:     # исходные данные нужны, чтобы потом мять меш (вмятины)
+            m._src = (self.v, self.c, self.n, self.uv if self.uv_tile else None, self.polys)
+        return m
+
+
+def split_chunks(mb, chunk):
+    """Разрезать меш на квадраты карты. Возвращает {(i, j): MeshBuilder} и MeshBuilder крупных граней
+    (дороги через всю карту, земля), которые не помещаются в квадрат и рисуются всегда."""
+    out = {}
+    big = MeshBuilder(uv_tile=mb.uv_tile)
+    for base, cnt in mb.polys:
+        pts = mb.v[base:base + cnt]
+        xs = [p[0] for p in pts]
+        zs = [p[2] for p in pts]
+        if max(xs) - min(xs) > chunk or max(zs) - min(zs) > chunk:
+            dst = big
+        else:
+            key = (int((sum(xs) / cnt) // chunk), int((-sum(zs) / cnt) // chunk))
+            dst = out.get(key)
+            if dst is None:
+                dst = out[key] = MeshBuilder(uv_tile=mb.uv_tile)
+        b = len(dst.v)
+        dst.v += pts
+        dst.c += mb.c[base:base + cnt]
+        dst.n += mb.n[base:base + cnt]
+        dst.uv += mb.uv[base:base + cnt]
+        for i in range(1, cnt - 1):
+            dst.t += (b, b + i, b + i + 1)
+        dst.polys.append((b, cnt))
+    return out, big
+
+
+def triplanar_uv(v, n, polys, scale=0.08):
+    """UV по нормали каждой грани (боковые — по вертикали, верх — по плану): ткань и ковёр ложатся ровно
+    на любые коробки, без растяжений и без «одного пикселя» на всю деталь."""
+    uv = []
+    for base, cnt in polys:
+        nx, ny, nz = (abs(c) for c in n[base])
+        for i in range(base, base + cnt):
+            x, y, z = v[i]
+            if ny >= nx and ny >= nz:
+                uv.append((x / scale, z / scale))
+            elif nx >= nz:
+                uv.append((z / scale, y / scale))
+            else:
+                uv.append((x / scale, y / scale))
+    return uv
+
+
+def textured_copy(mesh, scale=0.08):
+    """Пересобрать меш (из MeshBuilder с keep=True) с UV для мелкой текстуры."""
+    src = getattr(mesh, "_src", None)
+    if not src:
+        return mesh
+    v, c, n, _, polys = src
+    uv = triplanar_uv(v, n, polys, scale)
+    t = []
+    for base, cnt in polys:
+        for i in range(1, cnt - 1):
+            t += (base, base + i, base + i + 1)
+    m = Mesh(vertices=v, triangles=t, colors=c, normals=n, uvs=uv)
+    m._src = (v, c, n, uv, polys)
+    return m

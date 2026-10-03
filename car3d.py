@@ -3,6 +3,7 @@
 Локальные оси модели: x — вправо, y — вверх, z — вперёд. Центр кузова — (0, 0, 0) на земле.
 Профиль из 2D-рисунка: sx от 0 (задний край) до 4.02 (передний) -> z = sx - 2.015.
 """
+import under3d as _under3d
 import math
 import random
 
@@ -14,6 +15,7 @@ from city3d import additive
 import textures3d
 from car import WHEELBASE
 from models import MODELS
+from car3d_extra import Extras
 
 PAINT = (196, 186, 150)
 PAINT_DARK = (178, 168, 134)
@@ -73,14 +75,14 @@ def ring_entity(parent, radius, thick, col, **kw):
 def glass_entity(parent, pts, col=GLASS, alpha=0.35):
     mb = MeshBuilder()
     mb.poly(pts, (*col, int(alpha * 255)), None)
-    e = Entity(parent=parent, model=mb.build(), double_sided=True)
+    e = Entity(parent=parent, model=mb.build(keep=True), double_sided=True)
     e.setTransparency(TransparencyAttrib.MAlpha)
     e.setDepthWrite(False)
     e.setBin("transparent", 20)
     return e
 
 
-class Car3D:
+class Car3D(Extras):
     def __init__(self, car):
         self.car = car
         self.root = Entity()
@@ -88,8 +90,152 @@ class Car3D:
         self.t = 0.0
         self.spin = 0.0
         self._rust_key = None
+        self._built_color = car.color
         self._build()
         self.smoke = Smoke()
+        self._capture_deform()
+        self.apply_deforms()
+
+    # ------------------------------------------------------------------ вмятины (damage.py)
+    def _dims(self):
+        car = self.car
+        W2, L2 = car.spec["width"] / 2, car.length / 2
+        if car.model in MODELS:
+            B = MODELS[car.model]["body"]
+            return (W2, L2, B["sill"], B["belt"], B["roof_y"])
+        if car.model == "ae86":
+            return (W2, L2, 0.30, 0.80, 1.30)
+        return (W2, L2, 0.30, 0.86, 1.42)
+
+    def _capture_deform(self):
+        """Запомнить исходную геометрию кузова, пока капот закрыт: по ней потом мнутся вмятины."""
+        import numpy as np
+        from ursina import Text as _Text
+
+        def mat(e):
+            m = e.getMat(self.body)
+            return np.array([[m.getCell(i, j) for j in range(4)] for i in range(4)], dtype=float)
+
+        skip = {id(e) for e, _ in getattr(self, "snow_parts", [])}
+        # ржавчина салона пересоздаётся при каждом изменении ржавчины (в т.ч. от удара) — её не мнём,
+        # иначе в списке останется ссылка на удалённый объект (это и был вылет при сильной аварии)
+        if getattr(self, "int_rust", None) is not None:
+            skip.add(id(self.int_rust))
+        self._def_meshes, self._def_rigid = [], []
+        stack = list(self.body.children)
+        while stack:
+            e = stack.pop()
+            stack.extend(getattr(e, "children", []))
+            if id(e) in skip or e.model is None:
+                continue
+            M = mat(e)
+            if abs(np.linalg.det(M[:3, :3])) < 1e-9:           # сплющенная (скрытая) деталь
+                continue
+            if e is self.side_l or e is self.side_r:
+                quad = ([(-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.5, 0.5, 0.0), (-0.5, 0.5, 0.0)], [(1, 1, 1, 1)] * 4,
+                        [(0, 0, -1)] * 4, [(0, 0), (1, 0), (1, 1), (0, 1)], [(0, 4)])
+                self._def_meshes.append([e, quad, M, False, False])
+            elif getattr(e.model, "_src", None) is not None and not isinstance(e, _Text):
+                self._def_meshes.append([e, e.model._src, M, False, True])
+            else:
+                par = e.parent if e.parent is not None else self.body
+                Mp = mat(par) if par is not self.body else np.eye(4)
+                self._def_rigid.append([e, Vec3(e.position), M[3, :3].copy(), np.linalg.inv(Mp)[:3, :3]])
+        for i, rec in enumerate(self._def_meshes):
+            rec.append(i)                                   # постоянный номер детали (ключ кэша)
+        self._wheel_base = {k: (Vec3(pv.position), pv.rotation_z) for k, (pv, _, _) in self.wheels.items()}
+        self._deform_key = ()
+
+    def _deform_sig(self):
+        d = self.car.deforms
+        return (len(d), round(sum(x["d"] for x in d), 3)) if d else ()
+
+    @staticmethod
+    def _make_mesh(V, T, C, N, UV):
+        from ursina import Mesh
+
+        def tup(a):
+            return list(map(tuple, a.tolist()))
+        return Mesh(vertices=tup(V), triangles=T.reshape(-1).tolist(), colors=tup(C), normals=tup(N),
+                    uvs=tup(UV) if UV is not None else None)
+
+    @staticmethod
+    def _alive(e):
+        try:
+            return e is not None and not e.isEmpty()
+        except Exception:
+            return False
+
+    def apply_deforms(self):
+        """Смять геометрию по вмятинам машины (или вернуть исходную после рихтовки).
+        Графика вмятин никогда не должна ронять игру: сбойная деталь просто остаётся несмятой."""
+        try:
+            self._apply_deforms()
+        except Exception as ex:                      # pragma: no cover — страховка
+            print("Вмятины: не удалось смять кузов:", ex)
+            self._deform_key = self._deform_sig()
+
+    def _apply_deforms(self):
+        sig = self._deform_sig()
+        if sig == self._deform_key:
+            return
+        self._deform_key = sig
+        import numpy as np
+        import damage
+        defs = self.car.deforms
+        dims = self._dims()
+        cache = getattr(self.car, "_def_cache", None)
+        if cache is None or cache.get("sig") != sig:
+            cache = self.car._def_cache = {"sig": sig}          # смятая геометрия переживает пересоздание модели
+        # объекты, удалённые с момента запоминания, — выбрасываем
+        self._def_meshes = [r for r in self._def_meshes if self._alive(r[0])]
+        self._def_rigid = [r for r in self._def_rigid if self._alive(r[0])]
+        for rec in self._def_meshes:
+            e, src, M, changed, hang, idx = rec
+            ck = (idx, len(src[0]))
+            if ck in cache:
+                res = cache[ck]
+            else:
+                res = damage.deform_mesh(src, M, np.linalg.inv(M), defs, dims, hang) if defs else None
+                if defs:
+                    cache[ck] = res
+            if res is None:
+                if not changed:
+                    continue
+                V = np.asarray(src[0], float)
+                T = np.array([(b, b + i, b + i + 1) for b, n in src[4] for i in range(1, n - 1)])
+                res = (V, T, np.asarray(src[1], float), np.asarray(src[2], float),
+                       np.asarray(src[3], float) if src[3] is not None else None)
+                rec[3] = False
+            else:
+                rec[3] = True
+            if not all(np.isfinite(a).all() for a in (res[0], res[3]) if a is not None):
+                continue                                  # испорченная геометрия — не показываем
+            try:
+                tex = e.texture
+                e.model = self._make_mesh(*res)
+                if tex is not None:
+                    e.texture = tex
+                e.double_sided = True
+            except Exception as ex:
+                print("Вмятины: деталь пропущена:", ex)
+        for e, pos0, cb, inv_p in self._def_rigid:
+            dv = damage.rigid_offset(defs, cb, dims) if defs else np.zeros(3)
+            dl = dv @ inv_p
+            if np.isfinite(dl).all():
+                e.position = pos0 + Vec3(*dl)
+        # погнутая подвеска: колесо смещается и заваливается
+        sp = self.car.spec
+        for slot, (pivot, _, _) in self.wheels.items():
+            pos0, rz0 = self._wheel_base[slot]
+            if not defs:
+                pivot.position, pivot.rotation_z = pos0, rz0
+                continue
+            dv = damage.rigid_offset(defs, np.array([pos0.x, sp["wheel_r"], pos0.z]), dims)
+            mag = float(np.linalg.norm(dv))
+            k = min(1.0, 0.22 / mag) if mag > 0.22 else 1.0
+            pivot.x, pivot.z = pos0.x + dv[0] * k * 0.6, pos0.z + dv[2] * k * 0.6
+            pivot.rotation_z = rz0 + max(-14.0, min(14.0, dv[0] * 55))
 
     # ------------------------------------------------------------------ сборка
     def _build(self):
@@ -148,7 +294,8 @@ class Car3D:
             bm.enabled = False
             self.beams.append(bm)
         self._build_snow()
-        self.set_hood(False)
+        self._build_extras()          # двери, багажник, поворотники, приборы, детали (car3d_extra.py)
+        self.set_hood(getattr(self.car, "hood_open", False))
 
     def _build_generic(self, b):
         """3D-кузов найденной машины по параметрам модели (models.py)."""
@@ -216,13 +363,17 @@ class Car3D:
             mb.box(-(W2 + 0.02), sill + 0.07, z0, W2 + 0.02, sill + 0.07 + bh, z1, bcol)
             if B["bumper"] == "chrome_rubber":
                 mb.box(-(W2 + 0.03), sill + 0.10, z0 - 0.005, W2 + 0.03, sill + 0.14, z1 + 0.005, black)
-        # корма, крышка багажника / дверь хэтчбека
-        mb.box(-(W2 - 0.01), sill + 0.03, Z(0), W2 - 0.01, rb_y, Z(0.08), paint, top=top_c)
-        self.trunk_lid = None
+        # корма, крышка багажника / дверь хэтчбека (на петлях — car3d_extra)
+        tb = MeshBuilder()
         if style != "hatch":
-            tb = MeshBuilder()
+            mb.box(-(W2 - 0.01), sill + 0.03, Z(0), W2 - 0.01, rb_y, Z(0.08), paint, top=top_c)
             tb.box(-(W2 - 0.02), rb_y - 0.04, Z(0.05), W2 - 0.02, rb_y, Z(rgb), paint, top=top_c)
-            self.trunk_lid = Entity(parent=b, model=tb.build(), double_sided=True)
+            self._tail_hinge = (0, rb_y, Z(rgb))
+        else:
+            mb.box(-(W2 - 0.01), sill + 0.03, Z(0), W2 - 0.01, sill + 0.22, Z(0.08), paint, top=top_c)
+            tb.box(-(W2 - 0.01), sill + 0.22, Z(0), W2 - 0.01, rb_y, Z(0.08), paint, top=top_c)
+            self._tail_hinge = (0, roof_y, Z(rs))
+        self.trunk_lid = Entity(parent=b, model=tb.build(keep=True), double_sided=True)
         mb.box(-0.26, sill + 0.24, Z(0) - 0.012, 0.26, sill + 0.37, Z(0), (20, 20, 20))      # место под номер
         # крыша и стойки
         mb.box(-(W2 - 0.08), roof_y - 0.05, Z(rs), W2 - 0.08, roof_y, Z(re), paint, top=top_c)
@@ -233,7 +384,6 @@ class Car3D:
                 mb.poly([(x - d, y0, z0 - 0.05), (x + d, y0, z0 - 0.05), (x + d, y1, z1 - 0.05), (x - d, y1, z1 - 0.05)],
                         paint, (0, -0.5, -0.5))
             mb.box(x - 0.03, belt, Z(B["b_pillar"] - 0.03), x + 0.03, roof_y - 0.03, Z(B["b_pillar"] + 0.03), (40, 40, 40))
-        mb.box(-(W2 + 0.11), belt + 0.08, Z(wb - 0.25), -(W2 - 0.01), belt + 0.16, Z(wb - 0.19), chrome)   # зеркало
         mb.box(0.30, sill - 0.10, Z(0) - 0.12, 0.36, sill - 0.05, Z(0.5), (90, 80, 70))                  # выхлоп
         # салон
         mb.box(-(W2 - 0.1), belt - 0.16, Z(wb - 0.35), W2 - 0.1, belt + 0.06, Z(wb), (32, 30, 30), top=(26, 24, 24))
@@ -249,9 +399,12 @@ class Car3D:
                 sb.box(x0, sill + 0.24, Z(seat_z0 - 0.08), x0 + W2 - 0.24, sill + 0.82, Z(seat_z0 + 0.02), seat_c)
                 sb.box(x0 + 0.1, sill + 0.82, Z(seat_z0 - 0.07), x0 + W2 - 0.34, sill + 0.96, Z(seat_z0), seat_c)
         rz = max(rgb + 0.35, 0.6)
+        self._geo = dict(W2=W2, L=L, sill=sill, belt=belt, roof=roof_y, ws=wb, rs=rs, re=re, rgb=rgb, rb_y=rb_y,
+                         nose=nose_y, seat_z=(seat_z0 + seat_z1) / 2, rear_z=rz, seat_y=sill + 0.24, style=style,
+                         floor=sill + 0.07, trunk_z0=0.12, trunk_z1=max(0.5, rz - 0.1), seat_c=seat_c)
         sb.box(-(W2 - 0.12), sill + 0.10, Z(rz), W2 - 0.12, sill + 0.24, Z(seat_z0 - 0.35), seat_c)
         sb.box(-(W2 - 0.12), sill + 0.24, Z(rz - 0.08), W2 - 0.12, sill + 0.72, Z(rz + 0.02), seat_c)
-        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        self.seats_e = Entity(parent=b, model=sb.build(keep=True), double_sided=True)
         tc = tuple(int(c * 0.8) for c in seat_c)
         self._make_trims(b, [(-(W2 - 0.09), sill + 0.06, Z(0.4), -(W2 - 0.13), belt, Z(wb - 0.05)),
                              (W2 - 0.13, sill + 0.06, Z(0.4), W2 - 0.09, belt, Z(wb - 0.05))], tc)
@@ -260,17 +413,16 @@ class Car3D:
         self._snow = dict(roof=(W2 - 0.08, roof_y, Z(rs), Z(re)),
                           trunk=(W2 - 0.04, rb_y, Z(0.06), Z(rgb)) if style != "hatch" else None)
         mb.box(-(W2 - 0.1), roof_y - 0.06, Z(rs + 0.05), W2 - 0.1, roof_y - 0.055, Z(re - 0.05), (165, 160, 150))
-        mb.box(-0.08, roof_y - 0.16, Z(re - 0.12), 0.08, roof_y - 0.11, Z(re - 0.1), (30, 30, 30))
         if B.get("dash_shift"):     # Trabant: рычаг КПП торчит из торпедо
             mb.box(0.05, belt - 0.04, Z(wb - 0.55), 0.08, belt - 0.01, Z(wb - 0.3), (30, 30, 30))
             mb.box(0.04, belt - 0.05, Z(wb - 0.58), 0.09, belt, Z(wb - 0.53), (20, 20, 20))
         else:
             mb.box(-0.02, sill + 0.06, Z(wb - 0.75), 0.02, sill + 0.42, Z(wb - 0.71), (30, 30, 30))
             mb.box(-0.035, sill + 0.40, Z(wb - 0.77), 0.035, sill + 0.47, Z(wb - 0.69), (20, 20, 20))
-        self.shell = Entity(parent=b, model=mb.build(), double_sided=True)
+        self.shell = Entity(parent=b, model=mb.build(keep=True), double_sided=True)
 
         # руль
-        self.wheel_pivot = Entity(parent=b, position=(sp["eye"][0], belt + 0.06, Z(wb - 0.42)), rotation_x=-28)
+        self.wheel_pivot = Entity(parent=b, position=(sp["eye"][0], belt + 0.06, Z(wb - 0.42)), rotation_x=28)
         big = car.model in ("w123", "trabant", "wartburg")
         ring_entity(self.wheel_pivot, 0.2 if big else 0.18, 0.025, color.rgb(20, 20, 20))
         self.steer_spokes = Entity(parent=self.wheel_pivot)
@@ -288,7 +440,7 @@ class Car3D:
         hm = MeshBuilder()
         hm.box(-(W2 - 0.02), -0.045, 0.0, W2 - 0.02, 0.0, math.hypot(run, belt - nose_y), paint, top=top_c)
         self._hood_len = math.hypot(run, belt - nose_y)
-        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(keep=True), double_sided=True)
 
         # фары
         self.headlamps = []
@@ -356,10 +508,8 @@ class Car3D:
         ez = Z((wb + L) / 2)
         diesel, two = sp.get("diesel"), sp.get("two_stroke")
         eng_len = 0.62 if diesel else (0.32 if two else 0.46)
-        Entity(parent=self.bay, model="cube", color=color.rgb(95, 97, 100), position=(0, sill + 0.30, ez),
-               scale=(0.40 if not two else 0.46, 0.40, eng_len))
-        Entity(parent=self.bay, model="cube", color=color.rgb(20, 20, 20) if not diesel else color.rgb(150, 150, 155),
-               position=(0, sill + 0.53, ez), scale=(0.32, 0.06, eng_len * 0.9))
+        self._build_engine(0, sill + 0.30, ez, 0.40 if not two else 0.46, 0.40, eng_len,
+                           (20, 20, 20) if not diesel else (150, 150, 155))
         cool_part = "belt"
         self.bay_parts = {
             "air_filter": Entity(parent=self.bay, model="cube", color=color.rgb(40, 40, 42),
@@ -383,6 +533,97 @@ class Car3D:
                                                 position=(0, sill + 0.3, Z(L - 0.14)), scale=(W2 * 1.1, 0.34, 0.04))
         Entity(parent=self.bay_parts["battery"], model="cube", color=color.red, position=(0.3, 0.55, 0.3), scale=(0.15, 0.1, 0.1))
         Entity(parent=self.bay_parts["battery"], model="cube", color=color.blue, position=(-0.3, 0.55, 0.3), scale=(0.15, 0.1, 0.1))
+        # тюнинг (tuning.py): видно, только если установлено
+        self.tune_parts = {}
+        if car.tune:
+            tb = Entity(parent=self.bay, position=(-0.12, sill + 0.42, ez + 0.05))
+            Entity(parent=tb, model="sphere", color=color.rgb(150, 150, 155), scale=(0.2, 0.2, 0.14))      # «улитка»
+            Entity(parent=tb, model="sphere", color=color.rgb(120, 70, 40), position=(0.06, -0.06, 0), scale=(0.14, 0.14, 0.12))
+            Entity(parent=tb, model="cube", color=color.rgb(170, 170, 175), position=(0.0, 0.08, 0.2), scale=(0.07, 0.07, 0.36))
+            Entity(parent=tb, model="cube", color=color.rgb(30, 30, 32), position=(-0.12, 0.02, -0.12), scale=(0.08, 0.08, 0.2))
+            self.tune_parts["turbo"] = tb
+            ic = Entity(parent=b, position=(0, sill - 0.02, Z(L) + 0.07))      # под бампером, как настоящий FMIC
+            Entity(parent=ic, model="cube", color=color.rgb(175, 178, 182), scale=(W2 * 1.3, 0.13, 0.05))
+            for k in range(4):
+                Entity(parent=ic, model="cube", color=color.rgb(60, 62, 66), position=(0, -0.045 + k * 0.03, 0.028),
+                       scale=(W2 * 1.25, 0.008, 0.01))
+            self.tune_parts["intercooler"] = ic
+            self.tune_parts["boost_ctrl"] = Entity(parent=self.bay, model="cube", color=color.rgb(200, 30, 30),
+                                                   position=(0.25, sill + 0.56, ez - 0.2), scale=(0.05, 0.05, 0.05))
+
+    def _build_engine(self, cx, cy, cz, w, h, l, cover, stripe=None):
+        """Двигатель по деталям (engine.py): каждая видна на своём месте и пропадает, когда её сняли;
+        под снятой крышкой/ГБЦ/поддоном видно то, что она закрывала."""
+        import engine as _e
+        L = _e.layout(self.car.model)
+        cyl = L["cyl"]
+        yb = cy + h * 0.25                       # верх блока
+        front = cz + l / 2
+        ev = {}
+
+        def box(key, pos, sc, col):
+            ent = Entity(parent=self.bay, model="cube", color=color.rgb(*col), position=pos, scale=sc)
+            if key:
+                ev.setdefault(key, []).append(ent)
+            return ent
+        box("block", (cx, cy - h * 0.125, cz), (w, h * 0.75, l), (95, 97, 100))
+        box("head_gasket", (cx, yb + 0.006, cz), (w * 0.95, 0.012, l * 0.97), (70, 70, 72))
+        box("head", (cx, yb + 0.065, cz), (w * 0.9, 0.11, l * 0.95), (165, 165, 160) if L["stroke"] == 4 else (120, 120, 118))
+        if L["stroke"] == 2:                      # рёбра охлаждения двухтакта
+            for k in range(4):
+                box("head", (cx, yb + 0.03 + k * 0.025, cz), (w * 1.05, 0.008, l * 0.98), (110, 110, 108))
+        box("valve_cover", (cx, yb + 0.155, cz), (w * 0.78, 0.07, l * 0.9), cover)
+        if stripe:
+            box("valve_cover", (cx, yb + 0.192, cz), (w * 0.35, 0.006, l * 0.55), stripe)
+        cams = (-w * 0.15, w * 0.15) if L["vt"] == "dohc" else (0.0,)
+        for x_ in cams:
+            box("camshaft", (cx + x_, yb + 0.13, cz), (0.035, 0.035, l * 0.9), (190, 190, 185))
+        for i in range(cyl):
+            z_ = cz - l * 0.4 + (i + 0.5) * l * 0.8 / cyl
+            box("pistons", (cx, yb - 0.004, z_), (w * 0.5, 0.012, l * 0.8 / cyl * 0.75), (200, 200, 205))
+            for x_ in (-0.06, 0.06):
+                box("valves", (cx + x_, yb + 0.12, z_), (0.025, 0.02, 0.025), (150, 150, 150))
+                box("springs", (cx + x_, yb + 0.135, z_), (0.03, 0.03, 0.03), (70, 140, 80))
+            box("conrods", (cx, cy - h * 0.33, z_), (0.035, 0.13, 0.035), (140, 140, 145))
+            box("rod_bearings", (cx, cy - h * 0.43, z_), (0.07, 0.02, 0.05), (190, 120, 60))
+        box("crankshaft", (cx, cy - h * 0.45, cz), (0.06, 0.06, l * 0.95), (120, 120, 125))
+        for i in range(cyl + 1):
+            box("main_bearings", (cx, cy - h * 0.49, cz - l * 0.45 + i * l * 0.9 / cyl), (0.08, 0.015, 0.03), (190, 120, 60))
+        box("oil_pump", (cx + w * 0.15, cy - h * 0.47, front - 0.1), (0.1, 0.07, 0.1), (100, 100, 105))
+        box("oil_pan", (cx, cy - h * 0.5 - 0.045, cz), (w * 0.82, 0.09, l * 0.88), (60, 62, 66))
+        box("intake", (cx + w * 0.58, yb + 0.03, cz), (w * 0.3, 0.1, l * 0.85), (175, 175, 170))
+        box("fuel_rail", (cx + w * 0.62, yb + 0.1, cz), (0.04, 0.04, l * 0.8), (200, 180, 60))
+        box("exhaust_mf", (cx - w * 0.58, yb - 0.02, cz), (w * 0.22, 0.1, l * 0.85), (125, 72, 45))
+        box("timing_cover", (cx, cy + 0.02, front + 0.02), (w * 0.72, h * 0.85, 0.03), (150, 150, 148))
+        box("timing", (cx, cy + 0.03, front + 0.006), (w * 0.3, h * 0.8, 0.012), (25, 25, 25))
+        box("tensioner", (cx + w * 0.16, cy + 0.06, front + 0.014), (0.05, 0.05, 0.02), (180, 180, 180))
+        box("crank_pulley", (cx, cy - h * 0.3, front + 0.05), (0.16, 0.16, 0.03), (40, 40, 42))
+        box("water_pump", (cx - w * 0.22, cy + 0.02, front + 0.055), (0.1, 0.1, 0.06), (120, 120, 118))
+        box("thermostat", (cx + w * 0.2, yb + 0.08, front - 0.02), (0.06, 0.06, 0.06), (90, 90, 90))
+        box("oil_filter", (cx + w * 0.56, cy - h * 0.2, cz - l * 0.15), (0.08, 0.12, 0.08), (210, 100, 30))
+        self.eng_vis = ev
+        self._engine_box = (cx, cy, cz, w, h, l)
+
+    def _update_engine_vis(self):
+        import engine as _e
+        car = self.car
+        ev = getattr(self, "eng_vis", None)
+        if not ev:
+            return
+        whole = car.has("engine")
+        key = (whole, tuple(sorted(k for k, v in (car.eng or {}).items() if v)))
+        if key == getattr(self, "_eng_vis_key", None):
+            return
+        self._eng_vis_key = key
+        for k, ents in ev.items():
+            if k == "block":
+                on = whole
+            elif not car.eng or k not in car.eng:
+                on = False                        # у этого двигателя такой детали нет (двухтакт, без впрыска...)
+            else:
+                on = whole and _e.has(car, k) and not any(_e.has(car, c) for c in _e.COVERED.get(k, ()))
+            for ent in ents:
+                ent.enabled = on
 
     def _build_vaz(self, b):
         Z = self.Z
@@ -404,10 +645,15 @@ class Car3D:
             mb.box(x - 0.012, 0.51, Z(4.0), x + 0.012, 0.77, Z(4.04), CHROME)
         mb.box(-0.53, 0.755, Z(4.0), 0.53, 0.775, Z(4.04), CHROME)
         # задняя панель (универсал) и дверь багажника
-        mb.box(-0.80, 0.33, Z(0.0), 0.80, 0.86, Z(0.07), P_)
+        mb.box(-0.80, 0.33, Z(0.0), 0.80, 0.50, Z(0.07), P_)
         tb = MeshBuilder()
+        tb.box(-0.80, 0.50, Z(0.0), 0.80, 0.86, Z(0.07), P_)
         tb.box(-0.78, 0.86, Z(0.06), 0.78, 0.94, Z(0.12), P_)
-        self.trunk_lid = Entity(parent=b, model=tb.build(), double_sided=True)
+        self.trunk_lid = Entity(parent=b, model=tb.build(keep=True), double_sided=True)
+        self._tail_hinge = (0, 1.40, Z(0.11))
+        self._geo = dict(W2=0.805, L=4.03, sill=0.30, belt=0.86, roof=1.40, ws=2.98, rs=0.1, re=2.36, rgb=0.1, rb_y=0.86,
+                         nose=0.78, seat_z=1.72, rear_z=0.85, seat_y=0.52, style="wagon", floor=0.37,
+                         trunk_z0=0.12, trunk_z1=0.62, trunk_y=0.60, seat_c=(108, 62, 42))
         # багажник на крыше и крыша
         mb.box(-0.80, 1.38, Z(0.10), 0.80, 1.45, Z(2.36), PD_, top=(205, 197, 162))
         for x in (-0.62, 0.62):
@@ -435,8 +681,6 @@ class Car3D:
         mb.box(-0.84, 0.38, Z(-0.09), 0.84, 0.49, Z(0.0), CHROME)
         for x in (-0.55, 0.55):
             mb.box(x - 0.08, 0.30, Z(4.02), x + 0.08, 0.35, Z(4.06), (230, 140, 30))   # поворотники
-        # зеркало
-        mb.box(-0.93, 0.93, Z(2.78), -0.80, 1.0, Z(2.84), (30, 30, 30))
         # выхлопная труба
         mb.box(0.35, 0.18, Z(-0.12), 0.41, 0.24, Z(0.5), (90, 80, 70))
         # салон: приборная панель, сиденья, обивка дверей
@@ -449,19 +693,18 @@ class Car3D:
             sb.box(x0 + 0.1, 1.12, Z(1.49), x0 + 0.40, 1.28, Z(1.56), VINYL)             # подголовник
         sb.box(-0.64, 0.40, Z(0.62), 0.64, 0.54, Z(1.15), VINYL)
         sb.box(-0.64, 0.54, Z(0.55), 0.64, 1.05, Z(0.66), VINYL)
-        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        self.seats_e = Entity(parent=b, model=sb.build(keep=True), double_sided=True)
         self._make_trims(b, [(-0.73, 0.36, Z(0.4), -0.69, 0.86, Z(2.9)), (0.69, 0.36, Z(0.4), 0.73, 0.86, Z(2.9))],
                          (95, 66, 52))
         self._interior = dict(floor_y=0.37, hw=0.68, z0=Z(0.45), z1=Z(2.85), dash_y=0.93, dash_z=Z(2.66))
         self._snow = dict(roof=(0.78, 1.45, Z(0.12), Z(2.34)), trunk=None)
         mb.box(-0.72, 1.37, Z(0.2), 0.72, 1.38, Z(2.45), (170, 160, 140))               # потолок
-        mb.box(-0.09, 1.30, Z(2.47), 0.09, 1.35, Z(2.49), (30, 30, 30))                 # салонное зеркало
         mb.box(-0.02, 0.36, Z(2.2), 0.02, 0.72, Z(2.24), (30, 30, 30))                  # рычаг КПП
         mb.box(-0.035, 0.70, Z(2.18), 0.035, 0.77, Z(2.25), (20, 20, 20))
-        self.shell = Entity(parent=b, model=mb.build(), double_sided=True)
+        self.shell = Entity(parent=b, model=mb.build(keep=True), double_sided=True)
 
         # руль
-        self.wheel_pivot = Entity(parent=b, position=(-0.36, 0.98, Z(2.55)), rotation_x=-28)
+        self.wheel_pivot = Entity(parent=b, position=(-0.36, 0.98, Z(2.55)), rotation_x=28)
         ring_entity(self.wheel_pivot, 0.19, 0.03, color.rgb(20, 20, 20))
         self.steer_spokes = Entity(parent=self.wheel_pivot)
         for a in (0, 180, 270):
@@ -476,12 +719,11 @@ class Car3D:
         hm.box(-0.80, -0.05, 0.0, 0.80, 0.0, Z(3.95) - Z(2.99), P_, top=(190, 180, 146))
         self._hood_len = Z(3.95) - Z(2.99)
         hm.box(-0.30, 0.0, 0.25, 0.05, 0.004, 0.55, (128, 128, 122))     # пятно грунта
-        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(keep=True), double_sided=True)
 
         # моторный отсек
         self.bay = Entity(parent=b)
-        Entity(parent=self.bay, model="cube", color=color.rgb(90, 92, 95), position=(-0.05, 0.55, Z(3.35)), scale=(0.42, 0.42, 0.55))
-        Entity(parent=self.bay, model="cube", color=color.rgb(20, 20, 20), position=(-0.05, 0.79, Z(3.35)), scale=(0.34, 0.06, 0.5))
+        self._build_engine(-0.05, 0.55, Z(3.35), 0.42, 0.42, 0.55, (20, 20, 20))
         self.bay_parts = {
             "air_filter": Entity(parent=self.bay, model="cube", color=color.rgb(40, 40, 42), position=(0.05, 0.86, Z(3.3)), scale=(0.34, 0.07, 0.34)),
             "carb": Entity(parent=self.bay, model="cube", color=color.rgb(160, 150, 120), position=(0.12, 0.72, Z(3.3)), scale=(0.12, 0.1, 0.12)),
@@ -553,8 +795,7 @@ class Car3D:
             # задние стойки вдоль стекла люка
             q0, q1 = (0.88, Z(0.45)), (1.30, Z(1.45))
             mb.poly([(x - d, q0[0], q0[1]), (x + d, q0[0], q0[1]), (x + d, q1[0], q1[1]), (x - d, q1[0], q1[1])], W_, (0, 0.5, -0.5))
-        # зеркало, выхлоп
-        mb.box(-0.93, 0.93, Z(2.90), -0.80, 1.0, Z(2.96), K_)
+        # выхлоп (зеркала — рабочие, в car3d_extra.py)
         mb.box(0.35, 0.18, Z(-0.12), 0.41, 0.24, Z(0.5), (90, 80, 70))
         # салон: торпедо, ковши, заднее сиденье
         mb.box(-0.72, 0.66, Z(2.75), 0.72, 0.88, Z(3.08), (28, 28, 30), top=(24, 24, 26))
@@ -571,19 +812,18 @@ class Car3D:
             sb.box(x0 + 0.05, 0.505, Z(1.742), x0 + 0.45, 0.515, Z(2.2), trim)       # красная вставка
         sb.box(-0.64, 0.36, Z(0.80), 0.64, 0.50, Z(1.30), seat)
         sb.box(-0.64, 0.50, Z(0.72), 0.64, 0.95, Z(0.82), seat)
-        self.seats_e = Entity(parent=b, model=sb.build(), double_sided=True)
+        self.seats_e = Entity(parent=b, model=sb.build(keep=True), double_sided=True)
         self._make_trims(b, [(-0.73, 0.36, Z(0.5), -0.69, 0.86, Z(3.0)), (0.69, 0.36, Z(0.5), 0.73, 0.86, Z(3.0))],
                          (45, 45, 48))
         self._interior = dict(floor_y=0.37, hw=0.68, z0=Z(0.55), z1=Z(2.95), dash_y=0.88, dash_z=Z(2.78))
         self._snow = dict(roof=(0.74, 1.35, Z(1.45), Z(2.5)), trunk=None)
         mb.box(-0.72, 1.28, Z(1.5), 0.72, 1.29, Z(2.52), (150, 150, 150))           # потолок
-        mb.box(-0.09, 1.20, Z(2.58), 0.09, 1.25, Z(2.60), (25, 25, 25))             # салонное зеркало
         mb.box(-0.02, 0.36, Z(2.35), 0.02, 0.70, Z(2.39), (25, 25, 25))             # рычаг КПП (5 ступ.)
         mb.box(-0.035, 0.68, Z(2.33), 0.035, 0.75, Z(2.40), (20, 20, 20))
-        self.shell = Entity(parent=b, model=mb.build(), double_sided=True)
+        self.shell = Entity(parent=b, model=mb.build(keep=True), double_sided=True)
 
         # руль (трёхспицевый)
-        self.wheel_pivot = Entity(parent=b, position=(-0.36, 0.88, Z(2.72)), rotation_x=-24)
+        self.wheel_pivot = Entity(parent=b, position=(-0.36, 0.88, Z(2.72)), rotation_x=24)
         ring_entity(self.wheel_pivot, 0.18, 0.03, color.rgb(18, 18, 18))
         self.steer_spokes = Entity(parent=self.wheel_pivot)
         for a in (0, 180, 270):
@@ -598,7 +838,7 @@ class Car3D:
         hm = MeshBuilder()
         hm.box(-0.80, -0.05, 0.0, 0.80, 0.0, Z(4.05) - Z(3.08) - 0.32, W_, top=(242, 242, 236))
         self._hood_len = Z(4.05) - Z(3.08) - 0.32
-        self.hood_mesh = Entity(parent=self.hood, model=hm.build(), double_sided=True)
+        self.hood_mesh = Entity(parent=self.hood, model=hm.build(keep=True), double_sided=True)
 
         # поднимающиеся фары: крышка на шарнире + фара под ней
         self.headlamps = []
@@ -612,9 +852,7 @@ class Car3D:
 
         # моторный отсек: 4A-GE
         self.bay = Entity(parent=b)
-        Entity(parent=self.bay, model="cube", color=color.rgb(95, 97, 100), position=(0, 0.55, Z(3.55)), scale=(0.46, 0.40, 0.52))
-        Entity(parent=self.bay, model="cube", color=color.rgb(200, 200, 205), position=(0, 0.78, Z(3.55)), scale=(0.40, 0.07, 0.48))
-        Entity(parent=self.bay, model="cube", color=color.rgb(190, 30, 30), position=(0, 0.82, Z(3.55)), scale=(0.18, 0.012, 0.3))
+        self._build_engine(0, 0.55, Z(3.55), 0.46, 0.40, 0.52, (200, 200, 205), stripe=(190, 30, 30))
         self.bay_parts = {
             "air_filter": Entity(parent=self.bay, model="cube", color=color.rgb(30, 30, 32), position=(-0.45, 0.70, Z(3.45)), scale=(0.25, 0.14, 0.35)),
             "carb": Entity(parent=self.bay, model="cube", color=color.rgb(150, 150, 150), position=(0.22, 0.70, Z(3.5)), scale=(0.1, 0.1, 0.4)),
@@ -630,6 +868,10 @@ class Car3D:
         # стёкла: лобовое и покатое стекло люка
         glass_entity(b, [(-0.74, 0.87, Z(3.08)), (0.74, 0.87, Z(3.08)), (0.72, 1.30, Z(2.55)), (-0.72, 1.30, Z(2.55))], GLS)
         self.rear_glass = glass_entity(b, [(-0.72, 0.88, Z(0.45)), (0.72, 0.88, Z(0.45)), (0.70, 1.30, Z(1.45)), (-0.70, 1.30, Z(1.45))], GLS)
+        self._tail_hinge = (0, 1.31, Z(1.45))
+        self._geo = dict(W2=0.8125, L=4.20, sill=0.30, belt=0.80, roof=1.33, ws=2.9, rs=1.45, re=2.5, rgb=0.45, rb_y=0.88,
+                         nose=0.62, seat_z=1.95, rear_z=1.05, seat_y=0.50, style="hatch", floor=0.37,
+                         trunk_z0=0.12, trunk_z1=0.7, trunk_y=0.62, seat_c=(60, 60, 66))
 
         # фонари: широкая полоса по всей корме
         self.taillights = []
@@ -648,13 +890,14 @@ class Car3D:
     def _make_trims(self, b, boxes, col):
         """Обшивки дверей — отдельно: снял дверь — обшивки нет, видно салон."""
         self.trims = {}
+        self._trim_boxes = {side: (bx, col) for side, bx in zip(("l", "r"), boxes)}
         for side, bx in zip(("l", "r"), boxes):
             mb = MeshBuilder()
             mb.box(*bx, col)
             # ручка и карман
             x0, y0, z0, x1, y1, z1 = bx
             mb.box(x0, y0 + 0.28, z0 + (z1 - z0) * 0.55, x1, y0 + 0.31, z0 + (z1 - z0) * 0.62, (30, 30, 30))
-            self.trims[side] = Entity(parent=b, model=mb.build(), double_sided=True)
+            self.trims[side] = Entity(parent=b, model=mb.build(keep=True), double_sided=True)
 
     def _build_interior_rust(self):
         """Ржавчина внутри салона: пол, пороги изнутри, низ обшивки, кромка торпедо."""
@@ -689,7 +932,7 @@ class Car3D:
             mb.box(x - 0.05, info["dash_y"] - 0.02, info["dash_z"] - 0.01, x + 0.05, info["dash_y"] + 0.004,
                    info["dash_z"] + 0.05, rng.choice(cols))
         if mb.v:
-            self.int_rust = Entity(parent=self.body, model=mb.build(), double_sided=True)
+            self.int_rust = Entity(parent=self.body, model=mb.build(keep=True), double_sided=True)
 
     def _build_snow(self):
         """Шапки снега на крыше, капоте и багажнике (толщина — car.snow)."""
@@ -705,6 +948,7 @@ class Car3D:
             hw, y, z0, z1 = sn["trunk"]
             e = Entity(parent=self.body, model="cube", color=white, position=(0, y, (z0 + z1) / 2),
                        scale=(hw * 2 - 0.12, 0.01, abs(z1 - z0) - 0.08))
+            e._on_trunk = True                  # лежит на крышке багажника: поднимается вместе с ней
             self.snow_parts.append((e, y))
         hl = getattr(self, "_hood_len", 0.9)
         e = Entity(parent=self.hood, model="cube", color=white, position=(0, 0.0, hl / 2), scale=(1.3, 0.01, hl * 0.85))
@@ -718,7 +962,7 @@ class Car3D:
         if getattr(self, "seats_e", None) is not None:
             self.seats_e.enabled = car.has("seats")
         for side, t in getattr(self, "trims", {}).items():
-            t.enabled = car.has("door_" + side)
+            t.enabled = car.has("door_" + side) and not getattr(self, "_trim_off", {}).get(side)
         has_trunk = car.has("trunk")
         if getattr(self, "trunk_lid", None) is not None:
             self.trunk_lid.enabled = has_trunk
@@ -727,20 +971,26 @@ class Car3D:
         if not car.has("hood"):
             self.bay.enabled = True
         lvl = round(car.snow, 2)
-        if lvl != self._snow_level:
+        if (lvl, has_trunk) != (self._snow_level, getattr(self, "_snow_trunk", None)):
+            self._snow_trunk = has_trunk
             self._snow_level = lvl
             th = 0.01 + 0.09 * lvl
             for e, y in self.snow_parts:
-                e.enabled = lvl > 0.05 and (e.parent is not self.hood or car.has("hood"))
+                e.enabled = lvl > 0.05 and (e.parent is not self.hood or car.has("hood")) and \
+                    (not getattr(e, "_on_trunk", False) or has_trunk)
                 e.scale_y = th
-                e.y = y + th / 2
+                if getattr(e, "_lid_y", None) is not None:      # шапка на крышке: координаты — от петли
+                    e.y = e._lid_y + th / 2
+                else:
+                    e.y = y + th / 2
 
     # ------------------------------------------------------------------ состояние
     def refresh_rust(self, force=False):
         car = self.car
         key = tuple(int(v // 4) for v in car.rust.values()) + (int(car.dirt * 6), int(car.fade * 6),
                                                                  int(car.c("glass") * 4), tuple(car.dents),
-                                                                 car.has("door_l"), car.has("door_r"))
+                                                                 car.has("door_l"), car.has("door_r"),
+                                                                 tuple(sorted(car.door_open.items())))
         if key == self._rust_key and not force:
             return
         self._rust_key = key
@@ -749,15 +999,30 @@ class Car3D:
         self._build_interior_rust()
 
     def set_hood(self, open_):
+        self.car.hood_open = bool(open_)
         self.hood.rotation_x = -55 if open_ else self.hood_rest
         self.bay.enabled = open_ or not self.car.has("hood")
+
+    def _side_of(self, e):
+        s = getattr(e, "_eside", None)
+        if s is None:
+            try:
+                s = "l" if e.get_position(relative_to=self.body).x < 0 else "r"
+            except Exception:
+                s = "l"
+            e._eside = s
+        return s
 
     def update(self, dt, inp, night, lazy=False):
         car = self.car
         self.t += dt
+        if self._deform_sig() != self._deform_key:
+            self.apply_deforms()
         # стоящие чужие машины обновляются раз в ~12 кадров — их на карте много
-        if lazy and not car.running and not car.cranking and abs(car.speed) < 0.01 and not inp:
-            key = (round(car.x, 2), round(car.y, 2), round(car.angle, 3), night > 0.15, car.lights)
+        if lazy and not car.running and not car.cranking and abs(car.speed) < 0.01 and not inp and not car.turn \
+                and not self.bolt_ents:
+            key = (round(car.x, 2), round(car.y, 2), round(car.angle, 3), night > 0.15, car.lights, str(getattr(car, "lift", "")),
+                   tuple(sorted(car.door_open.items())), car.trunk_open, round(sum(self._door_ang.values()) + self._tail_ang))
             self._lazy = getattr(self, "_lazy", 0) + 1
             if key == getattr(self, "_lazy_key", None) and self._lazy < 12:
                 return
@@ -765,6 +1030,7 @@ class Car3D:
             self._lazy_key = key
         self.root.position = Vec3(car.x, 0, -car.y)
         self.root.rotation_y = 90 + math.degrees(car.angle)
+        _under3d.apply_lift(self)                         # на домкрате / подставках (underside.py)
         # крен и клевки
         lat = car.speed * car.ang_vel
         soft = 1.6 - 0.8 * car.c("shocks")
@@ -777,7 +1043,7 @@ class Car3D:
         if car.running:
             y += math.sin(self.t * max(10, car.rpm / 60)) * 0.004 * (2 - car.c("engine"))
         flats = car.flat_tires()
-        self.body.y = y - 0.04 * len(flats) - car.sink
+        self.body.y = y - 0.04 * len(flats) - car.sink - (0.035 if car.has_tune("susp") else 0.0)
         self._update_parts()
         # колёса
         self.spin += car.speed / self.wr * dt
@@ -792,12 +1058,17 @@ class Car3D:
             pivot.y = self.wr - 0.07 if flat else self.wr
             spin.scale_y = 0.78 if flat else 1.0
             if slot in ("tire_fl", "tire_fr"):
-                max_steer = 33 / (1 + abs(car.speed) / 14)
-                pivot.rotation_y = car.steer * max_steer
+                pivot.rotation_y = math.degrees(car.front_delta)       # как реально повёрнуты колёса
         self.wheel_pivot.rotation_z = 0
-        self.steer_spokes.rotation_z = -car.steer * 120
+        # руль: по часовой — вправо; рулевое передаточное ~13:1, синхронно с колёсами
+        tgt = max(-540.0, min(540.0, math.degrees(car.front_delta) * 13.0))
+        self.steer_spokes.rotation_z += (tgt - self.steer_spokes.rotation_z) * min(1.0, dt * 14)
+        self._lightfr = getattr(self, "_lightfr", 0) + 1
+        if getattr(car, "traffic", False) and self._lightfr % 4:
+            return                                        # машина трафика: свет, номера, детали — раз в 4 кадра
         # свет
         lit = car.lights_ok
+        side_ok = {"l": car.head_ok("l"), "r": car.head_ok("r")}     # у каждой фары своя цепь и предохранитель
         for t in self.plate_texts:
             if t.text != car.plate:
                 t.text = car.plate
@@ -805,7 +1076,7 @@ class Car3D:
             lamp.enabled = car.has("lights")
         k = 0.4 + 0.6 * car.c("lights") if lit else 0
         for lamp in self.headlamps:
-            if lit:
+            if side_ok[self._side_of(lamp)]:
                 lamp.color = color.rgb(255, 250, 220)
                 lamp.setLightOff()
             else:
@@ -816,11 +1087,12 @@ class Car3D:
             target = -78 if car.lights else 0
             pu.rotation_x += (target - pu.rotation_x) * min(1, dt * 6)
         for bm in self.beams:
-            bm.enabled = lit and night > 0.15
+            bm.enabled = side_ok[self._side_of(bm)] and night > 0.15
             bm.color = color.rgba(255, 240, 200, int(140 * k))
-        braking = inp.get("brake", 0) > 0.1 and car.battery_charge > 2
+        braking = inp.get("brake", 0) > 0.1 and car.battery_charge > 2 and car.elec_ok("brake")
+        tail_on = car.lights and car.battery_charge > 2 and car.elec_ok("tail")
         for tl in self.taillights:
-            if braking or lit:
+            if braking or tail_on:
                 tl.color = color.rgb(255, 40, 30) if braking else color.rgb(200, 30, 25)
                 tl.setLightOff()
             else:
@@ -830,7 +1102,14 @@ class Car3D:
             pl.enabled = car.registered
         for name, ent in self.bay_parts.items():
             ent.enabled = car.has(name)
-        self.refresh_rust()
+        for name, ent in getattr(self, "tune_parts", {}).items():
+            ent.enabled = car.has_tune(name)
+        # машины трафика: тяжёлое (ржавчина, моторный отсек, двери/детали) — раз в 8 кадров
+        self._heavy = getattr(self, "_heavy", 0) + 1
+        if not getattr(car, "traffic", False) or self._heavy % 8 == 0:
+            self._update_engine_vis()
+            self._update_extras(dt)
+            self.refresh_rust()
         # дым
         if car.running:
             fx, fy = car.forward()

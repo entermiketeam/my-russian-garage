@@ -1,7 +1,8 @@
 """3D-квартира на Lindenstraße 7. Планировка — как в 2D (сантиметры), стоит вне карты."""
 import math
 
-from ursina import Entity, Text, color
+from ursina import Entity, Text, color, scene
+from panda3d.core import AmbientLight, DirectionalLight, LightAttrib
 
 from mesh3d import MeshBuilder
 from city3d import additive
@@ -23,6 +24,7 @@ WALLS = [
 OBJECTS = [
     ("door", "Выйти на улицу", (12, 560, 80, 30), False),
     ("mail", "Почта и счета", (100, 555, 45, 25), True),
+    ("keyhook", "Ключница (запасные ключи)", (12, 470, 14, 45), False),
     ("sofa", "Диван (посидеть 1 ч)", (40, 20, 220, 85), True),
     ("tv", "Телевизор", (380, 20, 110, 50), True),
     ("table", "Стол (дела, счета)", (230, 250, 150, 90), True),
@@ -54,6 +56,22 @@ def box_cm(mb, x, y, w, d, h0, h1, col, **kw):
 
 class Apartment3D:
     def __init__(self):
+        before = set(scene.children)
+        self._build()
+        # всё, что построили, — под один корень со своим светом (улица освещается отдельно)
+        self.root = Entity()
+        for e in list(scene.children):
+            if e not in before and e is not self.root and isinstance(e, Entity):
+                e.world_parent = self.root
+        self.amb = AmbientLight("apt_amb")
+        self.sun = DirectionalLight("apt_window_light")
+        self.amb_np = self.root.attachNewNode(self.amb)
+        self.sun_np = self.root.attachNewNode(self.sun)
+        self.sun_np.setHpr(160, -35, 0)                  # свет из окон: с севера и чуть сверху
+        self.root.setAttrib(LightAttrib.makeAllOff().addOnLight(self.amb_np).addOnLight(self.sun_np))
+        self.views_ok = False
+
+    def _build(self):
         mb = MeshBuilder()
         # полы
         floor = MeshBuilder(uv_tile=1.0)
@@ -121,6 +139,14 @@ class Apartment3D:
         self.calendar = Text("", position=(px - 0.02, 1.5, pz), rotation_y=90, scale=4, origin=(0, 0),
                              color=color.rgb(20, 20, 20), background=True)
         self.calendar.background.color = color.rgb(245, 240, 225)
+        # пятна дневного света на полу у окон
+        self.light_patches = []
+        for w_ in self.windows:
+            fwd = w_.back
+            p = Entity(model="quad", position=(w_.x + fwd.x * 0.9, 0.03, w_.z + fwd.z * 0.9), rotation_x=90,
+                       rotation_y=w_.rotation_y, scale=(w_.scale_x * 1.1, 1.4), color=color.rgba(255, 245, 220, 0))
+            additive(p)
+            self.light_patches.append(p)
         self.root_entities = [self.static, self.floor, self.tv_screen, self.calendar] + self.windows
 
     def _furniture(self, mb):
@@ -129,6 +155,11 @@ class Apartment3D:
         b(15, 575, 85, 3, 0, 2.05, (110, 75, 45))
         b(85, 573, 6, 2, 1.0, 1.05, (200, 190, 150))
         b(12, 540, 80, 30, 0, 0.012, (90, 70, 50))                         # коврик
+        # ключница на стене у входа: дощечка с крючками
+        b(12, 470, 3, 45, 1.35, 1.62, (120, 85, 55))
+        for k in range(4):
+            b(15, 475 + k * 10, 3, 2, 1.45, 1.48, (190, 190, 195))
+            b(15, 475 + k * 10, 2, 3, 1.33, 1.45, (170, 150, 60))               # ключ на крючке
         # тумба и письма
         b(100, 555, 45, 25, 0, 0.5, (120, 90, 60))
         b(108, 560, 25, 15, 0.5, 0.52, (240, 235, 220))
@@ -191,16 +222,25 @@ class Apartment3D:
         b(590, 312, 70, 2, 1.15, 1.75, (190, 215, 235))                    # зеркало
 
     def set_visible(self, v):
-        for e in self.root_entities:
-            e.enabled = v
+        self.root.enabled = v
+        self.calendar.enabled = v
 
-    def update_env(self, darkness, rain, date_text, watching_tv=False, t=0.0):
+    def update_env(self, darkness, rain, date_text, watching_tv=False, t=0.0, dim=1.0):
+        """Свет в квартире: днём — из окон (зависит от погоды), вечером и ночью — лампы."""
         k = 1 - darkness
-        c = (int(60 + 110 * k), int(70 + 130 * k), int(100 + 140 * k))
-        if rain:
-            c = tuple(int(v * 0.75) for v in c)
-        for w in self.windows:
-            w.color = color.rgb(*c)
+        day = k * dim
+        lamp = min(1.0, darkness * 1.6)                  # вечером включают свет
+        a = 0.32 + 0.3 * day + 0.3 * lamp
+        self.amb.setColor((a * (1.0 if lamp > day else 0.93), a * 0.97, a * (0.86 if lamp > day else 1.0), 1))
+        self.sun.setColor((0.55 * day, 0.56 * day, 0.6 * day, 1))
+        for p in self.light_patches:
+            p.color = color.rgba(255, 245, 220, int(70 * day))
+        if not self.views_ok:                            # запасной вариант: стекло цвета неба
+            c = (int(60 + 110 * k), int(70 + 130 * k), int(100 + 140 * k))
+            if rain:
+                c = tuple(int(v * 0.75) for v in c)
+            for w in self.windows:
+                w.color = color.rgb(*c)
         self.calendar.text = date_text
         if watching_tv:
             f = 0.6 + 0.4 * math.sin(t * 7) * math.sin(t * 3.1)

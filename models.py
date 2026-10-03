@@ -51,6 +51,7 @@ TIRES = {
     "tire_w123": ("Шина 175 SR 14", 72.0),
     "tire_185_14": ("Шина 185/70 R 14", 76.0),
     "tire_165_13": ("Шина 165 SR 13", 52.0),
+    "tire_mustang": ("Шина 7.35-14 (Mustang)", 95.0),
 }
 
 MODELS = {
@@ -297,6 +298,61 @@ MODELS = {
                   lights="rect2", grille="black_bars", bumper="black", tail="wide_rect",
                   seats="separate", wheel="four_spoke", dash_shift=False,
                   colors=[(170, 175, 180), (40, 50, 70), (160, 40, 35), (210, 200, 170), (80, 100, 70)]),
+    ),
+    # ------------------------------------------------------------------ Honda Civic (3-е поколение)
+    "civic": dict(
+        name="Honda Civic 1.5 GL", short="Civic", origin="Япония, Honda Suzuka", shop="west", price=0.95,
+        scrap=60, spawn=0.75, odo=(120000, 260000),
+        desc=("Хэтчбек 1985 года: мотор EW 1.5 л 12V, 85 л.с., 5-ступенчатая КПП, 850 кг. Этот Civic — "
+              "заднеприводный (привод переделан под дрифт — таких в Германии гоняют по зимним парковкам). "
+              "Лёгкий, крутится до 6500 и почти не ломается, зато японский металл 80-х гниёт быстро: "
+              "задние арки, пороги, низ двери багажника. Под капотом много места — сюда просится турбина "
+              "(тюнинг: турбокит, интеркулер и буст-контроллер — в Autohaus Krüger)."),
+        quirks=["rwd", "tuneable"],
+        spec=dict(length=3.81, width=1.63, wheelbase=2.38, mass=850.0, wheel_r=0.28, final=4.27,
+                  gears={-1: -3.00, 0: 0.0, 1: 3.25, 2: 1.90, 3: 1.25, 4: 0.95, 5: 0.78},
+                  idle=800, tank=45.0, oil=3.5, coolant=4.8, tq_peak=104.0, tq_rpm=3800.0, tq_width=3600.0,
+                  cut=6500, overrev=6900, limiter=False, cda=0.56, carb=True,
+                  two_stroke=False, air_cooled=False, diesel=False, drive="rwd",
+                  grip=1.03, steer_max=35, brake=1.0, soft=1.0, sound="4t", wear=0.8,
+                  axles=(0.66, 3.04), track=0.68, eye=(-0.36, 1.06, 1.62)),
+        slots={"engine": "Двигатель Honda EW 1.5 12V (85 л.с.)", "carb": "Карбюратор Keihin (2 камеры)",
+               "gearbox": "КПП Honda 5-ступ.", "belt": "Ремень ГРМ Honda",
+               "brakes_f": "Колодки передние (диск)", "brakes_r": "Колодки задние (барабан)"},
+        no_slots=[], tire="tire_165_13",
+        body=dict(style="hatch", sill=0.29, belt=0.80, trunk_y=0.80, rgb=0.12, roof_start=0.22, roof_end=2.45,
+                  roof_y=1.33, ws_base=3.05, hood_y=0.78, nose_y=0.66, b_pillar=1.95, doors=2,
+                  lights="rect2", grille="black_bars", bumper="black", tail="wide_rect",
+                  seats="separate", wheel="four_spoke", dash_shift=False,
+                  colors=[(175, 178, 184), (170, 30, 32), (228, 226, 218), (40, 55, 95), (190, 165, 110),
+                          (30, 30, 34)]),
+    ),
+    # ------------------------------------------------------------------ Ford Mustang 1967
+    "mustang": dict(
+        name="Ford Mustang 289 (1967)", short="Mustang", origin="США, Ford Dearborn", shop="west", price=1.6,
+        scrap=140, spawn=0.0, odo=(140000, 230000),
+        desc=("Hardtop 1967 года, V8 289 (4.7 л, 2-камерный карбюратор, 200 л.с.), 4-ступенчатая КПП, задний привод. "
+              "Привёз американский офицер из Рамштайна и продал Weber-у. Длинный капот, тяжёлый нос, мягкая подвеска — "
+              "на снегу заносит от одного взгляда. Autohaus Krüger возит тюнинг-комплект Shelby GT500: большой V8 428 "
+              "Cobra Jet, Toploader, подвеска, тормоза, обвес, капот, покраска — из него получится «Eleanor»."),
+        quirks=["rwd", "tuneable", "v8"],
+        spec=dict(length=4.61, width=1.73, wheelbase=2.74, mass=1380.0, wheel_r=0.32, final=2.8,
+                  gears={-1: -2.78, 0: 0.0, 1: 2.78, 2: 1.93, 3: 1.36, 4: 1.00},
+                  idle=650, tank=61.0, oil=4.7, coolant=14.0, tq_peak=300.0, tq_rpm=2600.0, tq_width=3000.0,
+                  cut=4800, overrev=5400, limiter=False, cda=0.82, carb=True,
+                  two_stroke=False, air_cooled=False, diesel=False, drive="rwd",
+                  grip=0.95, steer_max=31, brake=0.85, soft=1.45, sound="v8", wear=0.8,
+                  axles=(0.95, 3.69), track=0.74, eye=(-0.38, 1.02, 2.05)),
+        slots={"engine": "Двигатель Ford 289 V8 (4.7 л, 200 л.с.)", "carb": "Карбюратор Autolite 2100",
+               "gearbox": "КПП Ford 4-ступ.", "brakes_f": "Тормоза передние (барабан)",
+               "brakes_r": "Тормоза задние (барабан)", "distributor": "Трамблёр Autolite V8",
+               "plugs": "Свечи Autolite (8 шт.)", "exhaust": "Двойной глушитель V8"},
+        no_slots=[], tire="tire_mustang",
+        body=dict(style="sedan", sill=0.30, belt=0.80, trunk_y=0.84, rgb=0.95, roof_start=1.35, roof_end=2.45,
+                  roof_y=1.30, ws_base=3.00, hood_y=0.82, nose_y=0.72, b_pillar=2.05, doors=2,
+                  lights="round2", grille="egg_crate", bumper="chrome", tail="wide_rect",
+                  seats="separate", wheel="two_spoke", dash_shift=False,
+                  colors=[(228, 226, 218), (170, 25, 30), (30, 45, 90), (40, 80, 55), (200, 180, 110)]),
     ),
 }
 

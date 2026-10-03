@@ -13,6 +13,11 @@ import pygame
 from items import SLOTS, SLOTS_BY_MODEL, PANELS
 from config import PPM
 from models import MODELS, model_info
+import engine as _eng
+import fasteners as _fast
+import electrics as _elec
+import tires as _tires
+from tuning import default_tune, fix_tune, BOOST_BY_KEY, TORQUE_PER_BAR, TUNE_NAMES, apply_spec
 
 SPECS = {
     "vaz2102": dict(
@@ -20,14 +25,14 @@ SPECS = {
         final=4.44, gears={-1: -3.867, 0: 0.0, 1: 3.753, 2: 2.303, 3: 1.493, 4: 1.0},
         idle=850, tank=39.0, oil=3.75, coolant=9.85, tq_peak=88.0, tq_rpm=3400.0, tq_width=3200.0,
         cut=6000, overrev=6300, limiter=False, cda=0.45 * 1.85, carb=True,
-        axles=(0.83, 3.25), track=0.685, eye=(-0.36, 1.17, 1.72), plate="KB-VZ 102",
+        axles=(0.83, 3.25), track=0.685, eye=(-0.36, 1.17, 1.72), plate="KB-VZ 102", drive="rwd",
     ),
     "ae86": dict(
         name="Toyota AE86 Trueno", length=4.20, width=1.625, wheelbase=2.40, mass=1030.0, wheel_r=0.29,
         final=4.30, gears={-1: -3.484, 0: 0.0, 1: 3.587, 2: 2.022, 3: 1.384, 4: 1.0, 5: 0.861},
         idle=900, tank=50.0, oil=3.7, coolant=5.6, tq_peak=140.0, tq_rpm=5200.0, tq_width=4200.0,
         cut=7600, overrev=7900, limiter=True, cda=0.35 * 1.75, carb=False,
-        axles=(0.90, 3.30), track=0.69, eye=(-0.36, 1.09, 1.80), plate="KB-AE 86",
+        axles=(0.90, 3.30), track=0.69, eye=(-0.36, 1.09, 1.80), plate="KB-AE 86", drive="rwd",
     ),
 }
 
@@ -114,7 +119,39 @@ class Car:
         self.x, self.y = x, y
         self.angle = angle
         self.speed = 0.0
-        self.ang_vel = 0.0
+        self.ang_vel = 0.0         # скорость поворота кузова (рад/с)
+        self.vlat = 0.0            # боковая скорость (м/с, + вправо) — занос
+        self.spin_v = 0.0          # пробуксовка ведущих колёс (м/с сверх скорости машины)
+        self._ax = 0.0             # продольное ускорение (перенос веса)
+        self.drift_angle = 0.0     # угол заноса (рад) — для интерфейса
+        self.deforms = []          # вмятины кузова от аварий (damage.py)
+        self.bolts = {}            # незатянутый крепёж (fasteners.py)
+        self.base_color = None     # цвет до тюнинг-покраски
+        self.door_open = {"l": False, "r": False, "lb": False, "rb": False}   # двери (передние и задние)
+        self.trunk_items = []      # что лежит в багажнике (такие же записи, как в инвентаре)
+        self.elec = None           # электрика: предохранители и неисправности цепей (electrics.py)
+        self.mangel = None         # предписание полиции устранить дефекты (Mängelbericht)
+        # ключи и замки (keys.py): свой код ключа, заперта ли, ключ в замке зажигания, сломанные замки, угон
+        self.key_code = None
+        self.locked = False
+        self.ign_key = None
+        self.lock_broken = False
+        self.hotwired = False
+        self.stolen = None
+        self.tire_p = None         # давление в шинах, бар при +20°C (tires.py)
+        self.lift = {"f": 0.0, "r": 0.0}   # поднят домкратом / стоит на подставках (underside.py), м
+        self.lift_by = {}          # чем держится поднятая сторона: {"f": запись домкрата/подставок}
+        self.warranty = "lifetime" # бессрочная гарантия (service.py) — оформлена на все машины
+        self.service = None        # в ремонте в автосервисе
+        self.service_done = None
+        self._braked_t = self._turned_t = 99.0
+        self.trunk_open = False
+        self.hood_open = False
+        self.turn = 0              # поворотник: -1 левый, 1 правый
+        self._turn_peak = 0.0
+        self.blink_t = 0.0
+        self.front_delta = 0.0     # фактический угол передних колёс (рад) — по нему крутится руль
+        self.align = 0.0           # увод от погнутой подвески
         self.steer = 0.0
         self.rpm = 0.0
         self.gear = 0
@@ -142,6 +179,9 @@ class Car:
         self.plate_text = ""
         self.preservation = 1.0
         self.painted = {p: False for p in PANELS}
+        self.tune = default_tune(model)   # тюнинг поверх стандартных деталей (tuning.py)
+        self.boost_now = 0.0              # текущее давление наддува, бар
+        self._bov = False
         if model in PRESETS:
             pre = PRESETS[model]
             slots = SLOTS_BY_MODEL[model]
@@ -154,6 +194,8 @@ class Car:
         else:
             self._random_condition(rng or random.Random(), pres)
         self._fill_slots()
+        _eng.init(self, rng=random.Random((rng.random() * 1e9) if rng else self.seed * 7 + 3))   # внутренности двигателя
+        self.refresh_spec()
         self._sprite_key = None
         self._sprite = None
 
@@ -191,7 +233,8 @@ class Car:
                 "taunus": {"doors": 12, "arch_f": 10, "arch_r": 10},
                 "wartburg": {"sill_l": 8, "sill_r": 8, "floor": 12},
                 "w123": {k: -12 for k in PANELS},
-                "trabant": {"floor": 12, "sill_l": 10, "sill_r": 10}}.get(self.model, {})
+                "trabant": {"floor": 12, "sill_l": 10, "sill_r": 10},
+                "civic": {"arch_r": 14, "sill_l": 10, "sill_r": 10, "tailgate": 8}}.get(self.model, {})
         self.rust = {}
         for pn in PANELS:
             r = (1 - p) * 100 * rng.uniform(0.65, 1.2) + rng.uniform(-8, 8) + weak.get(pn, 0)
@@ -217,6 +260,11 @@ class Car:
         self.fade = round(0.2 + (1 - p) * 0.6 * rng.uniform(0.7, 1.1), 2)
         self.dirt = round(0.35 + rng.random() * 0.65, 2)
         L = sp["length"]
+        # изредка прошлый хозяин уже поставил турбину (старую, уставшую)
+        if "tuneable" in info.get("quirks", []) and "turbo" in self.tune and rng.random() < 0.12:
+            from tuning import TUNING
+            self.tune["turbo"] = {"id": TUNING[self.model]["turbo"][0],
+                                  "cond": round(max(8.0, min(92.0, rng.gauss(p * 85, 15))), 1)}
         self.dents = [(round(rng.uniform(0.3, L - 0.3), 2), round(rng.uniform(sp["axles"][0] * 0 + 0.4, 0.8), 2),
                        round(rng.uniform(0.08, 0.2), 2), rng.choice("lr"))
                       for _ in range(int((1 - p) * 7 * rng.uniform(0.5, 1.2)))]
@@ -244,8 +292,15 @@ class Car:
 
     @property
     def lights_ok(self):
+        return self.lights and (self.head_ok("l") or self.head_ok("r"))
+
+    def head_ok(self, side):
+        """Горит ли фара (l/r): включён свет, есть фары, цепь и предохранитель в порядке."""
         return (self.lights and self.battery_charge > 2 and self.c("lights") > 0.05
-                and self.c("wiring") > 0.05)
+                and self.c("wiring") > 0.05 and _elec.works(self, "head_" + side))
+
+    def elec_ok(self, key):
+        return _elec.works(self, key)
 
     # ---- характеристики модели
     @property
@@ -281,10 +336,10 @@ class Car:
         return self.spec["length"]
 
     # ------------------------------------------------------------ сохранение
-    SAVE_FIELDS = ["model", "color", "fade", "dirt", "dents", "seed", "plate_text", "preservation", "snow",
+    SAVE_FIELDS = ["lift", "lift_by", "warranty", "service", "service_done", "tire_p", "key_code", "locked", "ign_key", "lock_broken", "hotwired", "stolen", "elec", "mangel", "trunk_items", "base_color", "bolts", "eng", "eng_flags", "deforms", "align", "model", "color", "fade", "dirt", "dents", "seed", "plate_text", "preservation", "snow",
                    "x", "y", "angle", "gear", "choke", "lights", "temp", "fuel", "oil",
                    "oil_quality", "coolant", "brake_fluid", "battery_charge", "odometer",
-                   "registered", "tuv_until", "parts", "rust", "painted"]
+                   "registered", "tuv_until", "parts", "rust", "painted", "tune"]
 
     def to_dict(self):
         return {k: getattr(self, k) for k in self.SAVE_FIELDS}
@@ -293,10 +348,44 @@ class Car:
         for k in self.SAVE_FIELDS:
             if k in d:
                 setattr(self, k, d[k])
+        if "elec" not in d:
+            self.elec = None          # старое сохранение: электрика появится при первом обращении
+        if "mangel" not in d:
+            self.mangel = None
+        for k_, v_ in (("locked", False), ("ign_key", None), ("lock_broken", False), ("hotwired", False),
+                       ("stolen", None)):
+            if k_ not in d:
+                setattr(self, k_, v_)
+        if not d.get("key_code"):
+            self.key_code = None
+        if not d.get("warranty"):
+            self.warranty = "lifetime"   # гарантия на все машины; уже записанную не трогаем
+        for k_ in ("service", "service_done"):
+            if k_ not in d:
+                setattr(self, k_, None)
+        if not isinstance(d.get("lift"), dict):
+            self.lift = {"f": 0.0, "r": 0.0}      # старое сохранение: машина на колёсах
+        if not isinstance(d.get("lift_by"), dict):
+            self.lift_by = {}
+        if "tire_p" not in d:
+            self.tire_p = None        # старое сохранение: давление появится (у своих машин — подспущено, как в жизни)
         self.spec = SPECS[self.model]
         if isinstance(self.color, list):
             self.color = tuple(self.color)
         self.dents = [tuple(x) for x in self.dents]
+        self.tune = fix_tune(self.model, getattr(self, "tune", None))
+        self.refresh_spec()
+        self.deforms = [dict(d) for d in (getattr(self, "deforms", None) or []) if isinstance(d, dict)]
+        self._fill_slots()
+        _eng.fix(self)                                     # старые сохранения: двигатель «разложится» на детали
+        _fast.fix(self)
+        self.door_open = {"l": False, "r": False, "lb": False, "rb": False}
+        self.trunk_open = False
+        self.turn = 0
+        self.trunk_items = [dict(e) for e in (getattr(self, "trunk_items", None) or []) if isinstance(e, dict)]
+        self.vlat = 0.0
+        self.ang_vel = 0.0
+        self.boost_now = 0.0
         self._fill_slots()
         self.speed = 0.0
         self.running = False
@@ -304,17 +393,51 @@ class Car:
 
     # ------------------------------------------------------------ помощники
     def c(self, slot):
-        """Состояние детали 0..1 (0 если детали нет)."""
+        """Состояние детали 0..1 (0 если детали нет). Двигатель — по его внутренним деталям (engine.py)."""
         p = self.parts.get(slot)
-        return 0.0 if p is None else max(0.0, p["cond"]) / 100.0
+        if p is None:
+            return 0.0
+        v = max(0.0, p["cond"]) / 100.0
+        if slot == "engine" and getattr(self, "eng", None):
+            return _eng.effective(self, v)
+        return v
 
     def has(self, slot):
         return self.parts.get(slot) is not None
 
     def wear(self, slot, amount):
+        if slot == "engine" and getattr(self, "eng", None) and self.parts.get("engine") is not None:
+            _eng.distribute_wear(self, amount)          # износ «двигателя» — по кольцам, вкладышам, клапанам...
+            return
         p = self.parts.get(slot)
         if p is not None:
             p["cond"] = max(0.0, p["cond"] - amount)
+
+    # ---- тюнинг
+    def refresh_spec(self):
+        """Характеристики с учётом тюнинга (Mustang GT500: мотор, КПП, подвеска...)."""
+        self.spec = apply_spec(self, SPECS[self.model])
+
+    def tc(self, name):
+        """Состояние тюнинг-детали 0..1 (0 если не стоит)."""
+        p = self.tune.get(name) if self.tune else None
+        return 0.0 if not isinstance(p, dict) else max(0.0, p["cond"]) / 100.0
+
+    def has_tune(self, name):
+        return bool(self.tune) and isinstance(self.tune.get(name), dict)
+
+    def tune_wear(self, name, amount):
+        p = self.tune.get(name) if self.tune else None
+        if isinstance(p, dict):
+            p["cond"] = max(0.0, p["cond"] - amount)
+
+    @property
+    def boost_setting(self):
+        """(ключ, давление бар) — фактическая уставка: без буст-контроллера только «Мягкий»."""
+        key = self.tune.get("boost", "soft") if self.tune else "soft"
+        if key != "soft" and not self.has_tune("boost_ctrl"):
+            key = "soft"
+        return key, BOOST_BY_KEY[key][1]
 
     def say(self, s):
         if s not in self.events:
@@ -327,7 +450,8 @@ class Car:
         return ["tire_fl", "tire_fr", "tire_rl", "tire_rr"]
 
     def flat_tires(self):
-        return [t for t in self.tire_list() if self.c(t) < 0.05]
+        """Спущенные/разорванные шины (машина едет на ободе)."""
+        return [t for t in self.tire_list() if _tires.is_flat(self, t)]
 
     def kmh(self):
         return abs(self.speed) * 3.6
@@ -345,6 +469,9 @@ class Car:
     def start_crank(self):
         if self.running:
             return
+        if not (self.hotwired or (self.ign_key and self.ign_key.get("code") == self.key_code and self.key_code)):
+            self.say("Нет ключа в замке зажигания." if not self.ign_key else "Ключ не подходит к этому замку.")
+            return
         if not self.has("battery") or self.battery_charge < 8:
             self.say("Щёлк... Аккумулятор сел.")
             self.sounds.append("click")
@@ -356,6 +483,10 @@ class Car:
         if not self.has("wiring") or self.c("wiring") < 0.04:
             self.say("Тишина: проводка сгнила — ток не доходит до стартера.")
             self.sounds.append("click")
+            return
+        if not _elec.energize(self, "starter"):
+            self.say("Ключ повёрнут — тишина, даже реле не щёлкает. Цепь стартера без питания "
+                     f"(предохранитель F{_elec.fuse_no('starter')}?).")
             return
         self.cranking = True
         self.crank_time = 0.0
@@ -380,9 +511,18 @@ class Car:
 
     def _start_chance(self):
         """Вероятность схватить за секунду прокрутки."""
+        why = _eng.start_problem(self)
+        if why:
+            return 0.0, why
         if self.c("engine") < 0.04:
             return 0.0, "Двигатель заклинило — нужен ремонт/замена."
         diesel = self.sp("diesel")
+        if not _elec.works(self, "ign"):
+            return 0.0, ("Стартер крутит, но свечи накаливания не греют — нет питания цепи (F1)." if diesel else
+                         "Стартер крутит, но искры нет — нет питания зажигания (предохранитель F1?).")
+        if not _elec.works(self, "fuel"):
+            return 0.0, (f"Топливо не подаётся: {_elec.circuit_name(self, 'fuel').lower()} без питания "
+                         f"(предохранитель F{_elec.fuse_no('fuel')}?).")
         if self.fuel <= 0.05:
             return 0.0, "Нет дизтоплива." if diesel else "Нет бензина."
         if not self.has("fuel_pump") or self.c("fuel_pump") < 0.03:
@@ -422,9 +562,15 @@ class Car:
         return p, None
 
     # ------------------------------------------------------------ обновление
-    def update(self, dt, inp, rain=False, ambient=11.0, grip_mult=1.0, slush=0.0):
+    def update(self, dt, inp, rain=False, ambient=11.0, grip_mult=1.0, slush=0.0, surface="asphalt"):
         """grip_mult — сцепление поверхности (снег, лёд); slush — толщина слякоти под колёсами (м)."""
         self._ambient = ambient
+        self._bolt_shake = 0.0
+        bolt_power = _fast.running_effects(self, dt) if self.bolts else 1.0     # недокрученный крепёж
+        self.blink_t += dt
+        if abs(self.speed) > 4 and any(self.door_open.values()):
+            self.door_open = {k: False for k in self.door_open}   # на ходу двери захлопываются
+            self.sounds.append("door")
         throttle = inp.get("throttle", 0.0)
         brake = inp.get("brake", 0.0)
         steer_in = inp.get("steer", 0.0)
@@ -451,9 +597,18 @@ class Car:
                     self.sounds.append("start")
                     self.say("Завелась!")
 
+        # --- электрика: включённые цепи (КЗ жжёт предохранители, критичные цепи глушат мотор)
+        self._braked_t = 0.0 if brake > 0.1 else self._braked_t + dt
+        self._turned_t = 0.0 if self.turn else self._turned_t + dt
+        self._horn_t = max(0.0, getattr(self, "_horn_t", 0.0) - dt)
+        on = self.running or self.cranking
+        _elec.step(self, dt, {"ign": on, "fuel": on, "dash": on or self.lights, "head_l": self.lights,
+                              "head_r": self.lights, "tail": self.lights, "brake": brake > 0.1,
+                              "turn": self.turn != 0, "horn": self._horn_t > 0})
+
         # --- батарея
         if self.running:
-            if self.has("alternator") and self.c("belt") > 0.05:
+            if self.has("alternator") and self.c("belt") > 0.05 and _eng.drives_accessories(self):
                 self.battery_charge += 0.35 * self.c("alternator") * dt
             elif self.battery_charge > 0:
                 self.battery_charge -= 0.05 * dt
@@ -478,6 +633,16 @@ class Car:
             pf = (0.55 + 0.45 * eng) * plug_f
             pf *= (0.6 + 0.4 * self.c("distributor")) * (0.6 + 0.4 * self.c("carb"))
             pf *= 0.8 + 0.2 * self.c("air_filter")
+            if getattr(self, "traffic", False):
+                # у машин трафика внутренности мотора считаются 5 раз в секунду (результат тот же, дешевле)
+                self._eff_acc = getattr(self, "_eff_acc", 0.0) + dt
+                if self._eff_acc >= 0.2 or getattr(self, "_eff", None) is None:
+                    self._eff = _eng.running_effects(self, self._eff_acc, throttle)
+                    self._eff_acc = 0.0
+                eng_power, eng_cool = self._eff
+            else:
+                eng_power, eng_cool = _eng.running_effects(self, dt, throttle)   # внутренности двигателя
+            pf *= eng_power * bolt_power
             if self.temp < 45 and not self.ch:
                 pf *= 0.7
             if self.ch and self.temp > 60:
@@ -495,10 +660,30 @@ class Car:
             if self.fuel <= 0 or self.c("fuel_pump") < 0.02:
                 self.engine_off("Двигатель заглох: нет подачи топлива.")
 
+            # турбина: давление растёт с оборотами и газом, с задержкой (турбояма)
+            if self.has_tune("turbo") and self.tc("turbo") > 0.02:
+                _, bar = self.boost_setting
+                spool = max(0.0, min(1.0, (self.rpm - 2400) / 2000))
+                target = bar * spool * throttle * (0.35 + 0.65 * self.tc("turbo"))
+                prev = self.boost_now
+                self.boost_now += (target - self.boost_now) * min(1.0, dt * (1.4 if target > prev else 5.0))
+                if prev > 0.3 and throttle < 0.1 and not self._bov:
+                    self._bov = True
+                    self.sounds.append("bov")          # «пшшш» перепускного клапана
+                if throttle > 0.3:
+                    self._bov = False
+            else:
+                if self.has_tune("turbo") and self.tc("turbo") <= 0.02:
+                    self.say("Турбина рассыпалась — наддува нет. Замените турбокит.")
+                self.boost_now = max(0.0, self.boost_now - dt * 3)
+            boost_mult = 1.0 + TORQUE_PER_BAR * self.boost_now
+
             ratio = self.spec["gears"][self.gear] * self.spec["final"]
-            wheel_rpm = self.speed / (2 * math.pi * self.spec["wheel_r"]) * 60
+            wheel_v = self.speed + (self.spin_v if ratio >= 0 else -self.spin_v)   # буксующие колёса крутятся быстрее
+            wheel_rpm = wheel_v / (2 * math.pi * self.spec["wheel_r"]) * 60
             box = self.c("gearbox")
-            engaged = self.gear != 0 and not clutch and self.has("clutch") and box > 0.03
+            hb_clutch = inp.get("handbrake", 0.0) > 0 and self.drive_type() != "fwd"
+            engaged = self.gear != 0 and not clutch and not hb_clutch and self.has("clutch") and box > 0.03
             # изношенная КПП: выбивает передачу под нагрузкой
             if engaged and box < 0.35 and throttle > 0.5 and random.random() < (0.35 - box) * 0.35 * dt:
                 self.gear = 0
@@ -525,7 +710,7 @@ class Car:
                     self.engine_off("Заглохла! (выжмите сцепление — Пробел)")
                     self.sounds.append("stall")
                 if self.running:
-                    tq = torque_curve(self.rpm, self.spec) * throttle * pf * sf
+                    tq = torque_curve(self.rpm, self.spec) * throttle * pf * sf * boost_mult
                     if self.spec["limiter"] and self.rpm > self.spec["cut"] + 100:
                         tq = 0.0   # отсечка топлива
                     # изношенное сцепление пробуксовывает под нагрузкой
@@ -553,10 +738,16 @@ class Car:
             if self.rpm > self.spec["overrev"]:
                 self.wear("engine", 0.25 * dt)
                 self.say("Перекрут двигателя!")
-            # 4A-GE — «клапанобойный»: оборвался ремень ГРМ — мотору конец
-            if self.model == "ae86" and self.c("belt") < 0.03:
-                self.wear("engine", 100)
-                self.engine_off("Оборвался ремень ГРМ! Клапаны встретились с поршнями...")
+            # оборвался ремень/цепь ГРМ: мотор встаёт, у «клапанобойных» (4A-GE, Civic, дизель...) гнёт клапаны
+            L_ = _eng.layout(self.model)
+            tbroken = (L_.get("belt_slot") and self.c("belt") < 0.03) or \
+                (self.eng and "timing" in self.eng and self.eng["timing"] is not None and self.eng["timing"]["cond"] < 3)
+            if tbroken and self.running:
+                if L_.get("inter") and self.eng.get("valves"):
+                    self.eng["valves"]["cond"] = min(self.eng["valves"]["cond"], 2.0)
+                    self.engine_off("Оборвался ремень ГРМ! Клапаны встретились с поршнями...")
+                else:
+                    self.engine_off("Оборвался привод ГРМ — мотор заглох.")
                 self.sounds.append("crash")
 
             # расход топлива (л/с)
@@ -568,6 +759,7 @@ class Car:
             if diesel:
                 cons *= 0.7
             cons *= 1 + (1 - self.c("carb")) * 0.5
+            cons *= 1 + 0.7 * self.boost_now
             self.fuel = max(0.0, self.fuel - cons * dt)
 
             # температура
@@ -576,9 +768,13 @@ class Car:
                 cool = 0.25 + 0.75 * self.c("belt")
             else:
                 cool = (0.3 + 0.7 * self.c("radiator")) * min(1.0, self.coolant / (self.coolant_cap * 0.6))
+                cool *= eng_cool
                 if self.c("radiator") < 0.25:
                     self.coolant = max(0.0, self.coolant - 0.004 * dt)
             target_t = 86 + (1 - cool) * 75 + self.rpm / 6000 * 7
+            if self.boost_now > 0:
+                ic_ok = self.has_tune("intercooler") and self.tc("intercooler") > 0.1
+                target_t += self.boost_now * (6 if ic_ok else 22)
             self.temp += (target_t - self.temp) * dt * 0.03
 
             # масло
@@ -588,7 +784,7 @@ class Car:
                 self.oil_quality = max(0.0, self.oil_quality - 0.004 * dt)
 
             # износ двигателя
-            w = 0.0004 * max(0.3, self.rpm / 3000) * self.sp("wear", 1.0)
+            w = 0.0004 * max(0.3, self.rpm / 3000) * self.sp("wear", 1.0) * (1 + 2.0 * self.boost_now)
             if not two:   # у двухтакта масло в бензине — картера нет
                 if self.oil < min(1.3, self.oil_cap * 0.35):
                     w *= 40
@@ -619,17 +815,46 @@ class Car:
             self.wear("fuel_pump", 0.0002 * dt)
             self.wear("wiring", 0.00005 * dt)
             if engaged:
-                self.wear("gearbox", 0.00015 * dt * (1 + throttle))
+                self.wear("gearbox", 0.00015 * dt * (1 + throttle) * (1 + self.boost_now))
+                if self.boost_now > 0.2:     # штатное сцепление не рассчитано на лишний момент
+                    self.wear("clutch", 0.004 * self.boost_now * throttle * dt)
+            if self.has_tune("turbo"):
+                ic = self.has_tune("intercooler") and self.tc("intercooler") > 0.1
+                # детонация: горячий воздух без интеркулера на высоком наддуве
+                if self.boost_now > 0.5 and not ic:
+                    risk = (self.boost_now - 0.5) * 1.2 * (1.6 if self.temp > 100 else 1.0)
+                    if random.random() < risk * dt:
+                        self.wear("engine", 0.4)
+                        self.misfire = 0.15
+                        self.sounds.append("misfire")
+                        self.say("Детонация! Нужен интеркулер или меньше наддува.")
+                # износ самой турбины: наддув, старое масло, перегрев
+                tw = 0.0015 * (0.2 + 2.0 * self.boost_now)
+                if self.oil_quality < 25:
+                    tw *= 3
+                if self.temp > 105:
+                    tw *= 2
+                self.tune_wear("turbo", tw * dt)
+                if ic:
+                    self.tune_wear("intercooler", 0.0002 * dt)
+                if self.has_tune("boost_ctrl"):
+                    self.tune_wear("boost_ctrl", 0.0003 * dt)
+                if self.tc("turbo") < 0.25:           # уставшая турбина гонит масло
+                    self.oil = max(0.0, self.oil - 0.00008 * dt)
+
         else:
             if not self.cranking:
                 self.rpm = max(0.0, self.rpm - 3000 * dt)
+            self.boost_now = 0.0
             self.temp += (ambient - self.temp) * dt * 0.004
 
         # --- ходовая
         tires = self.tire_list()
-        grip = 0.55 + 0.45 * sum(min(1, self.c(t) * 3) for t in tires) / 4
-        if rain:
-            grip *= 0.78
+        # сцепление — от каждой шины (протектор, давление, повреждения) и покрытия/погоды (tires.py)
+        snow_ = max(0.0, 1.0 - grip_mult)
+        gf_t, gr_t, kf_t, kr_t, pull_t = _tires.axle_grip(self, rain, snow_, abs(self.speed), ambient)
+        surf_k = {"asphalt": 1.0, "gravel": 0.78, "grass": 0.72, "snow": 1.0}.get(surface, 1.0)
+        grip = surf_k
         grip *= 0.85 + 0.15 * self.c("shocks")
         grip *= self.sp("grip", 1.0)
         grip *= grip_mult
@@ -646,7 +871,15 @@ class Car:
         brake_eff = (0.72 * min(1, self.c("brakes_f") * 4 + 0.15) + 0.28 * min(1, self.c("brakes_r") * 4 + 0.15))
         brake_eff *= min(1.0, self.brake_fluid / 50.0 + 0.2)
         brake_eff *= self.sp("brake", 1.0)
-        brake_force = brake * 8.5 * self.spec["mass"] * brake_eff * min(1.0, grip + 0.2)
+        # тормоза упираются в сцепление шин: больше — колёса блокируются (ABS нет), машина скользит и не рулится
+        g_avg = grip * (0.6 * gf_t + 0.4 * gr_t)
+        brake_force = brake * 8.5 * self.spec["mass"] * brake_eff
+        limit = g_avg * 9.81 * self.spec["mass"] * 1.02
+        self._lock_f = self._lock_r = False
+        if brake_force > limit and abs(self.speed) > 2:
+            self._lock_f = brake_force * 0.72 > limit * (0.6 * gf_t / max(0.01, 0.6 * gf_t + 0.4 * gr_t))
+            self._lock_r = brake_force * 0.28 > limit * (0.4 * gr_t / max(0.01, 0.6 * gf_t + 0.4 * gr_t)) * 1.05
+            brake_force = limit * 0.82                    # сорвавшаяся шина тормозит хуже держащей
         if brake > 0 and abs(self.speed) > 1:
             self.wear("brakes_f", 0.012 * brake * abs(self.speed) * dt)
             self.wear("brakes_r", 0.007 * brake * abs(self.speed) * dt)
@@ -654,10 +887,9 @@ class Car:
                 self.say("Скрежет тормозов: колодки стёрты до металла!")
                 self.sounds.append("grind")
 
+        # тяга колёс считается вместе с заносом (_chassis): сцепление у шины одно на всё
         resist = roll + drag + brake_force
-        acc = drive_force / (self.spec["mass"] + self.tow_mass)
         v = self.speed
-        v += acc * dt
         if abs(v) > 0:
             dv = resist / (self.spec["mass"] + self.tow_mass) * dt
             if abs(v) <= dv:
@@ -665,45 +897,216 @@ class Car:
             else:
                 v -= math.copysign(dv, v)
         self.speed = v
+        u_before = v
 
         # руление
         self.steer += (steer_in - self.steer) * min(1, dt * 6)
         st = self.c("steering")
-        max_steer = math.radians(self.sp("steer_max", 33)) / (1 + abs(self.speed) / 14)
+        # на скорости руль «короче» (помощь на клавиатуре), но в заносе доступен весь угол — для контрруля
+        full = math.radians(self.sp("steer_max", 33))
+        slide = max(0.0, min(1.0, (abs(self.drift_angle) - 0.08) / 0.2))
+        if steer_in * self.drift_angle <= 0:
+            slide = 0.0                                   # полный угол — только для контрруля
+        max_steer = full / (1 + max(0.0, abs(self.speed) - 2) / 14 * (1 - slide))
         max_steer *= (0.55 + 0.45 * st) if self.has("steering") else 0.1
-        ang = self.speed / self.spec["wheelbase"] * math.tan(self.steer * max_steer)
-        # люфт рулевого: машину водит по дороге
+        delta = self.steer * max_steer
+        L = self.spec["wheelbase"]
+        # люфт рулевого: машину водит по дороге; спущенное колесо и погнутая после аварии подвеска тянут вбок
+        off = 0.0
         if st < 0.6 and abs(self.speed) > 3:
-            ang += math.sin(self.odometer * 900 + self.seed) * (0.6 - st) * 0.012 * abs(self.speed) / 10
-        # спущенное колесо тянет в сторону
+            off += math.sin(self.odometer * 900 + self.seed) * (0.6 - st) * 0.0012 * L
         pull = 0.0
         for t in flats + missing:
             pull += -0.02 if t.endswith("l") else 0.02
-        ang += pull * self.speed * 0.15
-        lat = abs(self.speed * ang)
-        lim = grip * 9.81 * 0.9
-        if lat > lim and abs(self.speed) > 3:
-            ang *= lim / lat
-            self.skidding = True
-            for t in tires:
-                self.wear(t, 0.02 * dt)
-        self.ang_vel = ang
-        self.angle += ang * dt
+        off += pull * 0.15 * L + self.sp_align()
+        if abs(self.speed) > 3:
+            off += pull_t * L                             # разные шины слева и справа тянут машину вбок
+        self._stiff = (kf_t, kr_t)
+        self._chassis(dt, delta + off, (grip * gf_t, grip * gr_t), inp.get("handbrake", 0.0), drive_force, throttle)
+        # поворотник сам выключается, когда руль вернулся после поворота в ту же сторону
+        if self.turn:
+            s_ = self.steer * self.turn
+            self._turn_peak = max(self._turn_peak, s_)
+            if self._turn_peak > 0.45 and s_ < 0.12:
+                self.turn = 0
+                self._turn_peak = 0.0
+                self.sounds.append("click")
+        self._ax = 0.7 * self._ax + 0.3 * ((self.speed - u_before) / dt if dt > 0 else 0.0)
+        self.angle += self.ang_vel * dt
 
-        # износ
+        # износ шин — от реальных причин: пробег, скорость, перегрузки, пробуксовка, занос, блокировка, давление
         spd = abs(self.speed)
-        for t in tires:
-            self.wear(t, 0.00004 * spd * dt)
+        _tires.wear_step(self, dt, {"speed": spd, "lat_acc": self.speed * self.ang_vel, "spin": self.spin_v,
+                                    "skid": abs(self.vlat) if self.skidding else 0.0, "lock": self._lock_f,
+                                    "lock_r": self._lock_r, "surface": surface, "throttle": throttle,
+                                    "drive": self.drive_type()})
         self.wear("shocks", 0.00002 * spd * dt)
         self.wear("steering", 0.00001 * spd * dt)
         self.odometer += spd * dt / 1000.0
 
         # вибрация кузова от плохих амортизаторов
-        self.shake = (1 - self.c("shocks")) * min(1, spd / 15)
+        self.shake = max((1 - self.c("shocks")) * min(1, spd / 15), self._bolt_shake)
 
         fx, fy = self.forward()
-        self.x += fx * self.speed * dt
-        self.y += fy * self.speed * dt
+        self.x += (fx * self.speed - fy * self.vlat) * dt
+        self.y += (fy * self.speed + fx * self.vlat) * dt
+
+    # ------------------------------------------------------------ шины, привод, занос
+    def drive_type(self):
+        return self.sp("drive", "rwd")
+
+    def _axle_loads(self):
+        """(масса, доля на переднюю ось, a — от центра масс до передней оси, b — до задней, Fz перед, Fz зад)."""
+        m = self.spec["mass"]
+        L = self.spec["wheelbase"]
+        dt_ = self.drive_type()
+        wf = 0.60 if dt_ == "fwd" else (0.55 if dt_ == "awd" else 0.52)   # мотор спереди у всех
+        a, b = L * (1 - wf), L * wf
+        g = 9.81
+        shift = max(-0.25, min(0.25, m * self._ax * 0.52 / L / (m * g)))   # разгон — вес назад, торможение — вперёд
+        return m, wf, a, b, m * g * (wf - shift), m * g * (1 - wf + shift)
+
+    @staticmethod
+    def _tire(alpha, fmax, k=1.0):
+        """Боковая сила шины (формула Пасейки, C=1): ~90% сцепления к 10°, дальше — трение скольжения.
+        k — жёсткость боковины (давление): мягкая шина набирает силу медленнее."""
+        return -fmax * math.sin(math.atan(12.0 * k * alpha))     # плавно выходит на силу трения скольжения
+
+    def _axle_force(self, fmax, alpha, lat_slip, lon_speed, demand, spin, locked, h, stick=1.0, kin=1.0, k=1.0):
+        """Сила шины оси с учётом круга трения. Возвращает (Fx, Fy, новая пробуксовка, скользит ли).
+        demand — сколько тяги просит мотор; spin — пробуксовка (м/с); locked — колёса на ручнике/тормозе."""
+        fs = fmax * stick                                   # сцепление «покоя» (пока шина держит)
+        fy0 = self._tire(alpha, fs, k)
+        if not locked and spin < 0.3 and demand * demand + fy0 * fy0 <= fs * fs:
+            return demand, fy0, max(0.0, spin - 30.0 * h), False          # держит
+        # скольжение: сила трения против вектора проскальзывания пятна контакта
+        fk = fmax * kin                                     # сорвавшаяся шина держит слабее
+        s_lon = -lon_speed if locked else spin
+        mag = math.hypot(s_lon, lat_slip) + 0.05
+        fx = fk * s_lon / mag
+        fy = -fk * lat_slip / mag
+        if locked:
+            spin = 0.0
+        else:
+            spin = max(0.0, min(22.0, spin + (demand - fx) / 55.0 * h - 70.0 * h * max(0.0, 1.0 - demand / max(1.0, fk))))   # без газа колёса быстро перестают буксовать       # лишний момент раскручивает колёса
+            if demand <= 0:
+                fx = max(demand, -fk)
+        return fx, fy, spin, True
+
+    def _axle_loads(self):
+        """(масса, доля на переднюю ось, a — от центра масс до передней оси, b — до задней, Fz перед, Fz зад)."""
+        m = self.spec["mass"]
+        L = self.spec["wheelbase"]
+        dt_ = self.drive_type()
+        wf = 0.60 if dt_ == "fwd" else (0.55 if dt_ == "awd" else 0.52)   # мотор спереди у всех
+        a, b = L * (1 - wf), L * wf
+        g = 9.81
+        shift = max(-0.07, min(0.07, self._ax * 0.52 / L / g))          # разгон — вес назад, торможение — вперёд
+        return m, wf, a, b, m * g * (wf - shift), m * g * (1 - wf + shift)
+
+    def _chassis(self, dt, delta, grip, hb, drive_force, throttle):
+        """Ходовая: велосипедная модель, шины с кругом трения, пробуксовка, ручник.
+        Задний привод — газом срывает задние колёса и держит занос; передний — тянет нос и выравнивает;
+        полный — тяга 40/60, занос есть, но машина сама из него вытягивается. На малой скорости — простое руление."""
+        m, wf, a, b, fzf, fzr = self._axle_loads()
+        L = a + b
+        ml = m + self.tow_mass
+        iz = m * a * b * 1.1                                  # момент инерции кузова
+        dt_ = self.drive_type()
+        hb_on = hb > 0 and (abs(self.speed) > 1.5 or abs(self.vlat) > 1.0)
+        # «кик сцеплением»: отпустили ручник на высоких оборотах — задние колёса сразу в пробуксовку
+        if getattr(self, "_hb_prev", False) and not hb_on and dt_ != "fwd" and throttle > 0.5 and self.gear > 0:
+            ratio = self.spec["gears"][self.gear] * self.spec["final"]
+            wheel_v = self.rpm / 60 / ratio * 2 * math.pi * self.spec["wheel_r"]
+            self.spin_v = max(self.spin_v, min(12.0, (wheel_v - abs(self.speed)) * 0.7))
+        self._hb_prev = hb_on
+        df = dr_ = 0.0
+        if dt_ == "fwd":
+            df = drive_force
+        elif dt_ == "rwd":
+            dr_ = drive_force
+        else:
+            df, dr_ = drive_force * 0.4, drive_force * 0.6
+        gF, gR = grip if isinstance(grip, tuple) else (grip, grip)
+        ffm, frm = gF * fzf, gR * fzr
+        grip = min(gF, gR)
+        kf, kr = getattr(self, "_stiff", (1.0, 1.0))
+        lock_f = getattr(self, "_lock_f", False)
+        lock_r = hb_on or getattr(self, "_lock_r", False)
+        u0 = abs(self.speed)
+        # кастор: в заносе передние колёса сами поворачиваются по ходу движения (водитель лишь помогает)
+        # кастор: руль «отпускают» — колёса встают по ходу движения передней оси (как у настоящей машины в заносе)
+        vf0 = self.vlat + a * self.ang_vel
+        front_dir = math.atan2(vf0, max(1.0, u0)) if u0 > 3 and self.speed >= 0 else 0.0
+        lock = math.radians(self.sp("steer_max", 33)) * 0.9
+        beta0 = abs(math.atan2(self.vlat, max(1.0, u0))) if u0 > 3 else 0.0
+        kc = max(0.0, min(0.6, (beta0 - 0.06) / 0.3))       # только в заносе
+        delta = max(-lock, min(lock, delta + kc * (front_dir - delta)))
+        self.front_delta = delta
+        wk = max(0.0, min(1.0, (4.0 - u0) / 2.0))           # на парковочной скорости машина не скользит
+        n = max(1, min(16, int(math.ceil(dt / 0.004))))
+        h = dt / n
+        u, v, r = self.speed, self.vlat, self.ang_vel
+        sd, cd = math.sin(delta), math.cos(delta)
+        spin = self.spin_v
+        spin_f = spin if dt_ in ("fwd", "awd") else 0.0
+        spin_r = spin if dt_ in ("rwd", "awd") else 0.0
+        af = ar = 0.0
+        sl_f = sl_r = False
+        for _ in range(n):
+            vf = v + a * r
+            lat_f = -u * sd + vf * cd                        # скольжение переднего пятна в плоскости колеса
+            lon_f = u * cd + vf * sd
+            af = math.atan2(lat_f, abs(lon_f) + 0.5)
+            lat_r = v - b * r
+            ar = math.atan2(lat_r, abs(u) + 0.5)
+            dsign = 1.0 if u >= -0.1 else -1.0
+            # серийная настройка: пока шины держат, зад цепче переда (машина устойчива, недостаточная поворачиваемость)
+            fxf, fyf, spin_f, sl_f = self._axle_force(ffm, af, lat_f, lon_f, df * dsign, spin_f, lock_f, h, 1.0, 0.92, kf)
+            fxr, fyr, spin_r, sl_r = self._axle_force(frm, ar, lat_r, u, dr_ * dsign, spin_r, lock_r, h, 1.22, 0.95, kr)
+            if lock_f and not hb_on:
+                fxf = 0.0                                   # торможение уже учтено в brake_force; остаётся только скольжение вбок
+            if getattr(self, "_lock_r", False) and not hb_on:
+                fxr = 0.0
+            fxf *= dsign
+            fxr *= dsign
+            # силы переднего колеса — в осях кузова
+            Fx = fxf * cd - fyf * sd + fxr
+            Fy = fxf * sd + fyf * cd + fyr
+            Mz = a * (fxf * sd + fyf * cd) - b * fyr
+            du = Fx / ml
+            dv = Fy / m - u * r
+            dr = Mz / iz
+            # в заносе кузов не вращается быстрее, чем позволяет сцепление на этой скорости (~μg/V):
+            # так ведут себя шины и руки водителя — занос держится, а не превращается в волчок
+            bt = abs(math.atan2(v, max(1.0, abs(u))))
+            if bt > 0.1 and abs(u) > 3:
+                r_ss = grip * 9.81 / max(4.0, math.hypot(u, v)) * 1.15
+                ex = abs(r) - r_ss
+                if ex > 0:
+                    dr -= math.copysign(ex * 2.5 * min(1.0, (bt - 0.1) / 0.15), r)
+            du += v * r * (1 - wk)
+            if wk > 0:
+                r_kin = u / L * math.tan(delta)
+                dr = dr * (1 - wk) + (r_kin - r) * 12.0 * wk
+                dv = dv * (1 - wk) - v * 10.0 * wk
+                if hb_on:
+                    du -= 0.0
+            u += du * h
+            v += dv * h
+            r += dr * h
+        self.spin_v = max(spin_f, spin_r)
+        self.speed, self.vlat, self.ang_vel = u, v, r
+        if abs(u) < 0.05 and abs(v) < 0.05:
+            self.vlat = 0.0
+            if abs(u) < 0.01 and drive_force <= 0:
+                self.ang_vel = 0.0
+        self.drift_angle = math.atan2(self.vlat, max(0.5, abs(self.speed))) if (u0 > 2 or abs(v) > 1) else 0.0
+        self.skidding = (abs(self.speed) > 3 and (sl_r or sl_f or abs(ar) > 0.16)) or self.spin_v > 1.5
+
+    def sp_align(self):
+        """Погнутая при аварии подвеска/рама тянет машину вбок (смещение руля, рад)."""
+        return getattr(self, "align", 0.0)
 
     # ------------------------------------------------------------ удары
     def impact(self, speed_ms):
@@ -715,6 +1118,8 @@ class Car:
         dmg = (s - 2) * 2.2
         self.wear("lights", dmg * 1.5)
         self.wear("radiator", dmg * (0.8 if s > 8 else 0.1))
+        if s > 6:
+            self.tune_wear("intercooler", dmg * 0.8)      # фронтальный интеркулер первым встречает столб
         if s > 12:
             self.wear("engine", dmg * 0.5)
             self.wear("shocks", dmg * 0.5)
@@ -743,6 +1148,8 @@ class Car:
         self.wear("exhaust", 0.0006 * minutes * (2 if wet else 1))
         if self.has("battery") and not self.running:
             self.battery_charge = max(0.0, self.battery_charge - 0.0015 * minutes)
+        _elec.age(self, minutes, wet)
+        _tires.leak(self, minutes)
         if not self.running:
             self.temp += (11 - self.temp) * min(1.0, minutes * 0.02)
 
@@ -761,8 +1168,8 @@ class Car:
         if self.brake_fluid < 60:
             d.append("Уровень тормозной жидкости")
         for t in self.tire_list():
-            if self.c(t) < 0.3:
-                d.append(f"Шина: {self.slots[t][0]} — протектор/повреждение")
+            if self.has(t) and (_tires.tread_mm(self, t) < _tires.LEGAL_MM or self.c(t) < 0.05):
+                d.append(f"Шина: {self.slots[t][0]} — протектор {_tires.tread_mm(self, t):.1f} мм (минимум 1,6)")
         if self.c("lights") < 0.4:
             d.append("Фары: неисправны / разбиты")
         if self.c("exhaust") < 0.4:
@@ -775,6 +1182,8 @@ class Car:
             d.append("Люфт рулевого управления")
         if self.c("wiring") < 0.3:
             d.append("Электрика: проводка неисправна (свет, сигналы)")
+        if getattr(self, "hotwired", False):
+            d.append("Zündschloss: замок зажигания разобран, заводится проводами напрямую")
         if self.c("glass") < 0.4:
             d.append("Лобовое стекло: трещины в зоне обзора")
         for sl, txt in (("door_l", "Нет левых дверей"), ("door_r", "Нет правых дверей"), ("hood", "Нет капота"),
@@ -783,8 +1192,30 @@ class Car:
                 d.append(txt)
             elif self.c(sl) < 0.2:
                 d.append(self.slots[sl][0] + ": сгнили петли / не закрывается")
-        if not self.running and self.c("engine") > 0:
-            pass
+        if self.deforms:
+            import damage
+            zn = damage.zones(self)
+            names = {"front": "перед", "rear": "зад", "left": "левый борт", "right": "правый борт"}
+            for zk, v in zn.items():
+                if v > 0.06:
+                    d.append(f"Unfallschaden: деформация кузова — {names[zk]} ({v * 100:.0f} см)")
+            if damage.is_totaled(self):
+                d.append("Rahmen verzogen: геометрия кузова нарушена (Totalschaden)")
+        if self.eng and self.parts.get("engine"):
+            if self.eng.get("head_gasket") and self.eng["head_gasket"]["cond"] < 30:
+                d.append("Течь по прокладке ГБЦ (антифриз/масло)")
+            for k_, txt in (("oil_pan", "поддон"), ("valve_cover", "клапанная крышка"), ("oil_filter", "фильтр")):
+                if k_ in self.eng and (self.eng[k_] is None or self.eng[k_]["cond"] < 20):
+                    d.append(f"Течь масла: {txt}")
+            if "exhaust_mf" in self.eng and (self.eng["exhaust_mf"] is None or self.eng["exhaust_mf"]["cond"] < 25):
+                d.append("Выпускной коллектор негерметичен (CO в салон)")
+        if abs(getattr(self, "align", 0.0)) > 0.008:
+            d.append("Развал-схождение: машину уводит в сторону (погнута подвеска)")
+        if self.has_tune("turbo"):
+            if self.boost_setting[0] == "race":
+                d.append("Leistungssteigerung nicht eingetragen: наддув «Гонка» — верните «Мягкий» или «Спорт»")
+            if self.tc("turbo") < 0.3:
+                d.append("Турбина: течь масла, сизый дым из выхлопа")
         return d
 
     # ------------------------------------------------------------ отрисовка сверху
@@ -880,10 +1311,26 @@ class Car:
             return self._draw_side_generic(surf, ox, oy, s, texture, side)
         return self._draw_side_vaz(surf, ox, oy, s, texture, side)
 
+    def front_door_poly(self, side):
+        """Контур передней двери в координатах борта (sx от задка, y — высота) — для 3D-двери на петлях."""
+        polys = getattr(self, "_door_polys", {}).get(side)
+        if not polys:
+            return None
+        return max(polys, key=lambda p_: sum(x for x, _ in p_) / len(p_))
+
     def _clear_doors(self, surf, P, side, texture, polys):
-        """Снятые двери: в борту дыра, видно салон (в текстуре — прозрачно)."""
+        """Снятые двери: в борту дыра, видно салон (в текстуре — прозрачно). Открытая дверь — проём спереди."""
+        if not hasattr(self, "_door_polys"):
+            self._door_polys = {}
+        self._door_polys[side] = [list(p_) for p_ in polys]
         if self.has("door_" + side):
-            return
+            if not texture:
+                return
+            op = getattr(self, "door_open", {})
+            ordered = sorted(polys, key=lambda p_: -sum(x for x, _ in p_) / len(p_))
+            polys = [p_ for i, p_ in enumerate(ordered) if op.get(side if i == 0 else side + "b")]
+            if not polys:
+                return
         for poly_ in polys:
             pts = [P(x, y) for x, y in poly_]
             pygame.draw.polygon(surf, (0, 0, 0, 0) if texture else (35, 33, 30), pts)
@@ -934,7 +1381,7 @@ class Car:
         pygame.draw.rect(surf, (190, 30, 30), (*P(0.0, 0.80), int(0.14 * s), int(0.18 * s)))
         pygame.draw.rect(surf, (230, 140, 30), (*P(4.02, 0.48), int(0.1 * s), int(0.05 * s)))
         pygame.draw.line(surf, (150, 150, 150), P(3.72, 0.745), P(4.08, 0.715), 2)                   # щель поп-ап фары
-        if self.has("exhaust"):
+        if self.has("exhaust") and not texture:     # в 3D труба своя
             ex = (100, 95, 90) if self.c("exhaust") > 0.4 else (110, 60, 30)
             pygame.draw.rect(surf, ex, (*P(-0.1, 0.24), int(0.6 * s), int(0.07 * s)))
         # ржавчина
@@ -1050,7 +1497,7 @@ class Car:
         pygame.draw.rect(surf, (160, 25, 25), (*P(0.0, rb_y - 0.05), int(0.07 * s), int(tail_h * s)))
         if side == "r":           # лючок бака
             pygame.draw.circle(surf, dark, P(0.45, belt - 0.12), max(2, int(0.06 * s)), 2)
-        if self.has("exhaust"):
+        if self.has("exhaust") and not texture:     # в 3D труба своя
             ex = (100, 95, 90) if self.c("exhaust") > 0.4 else (110, 60, 30)
             pygame.draw.rect(surf, ex, (*P(-0.12, sill - 0.04), int(0.8 * s), int(0.06 * s)))
         # вмятины
@@ -1191,7 +1638,7 @@ class Car:
         pygame.draw.rect(surf, (230, 140, 30), (*P(3.9, 0.34), int(0.12 * s), int(0.05 * s)))
         pygame.draw.rect(surf, (170, 30, 30), (*P(0.0, 0.82), int(0.05 * s), int(0.22 * s)))
         # глушитель
-        if self.has("exhaust"):
+        if self.has("exhaust") and not texture:     # в 3D труба своя
             ex = (100, 95, 90) if self.c("exhaust") > 0.4 else (110, 60, 30)
             pygame.draw.rect(surf, ex, (*P(-0.12, 0.26), int(0.9 * s), int(0.07 * s)))
 

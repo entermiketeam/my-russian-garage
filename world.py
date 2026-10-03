@@ -33,7 +33,7 @@ BUILDINGS = {
     "autoteile": (560, 314, 40, 24, "Ost-Autoteile", (170, 175, 160), (90, 95, 90), (580, 312.5)),
     "tanke": (690, 256, 30, 18, "Tankstelle", (220, 220, 220), (200, 40, 40), (705, 276)),
     "tuv": (840, 330, 50, 26, "TÜV-Prüfstelle", (200, 205, 215), (40, 80, 150), (865, 328)),
-    "polizei": (1000, 250, 50, 44, "Polizei", (205, 210, 200), (40, 110, 70), None),
+    "polizei": (1000, 250, 50, 44, "Polizeirevier Kleinbruck", (205, 210, 200), (40, 110, 70), (1025, 297)),
     "lager": (825, 420, 110, 70, "Spedition Müller — Lager", (160, 150, 130), (100, 100, 105), (821, 455)),
     "kirche": (150, 150, 30, 50, "Kirche St. Marien", (190, 180, 160), (90, 90, 95), None),
     "bahnhof": (320, 60, 80, 36, "Bahnhof", (180, 110, 90), (90, 60, 50), None),
@@ -72,6 +72,16 @@ GARAGE_WALLS = [(365, 314, 1, 14), (375, 314, 1, 14), (365, 327, 11, 1)]
 PUMP_ZONE = (680, 278, 90, 18)
 PUMPS = [(704, 285, 2, 4), (734, 285, 2, 4), (754, 285, 2, 4)]
 TUV_YARD = (830, 314, 70, 15)
+
+# Автосервис «Kfz-Werkstatt Schmidt» на Industriestraße (западная сторона): цех на 2 ячейки воротами к дороге,
+# подъезд, парковка, офис. Ставится после генерации города (город не сдвигается, с участка убирается один дом).
+SERVICE_LOT = (763, 450, 34, 28)
+SERVICE_HALL = (766, 452, 17, 24)                    # цех: стены по периметру, ворота на восточной стене
+SERVICE_BAYS = [(769, 455.5, 12.5, 7.5), (769, 465.0, 12.5, 7.5)]    # ремонтные ячейки внутри цеха
+SERVICE_DOORS = [(456.5, 462.0), (466.0, 471.5)]    # проёмы ворот (по y) в восточной стене x = 783
+SERVICE_PARK = [(789.0, 452.8, 0.0), (794.5, 452.8, 0.0), (789.0, 475.2, 0.0), (794.5, 475.2, 0.0)]
+SERVICE_OFFICE = (766, 452, 17, 2.8)                # приёмка — северная часть цеха (за стойкой)
+SERVICE_DOOR_PT = (785.5, 464.0)                    # где стоит мастер-приёмщик (у ворот, между ячейками)
 
 BLITZER = [(600, 312, 50), (1550, 312, 100), (312, 1100, 80)]
 
@@ -283,6 +293,34 @@ class World:
                         continue
                     self.wreck_spots.append((px, py, 0.0 if horiz else math.pi / 2))
 
+        # места у домов в городе: во дворе, у стены, на обочине участка
+        hr = random.Random(5150)
+        self.house_spots = []
+        for i, hh in enumerate(self.houses):
+            if i % 4:
+                continue
+            hx, hy, hw, hhh = hh[:4]
+            cands = [(hx - 5.5, hy + hhh / 2, math.pi / 2), (hx + hw + 5.5, hy + hhh / 2, math.pi / 2),
+                     (hx + hw / 2, hy - 5.5, 0.0), (hx + hw / 2, hy + hhh + 5.5, 0.0)]
+            hr.shuffle(cands)
+            for px, py, a in cands:
+                if px < 20 or py < 20 or px > MAP_W - 20 or py > MAP_H - 20:
+                    continue
+                if any(rect_overlap((px - 3, py - 3, 6, 6), rr[:4], 1.5) for rr in ROADS):
+                    continue
+                if any(rect_overlap((px - 3, py - 3, 6, 6), s_, 1.0) for s_ in self.solids):
+                    continue
+                if any(math.hypot(px - tx, py - ty) < tr + 3.5 for tx, ty, tr, _ in self.trees):
+                    continue
+                if any(rect_overlap((px - 3, py - 3, 6, 6), nz, 3) for nz in self.nospawn):
+                    continue
+                if any(rect_overlap((px - 3, py - 3, 6, 6), rr, 2) for rr in reserved):
+                    continue
+                self.house_spots.append((px, py, a))
+                break
+        self.road_spots = list(self.wreck_spots)
+        self.wreck_spots += self.house_spots
+
         # пятна травы / поля
         self.fields = []
         for _ in range(60):
@@ -322,6 +360,34 @@ class World:
         self.police = AICar(AI_LOOPS[0], 2, (40, 110, 70), police=True)
         self.ai.append(self.police)
         self._spread_ai(rng)
+        self._place_service()
+
+    def _place_service(self):
+        """Автосервис: убрать то, что стоит на участке (после генерации — остальной город не меняется), поставить стены."""
+        lot = SERVICE_LOT
+
+        def inside(x, y, pad=2.0):
+            return lot[0] - pad <= x <= lot[0] + lot[2] + pad and lot[1] - pad <= y <= lot[1] + lot[3] + pad
+        gone = [h for h in self.houses if rect_overlap(h[:4], lot, 2)]
+        self.houses = [h for h in self.houses if h not in gone]
+        self.solids = [s_ for s_ in self.solids if not any(s_ == g[:4] for g in gone)]
+        self.trees = [t for t in self.trees if not inside(t[0], t[1], t[2] + 1)]
+        for name in ("house_spots", "wreck_spots", "road_spots"):
+            setattr(self, name, [sp for sp in getattr(self, name) if not inside(sp[0], sp[1], 4)])
+        self.delivery_points = [h[6] for h in self.houses]
+        hx, hy, hw, hh = SERVICE_HALL
+        east = hx + hw
+        walls = [(hx - 0.3, hy - 0.3, hw + 0.6, 0.3), (hx - 0.3, hy + hh, hw + 0.6, 0.3), (hx - 0.3, hy - 0.3, 0.3, hh + 0.6)]
+        # восточная стена с двумя проёмами ворот
+        ys = [hy - 0.3]
+        for a, b in SERVICE_DOORS:
+            ys += [a, b]
+        ys.append(hy + hh + 0.3)
+        for i in range(0, len(ys), 2):
+            walls.append((east, ys[i], 0.3, ys[i + 1] - ys[i]))
+        walls.append((hx, hy + SERVICE_OFFICE[3], 6.0, 0.25))      # стойка приёмки (низкая стенка)
+        self.service_walls = walls
+        self.solids += walls
 
     def _spread_ai(self, rng):
         for c in self.ai:
@@ -467,11 +533,35 @@ class World:
     def on_road(self, x, y):
         return self.road_at(x, y) is not None
 
+    _GRID = 16.0
+
+    def _solid_grid(self):
+        """Сетка препятствий 16 м (пересобирается, если список препятствий поменялся — ворота гаражей и т.п.)."""
+        key = (len(self.solids), id(self.solids[-1]) if self.solids else 0, len(self.trees))
+        if getattr(self, "_grid_key", None) == key:
+            return self._grid_s, self._grid_t
+        G = self._GRID
+        gs, gt = {}, {}
+        for i, s_ in enumerate(self.solids):
+            for gx in range(int(s_[0] // G), int((s_[0] + s_[2]) // G) + 1):
+                for gy in range(int(s_[1] // G), int((s_[1] + s_[3]) // G) + 1):
+                    gs.setdefault((gx, gy), []).append(i)
+        for i, (tx, ty, tr, _) in enumerate(self.trees):
+            gt.setdefault((int(tx // G), int(ty // G)), []).append(i)
+        self._grid_s, self._grid_t, self._grid_key = gs, gt, key
+        return gs, gt
+
     def collide_circle(self, x, y, rad):
         """Возвращает вектор выталкивания (nx, ny, глубина) или None."""
         if x >= INTERIOR_X - 50:
             return self._collide_interior(x, y, rad)
-        for s in self.solids:
+        gs, gt = self._solid_grid()
+        G = self._GRID
+        cells = [(gx, gy) for gx in range(int((x - rad - 4) // G), int((x + rad + 4) // G) + 1)
+                 for gy in range(int((y - rad - 4) // G), int((y + rad + 4) // G) + 1)]
+        idx = sorted({i for cell in cells for i in gs.get(cell, ())})
+        solids = self.solids
+        for s in (solids[i] for i in idx):
             if x + rad < s[0] or x - rad > s[0] + s[2] or y + rad < s[1] or y - rad > s[1] + s[3]:
                 continue
             cx = min(max(x, s[0]), s[0] + s[2])
@@ -479,16 +569,24 @@ class World:
             dx, dy = x - cx, y - cy
             d = math.hypot(dx, dy)
             if d < rad:
-                if d < 1e-6:
-                    return (0.0, -1.0, rad)
+                along = s[3] if abs(dx) > abs(dy) else s[2]       # ширина препятствия поперёк удара
+                self.last_hit = ("pole" if min(s[2], s[3]) < 0.8 else "wall", along)
+                if d < 1e-6:        # центр внутри препятствия — выталкиваем к ближайшему краю
+                    edges = [(x - s[0], -1.0, 0.0), (s[0] + s[2] - x, 1.0, 0.0),
+                             (y - s[1], 0.0, -1.0), (s[1] + s[3] - y, 0.0, 1.0)]
+                    e_ = min(edges)
+                    return (e_[1], e_[2], e_[0] + rad)
                 return (dx / d, dy / d, rad - d)
-        for tx, ty, tr, _ in self.trees:
+        tidx = sorted({i for cell in cells for i in gt.get(cell, ())})
+        trees = self.trees
+        for tx, ty, tr, _ in (trees[i] for i in tidx):
             if abs(x - tx) > rad + tr or abs(y - ty) > rad + tr:
                 continue
             dx, dy = x - tx, y - ty
             d = math.hypot(dx, dy)
             lim = rad + tr * 0.35
             if d < lim and d > 1e-6:
+                self.last_hit = ("pole", tr * 0.7)                 # ствол дерева
                 return (dx / d, dy / d, lim - d)
         if x - rad < 0:
             return (1, 0, rad - x)
@@ -499,6 +597,8 @@ class World:
         if y + rad > MAP_H:
             return (0, -1, y + rad - MAP_H)
         return None
+
+    last_hit = ("wall", 3.0)
 
     def _collide_interior(self, x, y, rad):
         for s_ in self.places.interior_solids:
@@ -530,9 +630,12 @@ class World:
             return "tuv_yard"
         return None
 
-    def update_ai(self, dt, player_car):
-        """player_car — машина игрока или список всех машин игрока (их трафик объезжает)."""
+    def update_ai(self, dt, player_car, center=None, radius=None):
+        """player_car — машина игрока или список всех машин игрока (их трафик объезжает).
+        center/radius — трафик дальше radius от игрока стоит на паузе (его всё равно не видно)."""
         for c in self.ai:
+            if center is not None and radius and abs(c.x - center[0]) + abs(c.y - center[1]) > radius:
+                continue
             c.update(dt, self, player_car, self.ai)
 
     # -------------------------------------------------------------- отрисовка

@@ -98,6 +98,9 @@ class HUD:
         self.rain = [Entity(parent=UI, model="quad", scale=(0.0015, 0.045), color=color.rgba(190, 200, 225, 110),
                             position=(random.uniform(LEFT, RIGHT), random.uniform(-0.5, 0.5), -0.1)) for _ in range(140)]
         self._cache = {}
+        # что в руках (левая / правая) — внизу по краям экрана
+        self.hand_t = [label("", LEFT + 0.02, -0.455, 0.8, (235, 225, 190), parent=r),
+                       label("", RIGHT - 0.02, -0.455, 0.8, (235, 225, 190), parent=r, origin=(0.5, 0.5))]
 
     def notify(self, s, col=(240, 240, 235), t=5.0):
         self.notes.append([safe(s), t, col])
@@ -129,6 +132,11 @@ class HUD:
         self.flash_a = max(0.0, self.flash_a - dt * 2.5)
         self.flash.color = color.rgba(255, 255, 255, int(220 * self.flash_a))
         self.fade.color = color.rgba(0, 0, 0, int(255 * self.fade_a))
+        hs = state.get("hands")
+        for i, t in enumerate(self.hand_t):
+            t.enabled = hs is not None
+            if hs:
+                self._set(("h", i), t, safe(hs[i]))
         # осадки: снег — медленные хлопья, мокрый снег — косые капли
         precip = state.get("precip") if visible else None
         if precip != getattr(self, "_precip", None):
@@ -175,6 +183,8 @@ class HUD:
             extra = f"Здоровье {p.health:.0f}%"
         self._set("extra", self.extra_t, extra)
         self.cross.enabled = state.get("cross", False)
+        if self.cross.enabled:
+            self.cross.color = color.rgb(255, 210, 60) if state.get("aim") else color.rgb(240, 240, 235)
         pr = state.get("prompt", [])
         self.prompt_bg.enabled = bool(pr)
         self._set("pr1", self.prompt_t, pr[0] if pr else "")
@@ -208,6 +218,8 @@ class Dashboard:
         label("Бензин", -0.25, -0.452, 0.6, (150, 150, 150), parent=r)
         self.fuel = Bar(-0.19, -0.455, 0.09, 0.014, None, parent=r)
         self.temp = label("", -0.09, -0.448, 0.7, parent=r)
+        self.boost = label("", -0.09, -0.472, 0.65, (120, 200, 240), parent=r)
+        self.drift = label("", -0.46, -0.335, 1.1, (255, 170, 60), parent=r)
         label("АКБ", -0.25, -0.473, 0.6, (150, 150, 150), parent=r)
         self.batt = Bar(-0.19, -0.476, 0.09, 0.014, None, parent=r)
         self.lamps = []
@@ -245,6 +257,9 @@ class Dashboard:
         self.batt.set(car.battery_charge)
         self._s("t", self.temp, f"{car.temp:.0f}°C")
         self.temp.color = rgb((220, 60, 50) if car.temp > 105 else (240, 240, 235))
+        da = abs(math.degrees(car.drift_angle))
+        self._s("drift", self.drift, f"ЗАНОС {da:.0f}°" if da > 10 and car.kmh() > 12 else "")
+        self._s("boost", self.boost, f"Турбо {car.boost_now:+.2f} бар" if car.has_tune("turbo") else "")
         states = [(car.oil < 1.3 and (car.running or car.cranking), (210, 60, 50)),
                   ((not car.running and car.battery_charge > 5) or car.c("belt") < 0.05, (210, 60, 50)),
                   (car.choke, (230, 140, 40)), (car.lights, (80, 140, 220)), (clutch, (200, 200, 200))]
@@ -431,10 +446,14 @@ class MapView:
                 t.text = txt
             sq.color = color.rgb(150, 95, 55) if not gs.get("open") else color.rgb(110, 110, 110)
         vaz, ae = g.cars["vaz"], g.cars["ae86"]
-        self.car.position = (*self._pos(vaz.x, vaz.y), -0.02)
+        st = getattr(vaz, "stolen", None)
+        lost = st and not st["found"]                 # угнанная и не найденная — на карте её нет (метка: где видели)
+        self.car.position = (*self._pos(*(st["from"] if lost else (vaz.x, vaz.y))), -0.02)
+        self.car.color = color.rgb(120, 120, 120) if lost else color.rgb(240, 200, 60)
         self.ae.position = (*self._pos(ae.x, ae.y), -0.02)
         finds = g.visible_finds()
-        mine = [c for k, c in g.owned_cars() if k not in ("vaz", "ae86")]
+        mine = [c for k, c in g.owned_cars() if k not in ("vaz", "ae86")
+                and not (getattr(c, "stolen", None) and not c.stolen["found"])]
         for i, dot in enumerate(self.wreck_dots):
             dot.enabled = i < len(finds)
             if dot.enabled:
