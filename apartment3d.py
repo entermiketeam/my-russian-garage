@@ -128,7 +128,7 @@ class Apartment3D:
         for (x, y) in ((280, 280), (830, 150), (940, 450), (670, 420)):
             px, _, pz = P(x, y)
             Entity(model="cube", position=(px, WALL_H - 0.25, pz), scale=(0.02, 0.5, 0.02), color=color.dark_gray)
-            lamp = Entity(model="sphere", position=(px, WALL_H - 0.55, pz), scale=0.3, color=color.rgb(255, 235, 190))
+            lamp = Entity(model="mrg_sphere", position=(px, WALL_H - 0.55, pz), scale=0.3, color=color.rgb(255, 235, 190))
             lamp.setLightOff()
         # ТВ-экран (светится, когда смотрите)
         px, _, pz = P(435, 70.5)

@@ -8,6 +8,7 @@ Group ведёт себя как обычная сущность: group.enabled 
 а внутри включённой группы видны только ближние квадраты.
 """
 import math
+import os
 
 from ursina import Entity, Mesh
 
@@ -67,6 +68,16 @@ class Group:
         return sum(1 for it in self.items if it[4])
 
 
+def strip_mesh(m):
+    """Статичный меш карты больше не меняется: геометрия уже в видеопамяти, а Ursina держит ещё и её копию
+    в списках Python (вершины, цвета, нормали...) — их освобождаем."""
+    if os.environ.get("MRG_KEEP_MESH_DATA"):
+        return
+    for a in ("vertices", "triangles", "colors", "uvs", "normals", "indices", "generated_vertices"):
+        if a in m.__dict__:
+            m.__dict__[a] = None
+
+
 def mesh_group(mb, name="", with_uvs=False, setup=None, **kw):
     """Нарезать MeshBuilder на квадраты и сделать из них группу. setup(entity) — доп. настройка (свечение и т.п.)."""
     g = Group(name)
@@ -75,6 +86,7 @@ def mesh_group(mb, name="", with_uvs=False, setup=None, **kw):
         m = Mesh(vertices=sub.v, triangles=sub.t, colors=sub.c, normals=sub.n,
                  uvs=sub.uv if (with_uvs or sub.uv_tile) else None)
         e = Entity(model=m, **kw)
+        strip_mesh(m)
         if setup:
             setup(e)
         if key == "big":

@@ -4,6 +4,8 @@ import pygame
 from PIL import Image
 from ursina import Texture
 
+import graphics          # размеры процедурных текстур — по уровню графики (graphics.tex)
+
 _cache = {}
 
 
@@ -34,8 +36,9 @@ def _noise(size, seed, octaves=4):
 def detail():
     """Серый шум для земли/асфальта/травы (умножается на цвет вершин)."""
     if "detail" not in _cache:
-        n = _noise(256, 1)
-        fine = np.random.default_rng(2).random((256, 256))
+        s = graphics.tex(256, 64)
+        n = _noise(s, 1)
+        fine = np.random.default_rng(2).random((s, s))
         v = 0.78 + 0.22 * n + 0.08 * (fine - 0.5)
         a = np.clip(v * 255, 0, 255).astype(np.uint8)
         _cache["detail"] = _tex(Image.fromarray(a).convert("RGB"))
@@ -45,7 +48,7 @@ def detail():
 def glow():
     """Круглое мягкое пятно света (для фонарей и фар на асфальте)."""
     if "glow" not in _cache:
-        s = 128
+        s = graphics.tex(128, 32)
         y, x = np.mgrid[0:s, 0:s]
         d = np.sqrt((x - s / 2 + 0.5) ** 2 + (y - s / 2 + 0.5) ** 2) / (s / 2)
         a = np.clip(1 - d, 0, 1) ** 1.6
@@ -59,7 +62,7 @@ def glow():
 def beam():
     """Пятно фары: вытянутый конус, яркий у основания."""
     if "beam" not in _cache:
-        w, h = 128, 256
+        w, h = graphics.tex(128, 32), graphics.tex(256, 64)
         y, x = np.mgrid[0:h, 0:w]
         t = 1 - y / h                   # 0 у дальнего конца, 1 у фары
         spread = 0.15 + 0.85 * (1 - t)
@@ -78,8 +81,8 @@ def surface_to_texture(surf):
     return _tex(img)
 
 
-SIDE_W, SIDE_H = 512, 256
-SIDE_PPM = 115.0          # пикселей на метр в текстуре борта (4.45 м — хватает и на AE86)
+SIDE_W, SIDE_H = graphics.tex(512, 128), graphics.tex(256, 64)   # на «Высоком» 512×256, на сверхнизком 128×64
+SIDE_PPM = 115.0 * SIDE_W / 512   # пикселей на метр в текстуре борта (4.45 м — хватает и на AE86)
 SIDE_X0 = 0.15            # метров слева от заднего края кузова
 
 

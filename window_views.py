@@ -24,7 +24,9 @@ from world import BUILDINGS
 from i18n import T
 
 FLOOR_H = 3.0            # пол второго этажа (1. OG)
-RES = 0.8                # разрешение вида из окна относительно экрана
+import graphics  # noqa: E402
+
+RES = graphics.get("window_res")   # разрешение вида из окна относительно экрана (на «Высоком» 0.8)
 CLIP_OUT = 0.25          # насколько за фасадом начинается «улица» (подоконные отливы, декор окон — отрезаны)
 
 
@@ -72,6 +74,8 @@ class WindowViews:
         self.ok = False
         self.groups = []
         self.t = 0.0
+        if not graphics.get("window_views"):       # низкая графика: стёкла цвета неба вместо настоящего вида
+            return
         try:
             self._build()
             self.ok = True
@@ -107,7 +111,7 @@ class WindowViews:
             tex.setWrapU(Texture.WMClamp)
             tex.setWrapV(Texture.WMClamp)
             cam = Camera("aptcam_" + name)
-            cam.setLens(camera.lens)                     # тот же объектив, что у основной камеры
+            cam.setLens(self._lens())                    # копия объектива основной камеры (см. _sync_lens)
             cnp = render.attachNewNode(cam)
             pn = render.attachNewNode(PlaneNode("aptclip_" + name, plane))
             cam.setInitialState(RenderState.make(ClipPlaneAttrib.make().addOnPlane(pn)))
@@ -139,6 +143,20 @@ class WindowViews:
             self.groups.append({"name": name, "d": d, "buf": buf, "cam": cnp, "glass": glass, "active": True})
         self.set_active(False)
 
+    def _lens(self):
+        if getattr(self, "lens", None) is None:
+            self.lens = camera.lens.makeCopy()
+        return self.lens
+
+    def _sync_lens(self):
+        """Тот же угол и пропорции, что у основной камеры, но своя дальняя граница: основная камера в квартире
+        рисует только квартиру (город за стенами ей не нужен), а камеры окон — улицу до горизонта."""
+        from config import VIEW_DIST
+        main_lens = camera.lens
+        self.lens.setFilmSize(main_lens.getFilmSize())
+        self.lens.setFov(main_lens.getFov())
+        self.lens.setNearFar(main_lens.getNear(), VIEW_DIST + 60)
+
     # ------------------------------------------------------------------ работа
     def set_active(self, on):
         for gr in self.groups:
@@ -167,6 +185,7 @@ class WindowViews:
                 self.set_active(False)
             return
         self.t += dt
+        self._sync_lens()
         cam = self.app.cam
         pos, quat = cam.getPos(self.app.render), cam.getQuat(self.app.render)
         clear = (sky[0] / 255, sky[1] / 255, sky[2] / 255, 1)

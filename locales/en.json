@@ -2005,6 +2005,22 @@
   "Кухонный стол": "Kitchen table",
   "Клеёнка в клетку, пепельница и счёт за электричество (оплачен).": "Checkered oilcloth, an ashtray and an electricity bill (paid).",
   "{day} {month} {year}": "{day} {month} {year}",
-  "{weekday} {day} {month} {year}  {hour:02d}:{minute:02d}": "{weekday} {day} {month} {year}  {hour:02d}:{minute:02d}"
+  "{weekday} {day} {month} {year}  {hour:02d}:{minute:02d}": "{weekday} {day} {month} {year}  {hour:02d}:{minute:02d}",
+  "Сверхнизкая": "Ultra low",
+  "Низкая": "Low",
+  "Средняя": "Medium",
+  "Высокая": "High",
+  "для очень слабых компьютеров: простые модели, маленькие текстуры, близкая дальность": "for very weak computers: simple models, small textures, short draw distance",
+  "для слабых ноутбуков: упрощённые модели вдали, без вида из окон": "for weak laptops: simplified distant models, no live window views",
+  "баланс: полная детализация вблизи, упрощение вдали": "balanced: full detail up close, simplified in the distance",
+  "максимальная детализация и дальность (как было раньше)": "maximum detail and draw distance (the original look)",
+  "Графика": "Graphics",
+  "Физика, управление и ремонт на всех уровнях одинаковые — меняется только картинка.": "Physics, controls and repairs are the same on every level — only the visuals change.",
+  "Графика: {name}": "Graphics: {name}",
+  "Выбрано: {name} — применится после перезапуска.": "Selected: {name} — applies after a restart.",
+  "Уровень «{name}» сохранён.": "The \"{name}\" level is saved.",
+  "Модели и текстуры строятся при запуске игры — перезапустить её сейчас?": "Models and textures are built when the game starts — restart it now?",
+  "Перезапустить сейчас": "Restart now",
+  "Позже": "Later"
  }
 }

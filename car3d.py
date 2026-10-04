@@ -17,6 +17,7 @@ from car import WHEELBASE
 from models import MODELS
 from car3d_extra import Extras
 import i18n
+import graphics
 from i18n import T
 
 PAINT = (196, 186, 150)
@@ -34,6 +35,7 @@ def Z(sx):
 def wheel_mesh(r=0.29, w=0.165, seg=14, rim=(112, 106, 96)):
     """Колесо вдоль оси x: шина, диск, колпак."""
     mb = MeshBuilder()
+    seg = graphics.seg(seg, 8)                    # колесо: на «Высоком» 14 граней, на сверхнизком — 8
     pts = [(math.cos(2 * math.pi * i / seg), math.sin(2 * math.pi * i / seg)) for i in range(seg)]
     x0, x1 = -w / 2, w / 2
     for i in range(seg):
@@ -60,7 +62,7 @@ def ring_entity(parent, radius, thick, col, **kw):
     """Руль: кольцо одним мешем (много машин — мало объектов)."""
     c = tuple(int(v * 255) for v in (col[0], col[1], col[2])) if max(col[0], col[1], col[2]) <= 1.0 else tuple(col[:3])
     mb = MeshBuilder()
-    n = 20
+    n = graphics.seg(20, 12)
     t = thick / 2
     for i in range(n):
         a0 = 2 * math.pi * i / n
@@ -95,6 +97,7 @@ class Car3D(Extras):
         self._built_color = car.color
         self._build()
         self.smoke = Smoke()
+        self.root.on_destroy = self.smoke.destroy     # частицы живут в мире, не в модели — убрать вместе с ней
         self._capture_deform()
         self.apply_deforms()
 
@@ -452,13 +455,13 @@ class Car3D(Extras):
                 for x in (sgn * (W2 - 0.2), sgn * (W2 - 0.42)):
                     Entity(parent=b, model="cube", color=color.rgb(*chrome), position=(x, nose_y - 0.12, Z(L) + 0.02),
                            scale=(0.18, 0.18, 0.01))
-                    self.headlamps.append(Entity(parent=b, model="sphere", color=color.rgb(200, 200, 185),
+                    self.headlamps.append(Entity(parent=b, model="mrg_sphere", color=color.rgb(200, 200, 185),
                                                  position=(x, nose_y - 0.12, Z(L) + 0.028), scale=(0.14, 0.14, 0.04)))
             elif lt == "round2":
                 x = sgn * (W2 - 0.25)
                 Entity(parent=b, model="cube", color=color.rgb(*chrome), position=(x, nose_y - 0.12, Z(L) + 0.006),
                        scale=(0.22, 0.22, 0.01))
-                self.headlamps.append(Entity(parent=b, model="sphere", color=color.rgb(200, 200, 185),
+                self.headlamps.append(Entity(parent=b, model="mrg_sphere", color=color.rgb(200, 200, 185),
                                              position=(x, nose_y - 0.12, Z(L) + 0.012), scale=(0.18, 0.18, 0.04)))
             elif lt == "rect2":
                 x = sgn * (W2 - 0.26)
@@ -539,8 +542,8 @@ class Car3D(Extras):
         self.tune_parts = {}
         if car.tune:
             tb = Entity(parent=self.bay, position=(-0.12, sill + 0.42, ez + 0.05))
-            Entity(parent=tb, model="sphere", color=color.rgb(150, 150, 155), scale=(0.2, 0.2, 0.14))      # «улитка»
-            Entity(parent=tb, model="sphere", color=color.rgb(120, 70, 40), position=(0.06, -0.06, 0), scale=(0.14, 0.14, 0.12))
+            Entity(parent=tb, model="mrg_sphere", color=color.rgb(150, 150, 155), scale=(0.2, 0.2, 0.14))      # «улитка»
+            Entity(parent=tb, model="mrg_sphere", color=color.rgb(120, 70, 40), position=(0.06, -0.06, 0), scale=(0.14, 0.14, 0.12))
             Entity(parent=tb, model="cube", color=color.rgb(170, 170, 175), position=(0.0, 0.08, 0.2), scale=(0.07, 0.07, 0.36))
             Entity(parent=tb, model="cube", color=color.rgb(30, 30, 32), position=(-0.12, 0.02, -0.12), scale=(0.08, 0.08, 0.2))
             self.tune_parts["turbo"] = tb
@@ -746,7 +749,7 @@ class Car3D(Extras):
         self.headlamps = []
         for x in (-0.62, 0.62):
             Entity(parent=b, model="cube", color=color.rgb(*CHROME), position=(x, 0.64, Z(4.015)), scale=(0.24, 0.24, 0.02))
-            lamp = Entity(parent=b, model="sphere", color=color.rgb(200, 200, 185), position=(x, 0.64, Z(4.02)),
+            lamp = Entity(parent=b, model="mrg_sphere", color=color.rgb(200, 200, 185), position=(x, 0.64, Z(4.02)),
                           scale=(0.19, 0.19, 0.05))
             self.headlamps.append(lamp)
         self.taillights = []
@@ -1137,25 +1140,41 @@ class Car3D(Extras):
 
 
 class Smoke:
-    def __init__(self, n=48):
+    """Дым из выхлопа. Частицы создаются при первом выхлопе (у машин, которые не заводят, их нет вовсе),
+    их число — по уровню графики; каждый кадр обновляются только живые."""
+
+    def __init__(self, n=None):
+        self.n = n or graphics.get("smoke")
         self.pool = []
-        for _ in range(n):
-            e = Entity(model="quad", texture=textures3d.glow(), billboard=True, enabled=False)
-            e.setTransparency(TransparencyAttrib.MAlpha)
-            e.setDepthWrite(False)
-            e.setBin("transparent", 30)
-            e.setLightOff()
-            self.pool.append([e, 0.0, Vec3(0, 0, 0), 0.0, (0, 0, 0)])
+        self.live = 0
         self.acc = 0.0
         self.i = 0
+
+    def destroy(self):
+        for p in self.pool:
+            destroy(p[0])
+        self.pool = []
+        self.live = 0
+
+    def _particle(self):
+        e = Entity(model="quad", texture=textures3d.glow(), billboard=True, enabled=False)
+        e.setTransparency(TransparencyAttrib.MAlpha)
+        e.setDepthWrite(False)
+        e.setBin("transparent", 30)
+        e.setLightOff()
+        return [e, 0.0, Vec3(0, 0, 0), 0.0, (0, 0, 0)]
 
     def emit(self, dt, rate, pos, col, dens, vel):
         self.acc += rate * dt
         while self.acc >= 1:
             self.acc -= 1
-            p = self.pool[self.i]
-            self.i = (self.i + 1) % len(self.pool)
+            if len(self.pool) < self.n:
+                self.pool.append(self._particle())
+            p = self.pool[self.i % len(self.pool)]
+            self.i = (self.i + 1) % self.n
             e = p[0]
+            if p[1] <= 0:
+                self.live += 1
             e.enabled = True
             e.position = Vec3(*pos)
             e.scale = 0.25
@@ -1165,13 +1184,16 @@ class Smoke:
             p[4] = col
 
     def update(self, dt):
+        if not self.live:
+            return
         for p in self.pool:
-            e = p[0]
-            if not e.enabled:
+            if p[1] <= 0:
                 continue
+            e = p[0]
             p[1] -= dt
             if p[1] <= 0:
                 e.enabled = False
+                self.live -= 1
                 continue
             e.position += p[2] * dt
             e.scale = 0.25 + (1.6 - p[1]) * 0.9

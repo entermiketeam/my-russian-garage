@@ -20,9 +20,14 @@ class Mirrors:
         self.ok = False
         self.views = {}
         self.active = None
+        import graphics
+        if not graphics.get("mirrors"):          # сверхнизкая графика: зеркала — просто тёмное стекло
+            return
+        k = graphics.get("mirror_res")
         try:
             for name, sp in SPEC.items():
-                buf = app.win.makeTextureBuffer("mirror_" + name, *sp["size"])
+                buf = app.win.makeTextureBuffer("mirror_" + name, max(32, int(sp["size"][0] * k)),
+                                                max(16, int(sp["size"][1] * k)))
                 if buf is None:
                     raise RuntimeError(T("нет внеэкранного буфера"))
                 buf.setSort(-25)

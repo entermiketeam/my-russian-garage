@@ -28,16 +28,21 @@ def _set_enabled_fast(self, value):
 
 _UEntity.enabled = property(_enabled_prop.fget, _set_enabled_fast)
 
+import engine_perf  # noqa: E402
+engine_perf.apply()                 # ускорение служебного кода Ursina (дети, destroy, цикл update, ширина текста)
+
+import graphics  # noqa: E402
 TITLE = "My Russian Garage"
-app = Ursina(title=TITLE, development_mode=False, fullscreen=False, size=(1280, 720), borderless=False, vsync=True)
-window.size = (1280, 720)
+_WIN = graphics.get("window_size")          # на сверхнизкой графике окно меньше — меньше работы видеокарте
+app = Ursina(title=TITLE, development_mode=False, fullscreen=False, size=_WIN, borderless=False, vsync=True)
+window.size = _WIN
 window.center_on_screen()
+engine_perf.tune_after_start()
 window.exit_button.visible = False
 window.fps_counter.enabled = False
 window.color = color.rgb(135, 170, 210)
-from config import ui_font_path  # noqa: E402
-if ui_font_path():
-    Text.default_font = ui_font_path()          # шрифт с кириллицей и знаком ₽
+import fonts  # noqa: E402
+fonts.install_ursina()          # Arial + запасной шрифт для ₽, ⚠, ✓ (Panda3D сам символы не подставляет)
 Text.default_resolution = 48
 
 from panda3d.core import DirectionalLight, AmbientLight, Fog, TransparencyAttrib, WindowProperties  # noqa: E402
@@ -47,7 +52,8 @@ from actions import ActionsMixin, Menu, Inventory, CarWork, CONTROLS, INTRO, Dia
 from items import item_name  # noqa: E402
 from world import BUILDINGS, ROADS, PUMP_ZONE, TUV_YARD, GARAGE, SCRAP_DROP, point_in  # noqa: E402
 from places import INTERIOR_X  # noqa: E402
-from config import VIEW_DIST, CAR_VIEW_DIST, SIM_DIST  # noqa: E402
+from config import VIEW_DIST, CAR_VIEW_DIST, CAR_PROXY_DIST, SIM_DIST  # noqa: E402
+from car_lod import ProxyCar3D  # noqa: E402
 import streaming  # noqa: E402
 import fasteners as fast  # noqa: E402
 import electrics as elec  # noqa: E402
@@ -164,7 +170,9 @@ class TitleMenu(Menu):
 
     def items(self):
         return [(T("Новая игра"), "new", True), (T("Продолжить"), "load", os.path.exists(SAVE_FILE)),
-                (language_button(), "lang", True), (T("Управление"), "help", True), (T("Выход"), "quit", True)]
+                (language_button(), "lang", True),
+                (T("Графика: {name}", name=graphics.names()[graphics.saved_level()]), "gfx", True),
+                (T("Управление"), "help", True), (T("Выход"), "quit", True)]
 
     def select(self, s):
         g = self.g
@@ -174,6 +182,9 @@ class TitleMenu(Menu):
             return g.load_game
         if s == "lang":
             g.open_menu(LanguageMenu(g))
+            return None
+        if s == "gfx":
+            g.open_menu(GraphicsMenu(g))
             return None
         if s == "help":
             show_controls(g)
@@ -218,6 +229,48 @@ class LanguageMenu(Menu):
         if code != i18n.current():
             self.g.set_language(code)
         return "close"
+
+
+class GraphicsMenu(Menu):
+    """Уровень графики. Модели и текстуры строятся при запуске, поэтому новый уровень — после перезапуска."""
+
+    def __init__(self, g):
+        self.g = g
+
+    @property
+    def title(self):
+        return T("Графика")
+
+    def lines(self):
+        names, desc = graphics.names(), graphics.descriptions()
+        out = [T("Физика, управление и ремонт на всех уровнях одинаковые — меняется только картинка."), ""]
+        out += [f"{names[l]} — {desc[l]}" for l in reversed(graphics.LEVELS)]
+        if graphics.saved_level() != graphics.LEVEL:
+            out += ["", T("Выбрано: {name} — применится после перезапуска.", name=names[graphics.saved_level()])]
+        return out
+
+    def items(self):
+        cur, names = graphics.saved_level(), graphics.names()
+        return [((names[l], "•" if l == cur else ""), l, True) for l in reversed(graphics.LEVELS)]
+
+    def start_index(self):
+        return list(reversed(graphics.LEVELS)).index(graphics.saved_level())
+
+    def select(self, lvl):
+        graphics.save_level(lvl)
+        if lvl == graphics.LEVEL:                 # уровень, с которым игра уже запущена, — перезапуск не нужен
+            return "close"
+        g = self.g
+        return lambda: g.open_menu(Dialog(T("Графика"), [
+            T("Уровень «{name}» сохранён.", name=graphics.names()[lvl]),
+            T("Модели и текстуры строятся при запуске игры — перезапустить её сейчас?")],
+            options=[(T("Перезапустить сейчас"), restart_game, True), (T("Позже"), lambda: None, True)]))
+
+
+def restart_game():
+    """Перезапуск процесса игры (тот же интерпретатор и аргументы) — для нового уровня графики."""
+    sys.stdout.flush()
+    os.execv(sys.executable, [sys.executable] + sys.argv)       # процесс заменяется новым — окно откроется заново
 
 
 def show_controls(g, page=0):
@@ -292,6 +345,7 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.winter3d = Winter3D(self.world, self.winter, self.city)
         self._under_vis = False
         self.car3ds = {}
+        self.car_proxies = {}          # дальние машины — простые силуэты (car_lod.py)
         self.rope3d = Rope3D()
         self.rope_action = None
         self.dismantle_action = None
@@ -343,7 +397,8 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
 
     @property
     def car3d(self):
-        self._sync_cars()
+        if self.cur not in self.car3ds:              # модель уже есть — не пересчитывать все машины (зовётся часто)
+            self._sync_cars()
         return self.car3ds[self.cur]
 
     def _sync_cars(self, budget=2):
@@ -376,6 +431,30 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         for k in want[:max(budget, sum(1 for k_ in want if k_ in keep))]:
             self.car3ds[k] = Car3D(self.cars[k])
             self.car3ds[k].root.enabled = True
+        if CAR_PROXY_DIST:
+            self._proxy_tick = getattr(self, "_proxy_tick", 0) + 1
+            if self._proxy_tick % 15 == 1 or budget > 2:     # дальние силуэты — 4 раза в секунду хватает
+                self._sync_proxies(dist)
+
+    def _sync_proxies(self, dist):
+        """Дальний план (уровни графики ниже «Высокого»): за подробной моделью — простой силуэт до тумана."""
+        px = self.car_proxies
+        for k in list(px):
+            c = self.cars.get(k)
+            if c is None or px[k].car is not c or k in self.car3ds or dist(c) > CAR_PROXY_DIST + 20:
+                destroy(px[k].root)
+                del px[k]
+        built = 0
+        for k, c in self.cars.items():
+            if k in self.car3ds:
+                continue
+            p = px.get(k)
+            if p is None:
+                if built < 6 and dist(c) < CAR_PROXY_DIST:
+                    px[k] = ProxyCar3D(c)
+                    built += 1
+            else:
+                p.update()
 
     # ------------------------------------------------------------------ окружение
     def _setup_env(self):
@@ -565,6 +644,9 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         for c3 in self.car3ds.values():
             destroy(c3.root)
         self.car3ds = {}
+        for p in self.car_proxies.values():
+            destroy(p.root)
+        self.car_proxies = {}
         self._sync_cars(budget=12)
         for ag in self.world.abandoned:
             self.city.set_garage_door(ag["id"], self.garages.get(ag["id"], {}).get("open", False))
@@ -611,6 +693,9 @@ class Game3D(UnderMixin, GameState, ActionsMixin):
         self.location = loc
         inside = loc == "apartment"
         self.apt.set_visible(inside)
+        # квартира (11×6 м) стоит вне карты: из неё основной камере город не нужен — улицу в окнах рисуют
+        # свои камеры (window_views). Короткая дальность отсекает весь город ещё до отрисовки.
+        camera.clip_plane_far = 30 if inside else VIEW_DIST + 60
         under = self.p.x >= INTERIOR_X
         self._under_vis = under
         # из квартиры улицу видно в окна — мир остаётся на месте (основная камера до него не достаёт)

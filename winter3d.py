@@ -12,6 +12,8 @@ from ursina import Entity, Mesh, Texture
 from panda3d.core import TransparencyAttrib
 
 from streaming import mesh_group
+import graphics
+from config import VIEW_DIST
 from mesh3d import MeshBuilder
 from world import ROADS, MAP_W, MAP_H, BUILDINGS, GARAGE, PUMP_ZONE, TUV_YARD, AUTOHAUS_LOT, JUNKYARD, SCRAP_DROP, \
     PARKING2, SERVICE_LOT
@@ -104,7 +106,11 @@ class Winter3D:
         img[..., 1] = np.clip(240 * v, 0, 255)
         img[..., 2] = np.clip(247 * v, 0, 255)
         img[..., 3] = (a * 255).astype(np.uint8)
-        tex = Texture(Image.fromarray(img, "RGBA"))
+        im = Image.fromarray(img, "RGBA")
+        k = graphics.get("tex_scale")
+        if k < 1:                                  # на низкой графике — карта снега меньше (памяти и видеокарте легче)
+            im = im.resize((max(64, int(W * k)), max(64, int(H * k))), Image.BILINEAR)
+        tex = Texture(im)
         tex.filtering = "mipmap"
         mb = MeshBuilder()
         mb.poly([(0, SNOW_Y, 0), (MAP_W, SNOW_Y, 0), (MAP_W, SNOW_Y, -MAP_H), (0, SNOW_Y, -MAP_H)], (255, 255, 255),
@@ -141,7 +147,7 @@ class Winter3D:
 
     def build_banks(self, rng):
         mb = MeshBuilder()
-        step = 1.8
+        step = graphics.get("snow_step")          # на «Высоком» 1.8 м; реже — меньше граней
         for r in ROADS:
             x, y, w, h, kind = r[:5]
             horiz = w > h
@@ -190,6 +196,7 @@ class Winter3D:
         mb = MeshBuilder()
         rects = [(hh[:4], hh[6]) for hh in self.world.houses] + [(b[:4], b[7]) for b in BUILDINGS.values()]
         rects += [(ag["rect"], ag["door_pt"]) for ag in self.world.abandoned]
+        dstep = graphics.get("snow_step") / 1.8      # шаг сугробов у стен: 1 м на «Высоком»
         for (x, y, w, h), door in rects:
             for face in ("n", "s", "w", "e"):
                 if rng.random() < 0.25:      # с тёплой стороны почти растаяло
@@ -197,11 +204,11 @@ class Winter3D:
                 if face in ("n", "s"):
                     fy = y - 0.05 if face == "n" else y + h + 0.05
                     ny = -1.0 if face == "n" else 1.0
-                    pts_ = [(x + t, fy, 0.0, ny) for t in np.arange(0.0, w + 0.01, 1.0)]
+                    pts_ = [(x + t, fy, 0.0, ny) for t in np.arange(0.0, w + 0.01, dstep)]
                 else:
                     fx = x - 0.05 if face == "w" else x + w + 0.05
                     nx = -1.0 if face == "w" else 1.0
-                    pts_ = [(fx, y + t, nx, 0.0) for t in np.arange(0.0, h + 0.01, 1.0)]
+                    pts_ = [(fx, y + t, nx, 0.0) for t in np.arange(0.0, h + 0.01, dstep)]
                 run = []
                 seed = rng.random() * 10
                 for i, (px, py, nx_, ny_) in enumerate(pts_):
@@ -333,6 +340,8 @@ class Winter3D:
 
     # -------------------------------------------------------------- деревья
     def build_trees(self, rng):
+        if not graphics.get("snow_extras"):       # на низкой графике снега на ветках нет (его почти не видно)
+            return
         mb = MeshBuilder()
         for tx, ty, r, k in self.world.trees:
             if k == 2:      # ель: белые «юбки» на ярусах
@@ -422,8 +431,9 @@ class Winter3D:
         if not self.visible:
             return
         near = set()
-        gx0, gx1 = int((px - 90) // 20), int((px + 90) // 20)
-        gy0, gy1 = int((py - 90) // 20), int((py + 90) // 20)
+        R = min(90, VIEW_DIST * 0.35)                # колеи в слякоти — рядом с игроком (на «Высоком» 90 м)
+        gx0, gx1 = int((px - R) // 20), int((px + R) // 20)
+        gy0, gy1 = int((py - R) // 20), int((py + R) // 20)
         for gx in range(gx0, gx1 + 1):
             for gy in range(gy0, gy1 + 1):
                 near.update(slush.grid.get((gx, gy), ()))

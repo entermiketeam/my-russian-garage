@@ -11,6 +11,7 @@ from world import (ROADS, BUILDINGS, GARAGE, GARAGE_WALLS, PUMP_ZONE, PUMPS, TUV
                    MAP_W, MAP_H, AUTOHAUS_LOT, PARKING2, JUNKYARD, JUNK_LANE, JUNK_FENCES, JUNK_PILES,
                    SCRAP_DROP)
 import textures3d
+import graphics
 import i18n
 from i18n import T
 
@@ -521,7 +522,7 @@ class City:
         self.windows_night.enabled = night
         self.windows_day.enabled = not night
         self.bulbs.enabled = night
-        self.glow.enabled = night
+        self.glow.enabled = night and graphics.get("glow")       # ореолы фонарей (на сверхнизкой — нет)
 
 
 def Mesh_with_uvs(mb):

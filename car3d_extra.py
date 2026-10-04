@@ -523,7 +523,7 @@ class Extras:
             f = add("bodykit", Entity(parent=self.body, model="cube", color=color.rgb(240, 235, 200),
                                       position=(sx, sill + 0.08, Z(L) + 0.115), scale=(0.1, 0.07, 0.02)))
         for sx in (-0.18, 0.18):
-            add("bodykit", Entity(parent=self.body, model="sphere", color=color.rgb(235, 235, 220),
+            add("bodykit", Entity(parent=self.body, model="mrg_sphere", color=color.rgb(235, 235, 220),
                                   position=(sx, g["nose"] - 0.04, Z(L) + 0.02), scale=0.09))
         for sg in (-1, 1):
             add("bodykit", Entity(parent=self.body, model="cube", color=blk, position=(sg * (W2 + 0.02), belt - 0.18, Z(1.35)),
@@ -562,7 +562,7 @@ class Extras:
         # салон: Hurst и приборы Stewart-Warner
         info = getattr(self, "_interior", {})
         if info:
-            add("toploader", Entity(parent=self.body, model="sphere", color=color.rgb(245, 245, 240),
+            add("toploader", Entity(parent=self.body, model="mrg_sphere", color=color.rgb(245, 245, 240),
                                     position=(0, info["floor_y"] + 0.5, info["dash_z"] - 0.5), scale=0.05))
             for k in range(3):
                 add("interior", Entity(parent=self.body, model=_gauge_mesh(), color=color.rgb(20, 20, 20),

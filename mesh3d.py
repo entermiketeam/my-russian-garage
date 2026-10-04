@@ -7,6 +7,8 @@ import math
 
 from ursina import Mesh
 
+import graphics          # число сегментов круглых форм — по уровню графики
+
 
 def w3(x, y, h=0.0):
     """2D-точка мира -> 3D."""
@@ -110,6 +112,7 @@ class MeshBuilder:
 
     def cylinder(self, cx, cy, cz, r, h, color, seg=8, cap=True):
         """Вертикальный цилиндр (ствол, столб)."""
+        seg = graphics.seg(seg, 5)
         pts = [(cx + math.cos(2 * math.pi * i / seg) * r, cz + math.sin(2 * math.pi * i / seg) * r) for i in range(seg)]
         for i in range(seg):
             a, b = pts[i], pts[(i + 1) % seg]
@@ -119,6 +122,7 @@ class MeshBuilder:
             self.poly([(p[0], cy + h, p[1]) for p in pts], color, (0, 1, 0))
 
     def cone(self, cx, cy, cz, r, h, color, seg=7):
+        seg = graphics.seg(seg, 5)
         pts = [(cx + math.cos(2 * math.pi * i / seg) * r, cz + math.sin(2 * math.pi * i / seg) * r) for i in range(seg)]
         tip = (cx, cy + h, cz)
         for i in range(seg):
@@ -205,3 +209,35 @@ def textured_copy(mesh, scale=0.08):
     m = Mesh(vertices=v, triangles=t, colors=c, normals=n, uvs=uv)
     m._src = (v, c, n, uv, polys)
     return m
+
+
+# ====================================================================== лёгкие сферы
+# Встроенная сфера Ursina — 2880 вершин. Ею были сделаны крошечные детали: лампы светофоров (12 на перекрёсток),
+# фары, зонты пешеходов, плафон в квартире — сотни тысяч вершин, которых на экране не видно.
+# Здесь — UV-сфера на 50–200 вершин, зарегистрированная как модель Ursina: model="mrg_sphere" / "mrg_sphere_lo".
+def _sphere_mesh(seg, rings):
+    verts, norms, uvs, tris = [], [], [], []
+    for i in range(rings + 1):
+        th = math.pi * i / rings
+        for j in range(seg + 1):
+            ph = 2 * math.pi * j / seg
+            n = (math.sin(th) * math.cos(ph), math.cos(th), math.sin(th) * math.sin(ph))
+            verts.append((n[0] * 0.5, n[1] * 0.5, n[2] * 0.5))
+            norms.append(n)
+            uvs.append((j / seg, 1 - i / rings))
+    for i in range(rings):
+        for j in range(seg):
+            a = i * (seg + 1) + j
+            b = a + seg + 1
+            tris += [a, b, a + 1, a + 1, b, b + 1]          # обход как у сфер Ursina (иначе отсекутся грани)
+    return Mesh(vertices=verts, triangles=tris, normals=norms, uvs=uvs)
+
+
+def register_spheres():
+    from ursina.mesh_importer import imported_meshes
+    if "mrg_sphere" not in imported_meshes:
+        imported_meshes["mrg_sphere"] = _sphere_mesh(graphics.seg(16, 10), graphics.seg(10, 6))
+        imported_meshes["mrg_sphere_lo"] = _sphere_mesh(8, 5)
+
+
+register_spheres()

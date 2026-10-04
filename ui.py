@@ -1,11 +1,36 @@
 """Простые элементы интерфейса: текст, панели, полоски, меню, уведомления."""
 import pygame
 from config import font, WHITE, GREY, YELLOW, PANEL, RED, GREEN, ORANGE, WIDTH, HEIGHT
+import fonts
+
+_fb_fonts = {}
+
+
+def render(s, size, color, bold=False):
+    """Строка в картинку; символы, которых нет в основном шрифте (₽, ⚠...), — запасным шрифтом."""
+    parts = fonts.runs(s)
+    if len(parts) == 1 and parts[0][1] is None:
+        return font(size, bold).render(s, True, color)
+    imgs = []
+    for txt, fp in parts:
+        if fp is None:
+            f = font(size, bold)
+        else:
+            f = _fb_fonts.get((fp, size))
+            if f is None:
+                f = _fb_fonts[(fp, size)] = pygame.font.Font(fp, size)
+        imgs.append(f.render(txt, True, color))
+    w, h = sum(i.get_width() for i in imgs), max(i.get_height() for i in imgs)
+    out = pygame.Surface((w, h), pygame.SRCALPHA)
+    x = 0
+    for i in imgs:
+        out.blit(i, (x, (h - i.get_height()) // 2))
+        x += i.get_width()
+    return out
 
 
 def text(surf, s, pos, size=18, color=WHITE, bold=False, center=False, right=False, shadow=True):
-    f = font(size, bold)
-    img = f.render(str(s), True, color)
+    img = render(str(s), size, color, bold)
     r = img.get_rect()
     if center:
         r.center = pos
@@ -14,7 +39,7 @@ def text(surf, s, pos, size=18, color=WHITE, bold=False, center=False, right=Fal
     else:
         r.topleft = pos
     if shadow:
-        sh = f.render(str(s), True, (0, 0, 0))
+        sh = render(str(s), size, (0, 0, 0), bold)
         surf.blit(sh, (r.x + 1, r.y + 1))
     surf.blit(img, r)
     return r

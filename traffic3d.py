@@ -14,9 +14,11 @@ from car3d import Car3D, AICar3D
 from config import VIEW_DIST, CAR_VIEW_DIST
 from i18n import T
 
-NEAR = 95.0                # полная модель ближе 95 м (дальше детали не различить — лёгкая)
-FAR = VIEW_DIST * 1.3
-PED_DIST = 110.0
+import graphics  # noqa: E402
+
+NEAR = graphics.get("traffic_near")        # полная модель ближе этого (на «Высоком» 95 м), дальше — лёгкая
+FAR = VIEW_DIST * graphics.get("traffic_far_k")
+PED_DIST = graphics.get("ped_dist")
 
 
 def _glow(e):
@@ -52,6 +54,8 @@ class TrafficView:
 
     def prebuild(self, n=1):
         """Заранее собрать модели машин трафика (на титульном экране) — чтобы в игре не было рывков."""
+        if NEAR <= 0:                          # сверхнизкая графика: у трафика только лёгкие модели
+            return True
         done = 0
         for d in self.tr.drivers:
             if id(d) not in self.near:
@@ -137,7 +141,7 @@ class LightsView:
                 Entity(parent=head, model="cube", color=color.rgb(25, 25, 28), scale=(0.34, 0.95, 0.22))
                 lamps = {}
                 for i, st in enumerate(("red", "yellow", "green")):
-                    lamps[st] = _glow(Entity(parent=head, model="sphere", position=(0, 0.3 - i * 0.3, 0.12),
+                    lamps[st] = _glow(Entity(parent=head, model="mrg_sphere_lo", position=(0, 0.3 - i * 0.3, 0.12),
                                              scale=(0.2, 0.2, 0.06), color=color.rgb(*self.COLS[st][1])))
                 # пешеходный сигнал — на том же столбе, смотрит поперёк
                 ped = Entity(parent=root, position=(0, 2.1, 0), rotation_y=head.rotation_y + 90)
@@ -197,7 +201,7 @@ class Ped3D:
             self.arms.append(sh)
         self.umbrella = Entity(parent=self.arms[1], position=(0, -0.62, 0))
         Entity(parent=self.umbrella, model="cube", color=color.rgb(40, 40, 40), position=(0, 0.45, 0), scale=(0.02, 0.9, 0.02))
-        top = Entity(parent=self.umbrella, model="sphere", position=(0, 0.95, 0), scale=(0.95, 0.25, 0.95),
+        top = Entity(parent=self.umbrella, model="mrg_sphere", position=(0, 0.95, 0), scale=(0.95, 0.25, 0.95),
                      color=color.rgb(*((30, 30, 60) if p.i % 3 else (150, 30, 30))))
         self.umbrella.enabled = False
         self._umb = p.i % 3 != 2

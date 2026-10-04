@@ -6,6 +6,7 @@ import random
 
 from ursina import Entity, Text, camera, color, window, Vec3, destroy
 
+import graphics
 from car import GEAR_NAMES, TANK
 from world import BUILDINGS, ROADS, MAP_W, MAP_H
 from i18n import T
@@ -119,7 +120,8 @@ class HUD:
         self.fade_a = 0.0
         # дождь на экране
         self.rain = [Entity(parent=UI, model="quad", scale=(0.0015, 0.045), color=color.rgba(190, 200, 225, 110),
-                            position=(random.uniform(LEFT, RIGHT), random.uniform(-0.5, 0.5), -0.1)) for _ in range(140)]
+                            position=(random.uniform(LEFT, RIGHT), random.uniform(-0.5, 0.5), -0.1))
+                     for _ in range(graphics.get("precip"))]            # число капель — по уровню графики
         self._cache = {}
         # что в руках (левая / правая) — внизу по краям экрана
         self.hand_t = [label("", LEFT + 0.02, -0.455, 0.8, (235, 225, 190), parent=r, z=-0.02),
@@ -178,6 +180,7 @@ class HUD:
         if precip != getattr(self, "_precip", None):
             self._precip = precip
             for i, d in enumerate(self.rain):
+                d.enabled = precip is not None          # включать/выключать — только при смене погоды
                 if precip == "snow":
                     sz = random.uniform(0.003, 0.0075)
                     d.scale = (sz, sz)
@@ -185,20 +188,23 @@ class HUD:
                 else:
                     d.scale = (0.0018, 0.032)
                     d.color = color.rgba(200, 208, 225, 120)
-        spd = state.get("speed", 0.0)
-        for i, d in enumerate(self.rain):
-            d.enabled = precip is not None
-            if precip is None:
-                continue
-            if precip == "snow":
-                d.y -= dt * (0.16 + (i % 7) * 0.025 + spd * 0.01)
-                d.x += dt * (math.sin(i * 1.7 + d.y * 9) * 0.03 - 0.015)
-            else:
-                d.y -= dt * (1.1 + spd * 0.02)
-                d.x -= dt * 0.12
-            if d.y < -0.55:
-                d.y = 0.55
-                d.x = random.uniform(LEFT, RIGHT)
+        if precip is not None:
+            spd = state.get("speed", 0.0)
+            # капли двигаются напрямую через Panda3D (setX/setY) — без медленного __setattr__ Ursina на каждую
+            snow = precip == "snow"
+            for i, d in enumerate(self.rain):
+                y, x = d.getY(), d.getX()
+                if snow:
+                    y -= dt * (0.16 + (i % 7) * 0.025 + spd * 0.01)
+                    x += dt * (math.sin(i * 1.7 + y * 9) * 0.03 - 0.015)
+                else:
+                    y -= dt * (1.1 + spd * 0.02)
+                    x -= dt * 0.12
+                if y < -0.55:
+                    y = 0.55
+                    x = random.uniform(LEFT, RIGHT)
+                d.setX(x)
+                d.setY(y)
         if not visible:
             return
         self._set("time", self.time_t, g.time_str())
