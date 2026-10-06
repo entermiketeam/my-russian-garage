@@ -1,5 +1,9 @@
 # My Russian Garage
 
+[![Мини-презентация игры](https://img.youtube.com/vi/YBPcXICAPzY/maxresdefault.jpg)](https://youtu.be/YBPcXICAPzY?t=122)
+
+▶️ [Смотреть видео-презентацию на YouTube](https://youtu.be/YBPcXICAPzY?t=122)
+
 Аналог *My Winter Car* на Python. Октябрь 1998 года, городок Кляйнбрук в Нижней Саксонии.
 У вас есть однокомнатная квартира и ржавая ВАЗ 2102 1979 года, которая шесть лет простояла в гараже.
 
